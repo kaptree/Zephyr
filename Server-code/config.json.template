@@ -1,0 +1,131 @@
+{
+  "_说明": "================================================================",
+  "_说明2": "  资警数智·轻燕 服务端配置模板文件",
+  "_说明3": "  使用方式：复制本文件为 config.json，填入实际配置值",
+  "_说明4": "  敏感信息（密码、密钥）请勿提交到版本控制系统",
+  "_说明5": "  支持环境变量覆盖：环境变量名 = LABELPRO_ + 路径",
+  "_说明6": "  示例：环境变量 LABELPRO_SERVER_PORT=9090 可覆盖 server.port",
+  "_说明7": "================================================================",
+
+  "server": {
+    "_模块": "HTTP服务器配置",
+    "port": "<整数，服务监听端口，默认8080>",
+    "host": "<监听地址，开发环境0.0.0.0，生产环境建议指定IP>",
+    "mode": "<debug | release | test，生产环境必须使用release>",
+    "read_timeout_seconds": "<请求读取超时秒数，建议30>",
+    "write_timeout_seconds": "<响应写入超时秒数，建议30>",
+    "max_request_body_mb": "<请求体最大大小(MB)，建议10>"
+  },
+
+  "database": {
+    "_模块": "PostgreSQL 数据库配置",
+    "host": "<数据库主机地址>",
+    "port": "<数据库端口，默认5432>",
+    "user": "<数据库用户名>",
+    "password": "<数据库密码，生产环境建议通过环境变量设置>",
+    "dbname": "<数据库名称>",
+    "sslmink": "<disable | require | verify-ca | verify-full>",
+    "max_open_conns": "<最大连接数，建议50>",
+    "max_idle_conns": "<最大空闲连接数，建议10>",
+    "conn_max_lifetime_seconds": "<连接最大存活秒数，建议3600>",
+    "log_level": "<silent | error | warn | info>"
+  },
+
+  "redis": {
+    "_模块": "Redis 缓存配置",
+    "host": "<Redis主机地址>",
+    "port": "<Redis端口，默认6379>",
+    "password": "<Redis密码，无密码留空字符串>",
+    "db": "<Redis数据库编号，默认0>",
+    "pool_size": "<连接池大小，建议20>",
+    "min_idle_conns": "<最小空闲连接数，建议5>",
+    "dial_timeout_seconds": "<连接超时秒数，建议5>",
+    "read_timeout_seconds": "<读取超时秒数，建议3>",
+    "write_timeout_seconds": "<写入超时秒数，建议3>"
+  },
+
+  "jwt": {
+    "_模块": "JWT认证配置",
+    "_密钥生成": "ssh-keygen -t rsa -b 2048 -m PEM -f private.pem 或 openssl genrsa -out private.pem 2048 && openssl rsa -in private.pem -pubout -out public.pem",
+    "private_key_path": "<RSA私钥文件路径，如 ./keys/private.pem>",
+    "public_key_path": "<RSA公钥文件路径，如 ./keys/public.pem>",
+    "access_token_expire_seconds": "<Access Token过期秒数，建议7200（2小时）>",
+    "refresh_token_expire_seconds": "<Refresh Token过期秒数，建议604800（7天）>",
+    "issuer": "<令牌签发者标识，如 labelpro-server>"
+  },
+
+  "log": {
+    "_模块": "日志配置",
+    "level": "<debug | info | warn | error，生产环境建议info>",
+    "format": "<json | console，生产环境建议json>",
+    "output_dir": "<日志输出目录，如 ./logs>",
+    "max_size_mb": "<单个日志文件最大MB数，建议100>",
+    "max_backups": "<保留的旧日志文件最大数量，建议30>",
+    "max_age_days": "<旧日志文件保留天数，建议30>",
+    "compress": "<true | false，是否压缩旧日志>",
+    "enable_console": "<true | false，开发环境建议true>"
+  },
+
+  "storage": {
+    "_模块": "文件存储配置",
+    "type": "<local | minio，存储类型>",
+    "local_path": "<本地存储路径，如 ./uploads>",
+    "max_file_size_mb": "<上传文件大小上限(MB)，建议10>",
+    "allowed_extensions": "<允许的文件扩展名数组，如 [\"doc\",\"pdf\",\"png\"]>",
+    "allowed_mime_types": "<允许的MIME类型数组>",
+    "minio": {
+      "_说明": "MinIO对象存储配置（type=minio时生效）",
+      "endpoint": "<MinIO服务地址，如 127.0.0.1:9000>",
+      "access_key": "<MinIO Access Key>",
+      "secret_key": "<MinIO Secret Key>",
+      "bucket": "<存储桶名称>",
+      "use_ssl": "<true | false>"
+    }
+  },
+
+  "websocket": {
+    "_模块": "WebSocket实时通信配置",
+    "enabled": "<true | false，是否启用WebSocket>",
+    "heartbeat_interval_seconds": "<心跳间隔秒数，建议30>",
+    "max_connections_per_user": "<单用户最大连接数，建议5>",
+    "canvas_sync_throttle_ms": "<画布同步节流毫秒数，建议100>"
+  },
+
+  "rate_limit": {
+    "_模块": "接口限流配置",
+    "enabled": "<true | false，是否启用限流>",
+    "login_per_minute": "<登录接口每分钟限制次数，建议5>",
+    "api_per_minute": "<普通API每分钟限制次数，建议100>",
+    "ban_duration_seconds": "<触发限流后封禁秒数，建议900（15分钟）>"
+  },
+
+  "security": {
+    "_模块": "安全配置",
+    "bcrypt_cost": "<bcrypt加密强度(4-31)，建议12>",
+    "password_min_length": "<密码最小长度，建议8>",
+    "password_require_upper": "<true | false，是否要求大写字母>",
+    "password_require_lower": "<true | false，是否要求小写字母>",
+    "password_require_digit": "<true | false，是否要求数字>",
+    "password_require_special": "<true | false，是否要求特殊字符>",
+    "max_login_attempts": "<最大登录失败次数，建议5>",
+    "login_lockout_minutes": "<登录锁定分钟数，建议15>",
+    "cors_allowed_origins": "<允许的跨域来源数组，如 [\"http://localhost:5173\"]>",
+    "enable_csrf": "<true | false，是否启用CSRF保护>"
+  },
+
+  "scheduler": {
+    "_模块": "定时任务配置",
+    "auto_remind_enabled": "<true | false，是否启用自动盯办提醒>",
+    "auto_remind_interval_minutes": "<自动盯办扫描间隔分钟数，建议10>",
+    "auto_archive_enabled": "<true | false，是否启用到期自动归档>",
+    "export_task_timeout_seconds": "<导出任务超时秒数，建议300>"
+  },
+
+  "features": {
+    "_模块": "功能开关",
+    "sms_notification": "<true | false，短信通知>",
+    "dingtalk_notification": "<true | false，钉钉通知>",
+    "wechat_work_notification": "<true | false，企业微信通知>",
+    "demo_mode": "<true | false，演示模式>"
+  }
+}

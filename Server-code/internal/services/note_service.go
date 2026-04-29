@@ -1,0 +1,316 @@
+package services
+
+import (
+	"time"
+
+	"labelpro-server/internal/models"
+	"labelpro-server/internal/repository"
+	apperrors "labelpro-server/pkg/errors"
+
+	"github.com/google/uuid"
+)
+
+type NoteService struct {
+	noteRepo *repository.NoteRepository
+}
+
+func NewNoteService(noteRepo *repository.NoteRepository) *NoteService {
+	return &NoteService{noteRepo: noteRepo}
+}
+
+type CreateNoteRequest struct {
+	Title        string               `json:"title" binding:"required"`
+	Content      string               `json:"content"`
+	TagIDs       []string             `json:"tags"`
+	SourceType   string               `json:"source_type"`
+	TemplateType string               `json:"template_type"`
+	OwnerID      string               `json:"owner_id"`
+	DueTime      *time.Time           `json:"due_time"`
+	Assignees    []AssigneeRequest    `json:"assignees"`
+	GroupConfig  *GroupConfigRequest  `json:"group_config"`
+	CanvasConfig *CanvasConfigRequest `json:"canvas_config"`
+}
+
+type AssigneeRequest struct {
+	UserID     string `json:"user_id"`
+	RoleInNote string `json:"role_in_note"`
+}
+
+type GroupConfigRequest struct {
+	GroupName string            `json:"group_name"`
+	SubGroups []SubGroupRequest `json:"sub_groups"`
+}
+
+type SubGroupRequest struct {
+	Name      string   `json:"name"`
+	LeaderID  string   `json:"leader_id"`
+	MemberIDs []string `json:"member_ids"`
+}
+
+type CanvasConfigRequest struct {
+	Columns     int      `json:"columns"`
+	ColumnUsers []string `json:"column_users"`
+}
+
+type UpdateNoteRequest struct {
+	Title       *string    `json:"title"`
+	Content     *string    `json:"content"`
+	TagIDs      []string   `json:"tags"`
+	DueTime     *time.Time `json:"due_time"`
+	ColorStatus *string    `json:"color_status"`
+	OwnerID     *string    `json:"owner_id"`
+}
+
+type CompleteNoteRequest struct {
+	FeedbackContent string              `json:"feedback_content"`
+	Attachments     []AttachmentRequest `json:"attachments"`
+}
+
+type AttachmentRequest struct {
+	FileName string `json:"file_name"`
+	FilePath string `json:"file_path"`
+}
+
+type RemindRequest struct {
+	TargetID   string `json:"target_id" binding:"required"`
+	Message    string `json:"message"`
+	RemindType string `json:"remind_type"`
+}
+
+func (s *NoteService) Create(userID, role, deptID string, req CreateNoteRequest) (*models.Note, error) {
+	creatorID, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	sourceType := req.SourceType
+	if sourceType == "" {
+		sourceType = "self"
+	}
+
+	if role == "member" && sourceType == "assigned" {
+		return nil, apperrors.ErrPermissionDenied
+	}
+
+	ownerID := creatorID
+	if req.OwnerID != "" {
+		oid, err := uuid.Parse(req.OwnerID)
+		if err != nil {
+			return nil, err
+		}
+		ownerID = oid
+	}
+
+	var deptUUID *uuid.UUID
+	if deptID != "" {
+		d, _ := uuid.Parse(deptID)
+		deptUUID = &d
+	}
+
+	now := time.Now()
+	note := &models.Note{
+		Title:        req.Title,
+		Content:      req.Content,
+		ColorStatus:  "yellow",
+		SourceType:   sourceType,
+		TemplateType: req.TemplateType,
+		CreatorID:    creatorID,
+		OwnerID:      ownerID,
+		DepartmentID: deptUUID,
+		DueTime:      req.DueTime,
+	}
+
+	if note.TemplateType == "" {
+		note.TemplateType = "default"
+	}
+
+	if len(req.TagIDs) > 0 {
+		for _, tid := range req.TagIDs {
+			id, err := uuid.Parse(tid)
+			if err != nil {
+				continue
+			}
+			note.Tags = append(note.Tags, models.Tag{ID: id})
+		}
+	}
+
+	note.Assignees = append(note.Assignees, models.NoteAssignee{
+		UserID:     creatorID,
+		RoleInNote: "initiator",
+	})
+
+	for _, a := range req.Assignees {
+		uid, err := uuid.Parse(a.UserID)
+		if err != nil {
+			continue
+		}
+		roleInNote := a.RoleInNote
+		if roleInNote == "" {
+			roleInNote = "member"
+		}
+		note.Assignees = append(note.Assignees, models.NoteAssignee{
+			UserID:     uid,
+			RoleInNote: roleInNote,
+		})
+	}
+
+	year := now.Year()
+	seq, _ := s.noteRepo.GetNextSerialNumber(year)
+	note.SerialNo = repository.GenerateSerialNo(year, seq)
+
+	if err := s.noteRepo.Create(note); err != nil {
+		return nil, err
+	}
+
+	_ = s.recordLedger(note.ID.String(), userID, "create", "便签创建", "", "")
+
+	return s.noteRepo.FindByID(note.ID.String())
+}
+
+func (s *NoteService) GetByID(id string) (*models.Note, error) {
+	note, err := s.noteRepo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if note == nil {
+		return nil, apperrors.ErrNoteNotFound
+	}
+	return note, nil
+}
+
+func (s *NoteService) List(filter repository.NoteFilter, scope repository.NoteScope) ([]models.Note, int64, error) {
+	return s.noteRepo.List(filter, scope)
+}
+
+func (s *NoteService) Update(id, userID string, req UpdateNoteRequest) (*models.Note, error) {
+	note, err := s.noteRepo.FindByID(id)
+	if err != nil || note == nil {
+		return nil, apperrors.ErrNoteNotFound
+	}
+
+	if req.Title != nil {
+		note.Title = *req.Title
+	}
+	if req.Content != nil {
+		note.Content = *req.Content
+	}
+	if req.DueTime != nil {
+		note.DueTime = req.DueTime
+	}
+	if req.ColorStatus != nil {
+		note.ColorStatus = *req.ColorStatus
+	}
+	if req.OwnerID != nil {
+		oid, err := uuid.Parse(*req.OwnerID)
+		if err == nil {
+			note.OwnerID = oid
+		}
+	}
+
+	if len(req.TagIDs) > 0 {
+		note.Tags = nil
+		for _, tid := range req.TagIDs {
+			id, err := uuid.Parse(tid)
+			if err != nil {
+				continue
+			}
+			note.Tags = append(note.Tags, models.Tag{ID: id})
+		}
+	}
+
+	if err := s.noteRepo.Update(note); err != nil {
+		return nil, err
+	}
+
+	_ = s.recordLedger(id, userID, "update", "便签更新", "", "")
+
+	return s.noteRepo.FindByID(id)
+}
+
+func (s *NoteService) Complete(id, userID string, req CompleteNoteRequest) (*models.Note, error) {
+	note, err := s.noteRepo.FindByID(id)
+	if err != nil || note == nil {
+		return nil, apperrors.ErrNoteNotFound
+	}
+
+	now := time.Now()
+	note.ColorStatus = "green"
+	note.IsArchived = true
+	note.ArchiveTime = &now
+	note.CompletedAt = &now
+
+	if err := s.noteRepo.Update(note); err != nil {
+		return nil, err
+	}
+
+	_ = s.recordLedger(id, userID, "complete", "便签办结归档", req.FeedbackContent, "")
+
+	return s.noteRepo.FindByID(id)
+}
+
+func (s *NoteService) Remind(id, userID string, req RemindRequest) (*models.Note, error) {
+	note, err := s.noteRepo.FindByID(id)
+	if err != nil || note == nil {
+		return nil, apperrors.ErrNoteNotFound
+	}
+
+	reminderID, _ := uuid.Parse(userID)
+	targetID, _ := uuid.Parse(req.TargetID)
+
+	remindType := req.RemindType
+	if remindType == "" {
+		remindType = "normal"
+	}
+
+	now := time.Now()
+	note.ColorStatus = "red"
+	note.RemindCount++
+	note.LastRemindAt = &now
+
+	reminder := &models.Reminder{
+		NoteID:     note.ID,
+		ReminderID: reminderID,
+		TargetID:   targetID,
+		Message:    req.Message,
+		RemindType: remindType,
+	}
+
+	if err := s.noteRepo.Update(note); err != nil {
+		return nil, err
+	}
+
+	_ = s.noteRepo.CreateReminder(reminder)
+	_ = s.recordLedger(id, userID, "remind", "盯办提醒", req.Message, "")
+
+	return s.noteRepo.FindByID(id)
+}
+
+func (s *NoteService) Delete(id string, hardDelete bool) error {
+	if hardDelete {
+		return s.noteRepo.HardDelete(id)
+	}
+	return s.noteRepo.SoftDelete(id)
+}
+
+func (s *NoteService) Restore(id, userID string) (*models.Note, error) {
+	if err := s.noteRepo.Restore(id); err != nil {
+		return nil, err
+	}
+	_ = s.recordLedger(id, userID, "update", "便签恢复", "", "")
+	return s.noteRepo.FindByID(id)
+}
+
+func (s *NoteService) recordLedger(noteID, userID, action, detail, ip, ua string) error {
+	nid, _ := uuid.Parse(noteID)
+	uid, _ := uuid.Parse(userID)
+
+	entry := &models.LedgerEntry{
+		NoteID:       nid,
+		UserID:       uid,
+		Action:       action,
+		ActionDetail: detail,
+		IPAddress:    ip,
+		UserAgent:    ua,
+	}
+	return s.noteRepo.CreateLedger(entry)
+}

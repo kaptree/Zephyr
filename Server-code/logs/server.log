@@ -1,0 +1,3 @@
+{"level":"info","timestamp":"2026-04-29T09:10:42.189+0800","caller":"Server-code/main.go:47","message":"Starting LabelPro Server...","version":"1.0.0","mode":"debug","demo_mode":true}
+{"level":"info","timestamp":"2026-04-29T09:10:42.203+0800","caller":"Server-code/main.go:134","message":"Demo mode: using SQLite in-memory database"}
+{"level":"fatal","timestamp":"2026-04-29T09:10:42.205+0800","caller":"Server-code/main.go:84","message":"Failed to auto migrate database","error":"near \"(\": syntax error"}
