@@ -2,6 +2,7 @@ package repository
 
 import (
 	"labelpro-server/internal/models"
+	"sort"
 
 	"gorm.io/gorm"
 )
@@ -23,12 +24,31 @@ func (r *TagRepository) FindAll(scope string) ([]models.Tag, error) {
 	if err := query.Find(&tags).Error; err != nil {
 		return nil, err
 	}
+
+	var result []models.Tag
 	for i := range tags {
 		var count int64
 		r.db.Table("note_tags").Where("tag_id = ?", tags[i].ID).Count(&count)
 		tags[i].UsageCount = count
+		if count > 0 {
+			result = append(result, tags[i])
+		}
 	}
-	return tags, nil
+
+	for i := range tags {
+		if tags[i].UsageCount == 0 {
+			r.db.Delete(&models.Tag{}, "id = ?", tags[i].ID)
+		}
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].UsageCount != result[j].UsageCount {
+			return result[i].UsageCount > result[j].UsageCount
+		}
+		return result[i].Name < result[j].Name
+	})
+
+	return result, nil
 }
 
 func (r *TagRepository) FindByID(id string) (*models.Tag, error) {

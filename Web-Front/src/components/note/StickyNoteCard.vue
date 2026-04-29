@@ -14,33 +14,22 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   click: [note: Note]
   'context-menu': [event: MouseEvent, note: Note]
-  'drag-start': [event: DragEvent, note: Note]
-  'drag-end': [event: DragEvent, note: Note]
+  complete: [note: Note]
+  remind: [note: Note]
+  restore: [note: Note]
+  export: [note: Note]
 }>()
 
 const expanded = ref(false)
 
-const noteClass = computed(() => {
-  if (props.note.priority === 'urgent') return 'note-red'
-  if (props.note.status === 'completed') return 'note-green'
-  return 'note-yellow'
-})
+const isUrgent = computed(() => props.note.color_status === 'red')
+const isArchived = computed(() => props.archived || props.note.is_archived)
 
 const displayTags = computed(() => {
   const max = 2
   const visible = props.note.tags.slice(0, max)
   const remaining = props.note.tags.length - max
   return { visible, remaining }
-})
-
-const displayActions = computed(() => {
-  const actions = props.note.allowed_actions || []
-  return {
-    canEdit: actions.includes('edit'),
-    canRemind: actions.includes('remind'),
-    canDelete: actions.includes('delete'),
-    canComplete: actions.includes('complete'),
-  }
 })
 
 function handleClick() {
@@ -59,30 +48,24 @@ function toggleExpand() {
 
 <template>
   <div
-    :class="[
-      'relative rounded-card p-5 transition-smooth cursor-pointer select-none',
-      archived ? 'opacity-80' : '',
-    ]"
+    class="relative rounded-card p-5 transition-smooth cursor-pointer select-none"
+    :class="{ 'opacity-80': isArchived }"
     :style="{
-      background: noteClass === 'note-red' ? '#FEE2E2' : noteClass === 'note-green' ? '#DCFCE7' : '#FEF3C7',
-      borderLeft: noteClass === 'note-yellow' ? '4px solid #D97706' : '',
-      border: noteClass === 'note-green' ? '1px solid #16A34A' : noteClass === 'note-red' ? '1px solid #DC2626' : '',
-      animation: noteClass === 'note-red' ? 'pulse-alert 2s ease-in-out infinite' : 'none',
+      background: isUrgent ? '#FEE2E2' : '#FEF3C7',
+      borderLeft: isUrgent ? '1px solid #DC2626' : '4px solid #D97706',
+      border: isUrgent ? '1px solid #DC2626' : '',
+      animation: isUrgent ? 'pulse-alert 2s ease-in-out infinite' : 'none',
     }"
     @click="handleClick"
     @contextmenu="handleContextMenu"
     draggable="true"
   >
     <!-- 盯办徽章 -->
-    <span v-if="note.priority === 'urgent' && !archived" class="badge-corner bg-red-500 text-white">
-      盯办
-    </span>
-    <!-- 已完成角标 -->
-    <span v-if="note.status === 'completed'" class="badge-corner bg-green-500 text-white">
-      已完成
+    <span v-if="isUrgent && !isArchived" class="badge-corner bg-red-500 text-white">
+      盯办{{ note.remind_count > 0 ? note.remind_count : '' }}
     </span>
     <!-- 已归档水印 -->
-    <span v-if="archived" class="watermark-archived">已归档</span>
+    <span v-if="isArchived" class="watermark-archived">已归档</span>
 
     <h3 class="text-base font-semibold text-slate-900 mb-2 line-clamp-1">
       {{ note.title || '无标题' }}
@@ -124,25 +107,24 @@ function toggleExpand() {
     <!-- 底部信息 -->
     <div class="flex items-center justify-between mt-4 pt-3 border-t border-slate-200/50">
       <span class="text-xs text-slate-400">{{ note.created_at?.slice(0, 10) }}</span>
-      <span v-if="note.due_time && !archived" class="text-xs text-slate-400">
+      <span v-if="note.due_time && !isArchived" class="text-xs text-slate-400">
         截止 {{ note.due_time.slice(0, 10) }}
       </span>
-      <span v-else-if="archived && note.archived_at" class="text-xs text-slate-300">
-        归档于 {{ note.archived_at.slice(0, 10) }}
+      <span v-else-if="isArchived && note.archive_time" class="text-xs text-slate-300">
+        归档于 {{ note.archive_time.slice(0, 10) }}
       </span>
     </div>
 
-    <!-- 操作栏 -->
-    <div v-if="!archived && (displayActions.canComplete || displayActions.canRemind)" class="flex gap-2 mt-3 pt-3 border-t border-slate-200/50">
+    <!-- 操作栏：黄/红状态 → 完成并归档 + 盯办 -->
+    <div v-if="!isArchived" class="flex gap-2 mt-3 pt-3 border-t border-slate-200/50">
       <button
-        v-if="displayActions.canComplete"
         class="text-xs px-2.5 py-1 rounded-btn bg-green-100 text-green-700 hover:bg-green-200 transition-smooth"
         @click.stop="$emit('complete', note)"
       >
-        完成
+        完成并归档
       </button>
       <button
-        v-if="displayActions.canRemind"
+        v-if="!isUrgent"
         class="text-xs px-2.5 py-1 rounded-btn bg-red-100 text-red-700 hover:bg-red-200 transition-smooth"
         @click.stop="$emit('remind', note)"
       >
@@ -150,7 +132,7 @@ function toggleExpand() {
       </button>
     </div>
 
-    <div v-if="archived" class="flex gap-2 mt-3 pt-3 border-t border-slate-200/50">
+    <div v-if="isArchived" class="flex gap-2 mt-3 pt-3 border-t border-slate-200/50">
       <button
         class="text-xs px-2.5 py-1 rounded-btn bg-blue-100 text-blue-700 hover:bg-blue-200 transition-smooth"
         @click.stop="$emit('restore', note)"

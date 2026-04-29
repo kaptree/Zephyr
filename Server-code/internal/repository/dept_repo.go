@@ -5,6 +5,7 @@ import (
 
 	"labelpro-server/internal/models"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -42,7 +43,11 @@ func (r *DepartmentRepository) FindByParentID(parentID string) ([]models.Departm
 
 func (r *DepartmentRepository) CountMembers(deptID string) (int64, error) {
 	var count int64
-	err := r.db.Model(&models.User{}).Where("department_id = ? AND is_active = true", deptID).Count(&count).Error
+	uid, err := uuid.Parse(deptID)
+	if err != nil {
+		return 0, err
+	}
+	err = r.db.Model(&models.User{}).Where("department_id = ? AND is_active = true", uid).Count(&count).Error
 	return count, err
 }
 
@@ -81,6 +86,8 @@ func (r *DepartmentRepository) BuildTree() ([]DepartmentTreeNode, error) {
 		if d.ParentID != nil {
 			node.ParentID = d.ParentID.String()
 		}
+		count, _ := r.CountMembers(d.ID.String())
+		node.MemberCount = count
 		deptMap[d.ID.String()] = node
 	}
 
@@ -121,10 +128,11 @@ func (r *DepartmentRepository) collectSubDepts(parentID string, allDepts []model
 }
 
 type DepartmentTreeNode struct {
-	ID         string               `json:"id"`
-	Name       string               `json:"name"`
-	ParentID   string               `json:"parent_id"`
-	Level      int                  `json:"level"`
-	LeaderName string               `json:"leader_name,omitempty"`
-	Children   []DepartmentTreeNode `json:"children"`
+	ID          string               `json:"id"`
+	Name        string               `json:"name"`
+	ParentID    string               `json:"parent_id"`
+	Level       int                  `json:"level"`
+	LeaderName  string               `json:"leader_name,omitempty"`
+	MemberCount int64                `json:"member_count"`
+	Children    []DepartmentTreeNode `json:"children"`
 }

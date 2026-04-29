@@ -164,6 +164,9 @@ func (r *NoteRepository) FindByID(id string) (*models.Note, error) {
 
 func (r *NoteRepository) Create(note *models.Note) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
+		assignees := note.Assignees
+		note.Assignees = nil
+
 		if err := tx.Create(note).Error; err != nil {
 			return err
 		}
@@ -174,11 +177,11 @@ func (r *NoteRepository) Create(note *models.Note) error {
 			}
 		}
 
-		if len(note.Assignees) > 0 {
-			for i := range note.Assignees {
-				note.Assignees[i].NoteID = note.ID
-			}
-			if err := tx.Create(&note.Assignees).Error; err != nil {
+		for i := range assignees {
+			assignees[i].NoteID = note.ID
+		}
+		if len(assignees) > 0 {
+			if err := tx.Create(&assignees).Error; err != nil {
 				return err
 			}
 		}

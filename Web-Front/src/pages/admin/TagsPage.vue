@@ -63,7 +63,9 @@ function addTag() {
           <div class="text-sm font-medium text-slate-900 truncate">{{ tag.name }}</div>
           <div class="text-xs text-slate-400">{{ tag.category }} · {{ tag.scope === 'system' ? '系统' : '个人' }}</div>
         </div>
-        <span class="text-xs text-slate-400 shrink-0">{{ tag.usage_count }}次</span>
+        <span :class="['text-xs shrink-0 font-medium', tag.usage_count > 5 ? 'text-blue-600' : 'text-slate-400']">
+          {{ tag.usage_count }}次
+        </span>
       </div>
     </div>
 
@@ -71,7 +73,7 @@ function addTag() {
     <Teleport to="body">
       <div v-if="showNewModal" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="overlay-backdrop" @click="showNewModal = false" />
-        <div class="relative bg-white rounded-card shadow-modal w-full max-w-sm mx-4 p-6 animate-fade-in">
+        <div class="relative z-50 bg-white rounded-card shadow-modal w-full max-w-sm mx-4 p-6 animate-fade-in">
           <h3 class="text-base font-semibold text-slate-900 mb-4">新建标签</h3>
           <form @submit.prevent="addTag" class="space-y-4">
             <input v-model="newTagName" class="input-field" placeholder="标签名称" autofocus />

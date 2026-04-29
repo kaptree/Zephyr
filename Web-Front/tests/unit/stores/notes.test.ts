@@ -7,27 +7,27 @@ vi.mock('@/services/notes', () => ({
     code: 0,
     data: {
       data: [
-        { id: 'note-1', title: '便签1', content: '内容1', status: 'active', source_type: 'self', priority: 'normal', owner_id: 'user-1', creator_id: 'user-1', tags: [], assignees: [], created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', allowed_actions: ['edit', 'delete', 'complete', 'remind'] },
-        { id: 'note-2', title: '便签2', content: '内容2', status: 'active', source_type: 'assigned', priority: 'normal', owner_id: 'user-2', creator_id: 'user-1', tags: [], assignees: [], created_at: '2024-01-02T00:00:00Z', updated_at: '2024-01-02T00:00:00Z', allowed_actions: ['edit', 'delete', 'complete'] },
+        { id: 'note-1', title: '便签1', content: '内容1', color_status: 'yellow', source_type: 'self', owner_id: 'user-1', creator_id: 'user-1', is_archived: false, tags: [], assignees: [], remind_count: 0, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' },
+        { id: 'note-2', title: '便签2', content: '内容2', color_status: 'yellow', source_type: 'assigned', owner_id: 'user-2', creator_id: 'user-1', is_archived: false, tags: [], assignees: [], remind_count: 0, created_at: '2024-01-02T00:00:00Z', updated_at: '2024-01-02T00:00:00Z' },
       ],
       total: 2, page: 1, page_size: 20,
     },
   }),
   createNote: vi.fn().mockResolvedValue({
     code: 0,
-    data: { id: 'note-new', title: '新建便签', content: '内容', status: 'active', source_type: 'self', priority: 'normal', owner_id: 'user-1', creator_id: 'user-1', tags: [], assignees: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString(), allowed_actions: ['edit', 'delete', 'complete', 'remind'] },
+    data: { id: 'note-new', title: '新建便签', content: '内容', color_status: 'yellow', source_type: 'self', owner_id: 'user-1', creator_id: 'user-1', is_archived: false, tags: [], assignees: [], remind_count: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
   }),
   updateNote: vi.fn().mockResolvedValue({
     code: 0,
-    data: { id: 'note-1', title: '已更新', content: '内容1', status: 'active', source_type: 'self', priority: 'normal', owner_id: 'user-1', creator_id: 'user-1', tags: [], assignees: [], created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', allowed_actions: ['edit', 'delete', 'complete', 'remind'] },
+    data: { id: 'note-1', title: '已更新', content: '内容1', color_status: 'yellow', source_type: 'self', owner_id: 'user-1', creator_id: 'user-1', is_archived: false, tags: [], assignees: [], remind_count: 0, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' },
   }),
   completeNote: vi.fn().mockResolvedValue({
     code: 0,
-    data: { id: 'note-1', title: '便签1', content: '内容1', status: 'completed', source_type: 'self', priority: 'normal', owner_id: 'user-1', creator_id: 'user-1', tags: [], assignees: [], created_at: '2024-01-01T00:00:00Z', updated_at: new Date().toISOString(), completed_at: new Date().toISOString(), allowed_actions: ['view'] },
+    data: { id: 'note-1', title: '便签1', content: '内容1', color_status: 'green', source_type: 'self', owner_id: 'user-1', creator_id: 'user-1', is_archived: false, tags: [], assignees: [], remind_count: 0, created_at: '2024-01-01T00:00:00Z', updated_at: new Date().toISOString(), completed_at: new Date().toISOString() },
   }),
   remindNote: vi.fn().mockResolvedValue({
     code: 0,
-    data: { id: 'note-1', title: '便签1', content: '内容1', status: 'active', source_type: 'self', priority: 'urgent', owner_id: 'user-1', creator_id: 'user-1', tags: [], assignees: [], created_at: '2024-01-01T00:00:00Z', updated_at: new Date().toISOString(), allowed_actions: ['edit', 'delete', 'complete', 'remind'] },
+    data: { id: 'note-1', title: '便签1', content: '内容1', color_status: 'red', source_type: 'self', owner_id: 'user-1', creator_id: 'user-1', is_archived: false, tags: [], assignees: [], remind_count: 1, created_at: '2024-01-01T00:00:00Z', updated_at: new Date().toISOString() },
   }),
   archiveNote: vi.fn().mockResolvedValue({
     code: 0,
@@ -35,7 +35,7 @@ vi.mock('@/services/notes', () => ({
   }),
   restoreNote: vi.fn().mockResolvedValue({
     code: 0,
-    data: { id: 'note-restored', title: '便签1', content: '内容1', status: 'active', source_type: 'self', priority: 'normal', owner_id: 'user-1', creator_id: 'user-1', tags: [], assignees: [], created_at: '2024-01-01T00:00:00Z', updated_at: new Date().toISOString(), allowed_actions: ['edit', 'delete', 'complete', 'remind'] },
+    data: { id: 'note-restored', title: '便签1', content: '内容1', color_status: 'yellow', source_type: 'self', owner_id: 'user-1', creator_id: 'user-1', is_archived: false, tags: [], assignees: [], remind_count: 0, created_at: '2024-01-01T00:00:00Z', updated_at: new Date().toISOString() },
   }),
 }))
 
@@ -72,16 +72,15 @@ describe('useNoteStore', () => {
   })
 
   describe('remindNote', () => {
-    it('盯办后便签优先级应变 urgent', async () => {
+    it('盯办后便签状态应变红色', async () => {
       const store = useNoteStore()
-      // 直接 patch 状态模拟已有便签
       store.$patch({
         activeNotes: [
-          { id: 'note-1', title: '便签1', content: '内容1', status: 'active', source_type: 'self', priority: 'normal', owner_id: 'user-1', creator_id: 'user-1', tags: [], assignees: [], created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', allowed_actions: ['edit', 'delete', 'complete', 'remind'] },
+          { id: 'note-1', title: '便签1', content: '内容1', color_status: 'yellow', source_type: 'self', owner_id: 'user-1', creator_id: 'user-1', is_archived: false, tags: [], assignees: [], remind_count: 0, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' } as any,
         ],
       })
       await store.remindNote('note-1')
-      expect(store.activeNotes[0].priority).toBe('urgent')
+      expect(store.activeNotes[0].color_status).toBe('red')
     })
   })
 

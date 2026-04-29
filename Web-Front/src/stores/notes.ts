@@ -3,13 +3,40 @@ import { ref, computed } from 'vue'
 import type { Note, NoteFilters, CreateNotePayload, UpdateNotePayload, PaginatedData } from '@/types'
 import * as noteService from '@/services/notes'
 
+type BackendNote = Note & Record<string, unknown>
+
+function normalizeNote(raw: BackendNote): Note {
+  return {
+    id: raw.id,
+    title: raw.title || '',
+    content: raw.content || '',
+    color_status: (raw.color_status as Note['color_status']) || 'yellow',
+    source_type: (raw.source_type as Note['source_type']) || 'self',
+    owner_id: raw.owner_id || '',
+    creator_id: raw.creator_id || '',
+    is_archived: !!raw.is_archived,
+    tags: (raw.tags || []) as Note['tags'],
+    assignees: (raw.assignees || []) as Note['assignees'],
+    group_id: raw.group_id as string | undefined,
+    dept_id: raw.dept_id as string | undefined,
+    template_type: raw.template_type as string | undefined,
+    due_time: raw.due_time as string | undefined,
+    completed_at: raw.completed_at as string | undefined,
+    archive_time: raw.archive_time as string | undefined,
+    remind_count: raw.remind_count || 0,
+    serial_no: raw.serial_no as string | undefined,
+    created_at: raw.created_at || new Date().toISOString(),
+    updated_at: raw.updated_at || raw.created_at || new Date().toISOString(),
+  }
+}
+
 export const useNoteStore = defineStore('notes', () => {
   const activeNotes = ref<Note[]>([])
   const archivedNotes = ref<Note[]>([])
   const currentNote = ref<Note | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
-  const filters = ref<NoteFilters>({ status: undefined, page: 1, page_size: 20 })
+  const filters = ref<NoteFilters>({ status: 'active', page: 1, page_size: 20 })
   const totalCount = ref(0)
   const currentPage = ref(1)
 
@@ -24,12 +51,12 @@ export const useNoteStore = defineStore('notes', () => {
     try {
       const res = await noteService.fetchNotes(filters.value)
       const paginated = res.data as unknown as PaginatedData<Note>
-      activeNotes.value = paginated.data
-      totalCount.value = paginated.total
-      currentPage.value = paginated.page
+      activeNotes.value = (paginated.data || []).map(normalizeNote)
+      totalCount.value = paginated.total || 0
+      currentPage.value = paginated.page || 1
     } catch (e: unknown) {
-      const err = e as { response?: { status: number } }
-      error.value = `加载便签失败（${err.response?.status || '网络错误'}）`
+      const err = e as { response?: { status: number; data?: { message?: string } } }
+      error.value = err.response?.data?.message || `加载失败（${err.response?.status || '网络错误'}）`
     } finally {
       loading.value = false
     }
@@ -44,9 +71,9 @@ export const useNoteStore = defineStore('notes', () => {
         page: currentPage.value + 1,
       })
       const paginated = res.data as unknown as PaginatedData<Note>
-      activeNotes.value = [...activeNotes.value, ...paginated.data]
-      currentPage.value = paginated.page
-      totalCount.value = paginated.total
+      activeNotes.value = [...activeNotes.value, ...(paginated.data || []).map(normalizeNote)]
+      currentPage.value = paginated.page || currentPage.value
+      totalCount.value = paginated.total || totalCount.value
     } catch (e: unknown) {
       const err = e as { response?: { status: number } }
       error.value = `加载更多失败（${err.response?.status || '网络错误'}）`
@@ -57,7 +84,7 @@ export const useNoteStore = defineStore('notes', () => {
 
   async function createNote(payload: CreateNotePayload) {
     const res = await noteService.createNote(payload)
-    const newNote = res.data as unknown as Note
+    const newNote = normalizeNote(res.data as unknown as BackendNote)
     activeNotes.value.unshift(newNote)
     return newNote
   }
@@ -69,7 +96,7 @@ export const useNoteStore = defineStore('notes', () => {
     activeNotes.value[index] = { ...activeNotes.value[index], ...payload }
     try {
       const res = await noteService.updateNote(id, payload)
-      activeNotes.value[index] = res.data as unknown as Note
+      activeNotes.value[index] = normalizeNote(res.data as unknown as BackendNote)
     } catch {
       activeNotes.value[index] = original
       throw new Error('更新失败')
@@ -80,10 +107,7 @@ export const useNoteStore = defineStore('notes', () => {
     await noteService.completeNote(id)
     const index = activeNotes.value.findIndex(n => n.id === id)
     if (index !== -1) {
-      const [completed] = activeNotes.value.splice(index, 1)
-      completed.status = 'completed'
-      completed.completed_at = new Date().toISOString()
-      archivedNotes.value.unshift(completed)
+      activeNotes.value.splice(index, 1)
     }
   }
 
@@ -91,7 +115,7 @@ export const useNoteStore = defineStore('notes', () => {
     const res = await noteService.remindNote(id, { message, remind_type: 'urgent' })
     const index = activeNotes.value.findIndex(n => n.id === id)
     if (index !== -1) {
-      activeNotes.value[index] = res.data as unknown as Note
+      activeNotes.value[index] = normalizeNote(res.data as unknown as BackendNote)
     }
   }
 
@@ -102,7 +126,7 @@ export const useNoteStore = defineStore('notes', () => {
 
   async function restoreNote(id: string) {
     const res = await noteService.restoreNote(id)
-    const note = res.data as unknown as Note
+    const note = normalizeNote(res.data as unknown as BackendNote)
     activeNotes.value.unshift(note)
     archivedNotes.value = archivedNotes.value.filter(n => n.id !== id)
   }
@@ -112,8 +136,8 @@ export const useNoteStore = defineStore('notes', () => {
     try {
       const res = await noteService.fetchNotes({ ...archiveFilters, status: 'archived' } as NoteFilters)
       const paginated = res.data as unknown as PaginatedData<Note>
-      archivedNotes.value = paginated.data
-      totalCount.value = paginated.total
+      archivedNotes.value = (paginated.data || []).map(normalizeNote)
+      totalCount.value = paginated.total || 0
     } finally {
       loading.value = false
     }

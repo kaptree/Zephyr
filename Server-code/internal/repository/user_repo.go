@@ -92,7 +92,7 @@ func (r *UserRepository) FindVisibleUsers(userID string, deptID string) ([]model
 }
 
 func (r *UserRepository) Update(user *models.User) error {
-	return r.db.Save(user).Error
+	return r.db.Omit("Department").Save(user).Error
 }
 
 func (r *UserRepository) Delete(id string) error {

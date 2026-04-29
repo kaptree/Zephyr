@@ -1,42 +1,169 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { useNoteStore } from '@/stores/notes'
+import { useAuthStore } from '@/stores/auth'
 import type { Note } from '@/types'
+import TagSelector from '@/components/common/TagSelector.vue'
+import StickyNoteCard from '@/components/note/StickyNoteCard.vue'
+import UserPicker from '@/components/common/UserPicker.vue'
+import { createTag } from '@/services/tags'
 
 const noteStore = useNoteStore()
+const auth = useAuthStore()
 const showCreateModal = ref(false)
 const showDetailPanel = ref(false)
 const selectedNote = ref<Note | null>(null)
+
+const newTitle = ref('')
+const newContent = ref('')
+const selectedTagIds = ref<string[]>([])
+const sourceType = ref<'self' | 'assigned' | 'collaboration'>('self')
+const selectedAssigneeIds = ref<string[]>([])
+const creating = ref(false)
+const createError = ref('')
+
+const editingTitle = ref('')
+const editingContent = ref('')
+const saving = ref(false)
+const completing = ref(false)
+
+const activeTab = ref('all')
+
+const displayedNotes = computed(() => {
+  if (activeTab.value === 'red') return noteStore.activeNotes.filter(n => n.color_status === 'red')
+  return noteStore.activeNotes
+})
 
 onMounted(() => {
   noteStore.fetchNotes()
 })
 
+function handleTabClick(tab: string) {
+  activeTab.value = tab
+  if (tab === 'all') {
+    noteStore.fetchNotes({ status: undefined })
+  } else if (tab === 'red') {
+    noteStore.fetchNotes({ status: undefined }).then(() => {
+      noteStore.activeNotes = noteStore.activeNotes.filter(n => n.color_status === 'red')
+    })
+  } else if (tab === 'assigned') {
+    noteStore.fetchNotes({ status: undefined }).then(() => {
+      noteStore.activeNotes = noteStore.activeNotes.filter(n => n.source_type === 'assigned' || n.source_type === 'collaboration')
+    })
+  } else {
+    noteStore.fetchNotes({ status: tab })
+  }
+}
+
+watch(sourceType, (val) => {
+  if (val === 'self') selectedAssigneeIds.value = []
+})
+
 function openCreateModal() {
+  newTitle.value = ''
+  newContent.value = ''
+  selectedTagIds.value = []
+  selectedAssigneeIds.value = []
+  sourceType.value = 'self'
+  createError.value = ''
   showCreateModal.value = true
 }
 
 function openDetail(note: Note) {
   selectedNote.value = note
+  editingTitle.value = note.title || ''
+  editingContent.value = note.content || ''
   showDetailPanel.value = true
 }
 
 function closeDetail() {
   showDetailPanel.value = false
   selectedNote.value = null
+  completing.value = false
 }
 
-function getNoteClass(note: Note) {
-  if (note.priority === 'urgent') return 'card-note-red'
-  if (note.status === 'completed') return 'card-note-green'
-  return 'card-note-yellow'
+async function handleCreateTag(name: string) {
+  try {
+    const res = await createTag({ name, color: '#3B82F6', category: '自定义', scope: 'personal' })
+    const newTag = res.data as { id: string }
+    selectedTagIds.value = [...selectedTagIds.value, newTag.id]
+  } catch {
+    createError.value = '创建标签失败'
+  }
 }
 
-function displayTags(note: Note) {
-  const max = 2
-  const visible = note.tags.slice(0, max)
-  const remaining = note.tags.length - max
-  return { visible, remaining }
+async function handleSubmit() {
+  if (!newTitle.value.trim()) {
+    createError.value = '请输入便签标题'
+    return
+  }
+  if (sourceType.value !== 'self' && selectedAssigneeIds.value.length === 0) {
+    createError.value = '请选择指派人员'
+    return
+  }
+
+  creating.value = true
+  createError.value = ''
+  try {
+    const payload: any = {
+      title: newTitle.value.trim(),
+      content: newContent.value,
+      tags: selectedTagIds.value,
+      source_type: sourceType.value,
+    }
+
+    if (sourceType.value !== 'self') {
+      payload.assignees = selectedAssigneeIds.value.map(id => ({ user_id: id }))
+    }
+    if (sourceType.value === 'assigned' && selectedAssigneeIds.value.length > 0) {
+      payload.owner_id = selectedAssigneeIds.value[0]
+    }
+
+    const created = await noteStore.createNote(payload)
+
+    if (sourceType.value !== 'self' && created) {
+      try {
+        await noteStore.remindNote(created.id, `【任务指派】${auth.user?.name || '管理员'} 指派您处理：${newTitle.value.trim()}`)
+      } catch { /* 提醒发送失败不阻塞流程 */ }
+    }
+
+    showCreateModal.value = false
+  } catch (e: unknown) {
+    const err = e as { response?: { status: number; data?: { message?: string } } }
+    createError.value = err?.response?.data?.message || '创建便签失败'
+  } finally {
+    creating.value = false
+  }
+}
+
+async function handleSaveDetail() {
+  if (!selectedNote.value) return
+  saving.value = true
+  try {
+    await noteStore.updateNoteLocally(selectedNote.value.id, {
+      title: editingTitle.value.trim(),
+      content: editingContent.value,
+    })
+    closeDetail()
+  } catch {
+    // 保持面板打开
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handleComplete(note: Note) {
+  await noteStore.completeNote(note.id)
+  if (showDetailPanel.value && selectedNote.value?.id === note.id) {
+    closeDetail()
+  }
+}
+
+async function handleRemind(note: Note) {
+  await noteStore.remindNote(note.id, '请尽快处理')
+  if (showDetailPanel.value && selectedNote.value?.id === note.id) {
+    selectedNote.value = { ...selectedNote.value, color_status: 'red' as const }
+  }
 }
 </script>
 
@@ -46,22 +173,28 @@ function displayTags(note: Note) {
     <div class="flex items-center gap-3 mb-6">
       <button
         v-for="tab in [
-          { label: '全部', value: undefined },
+          { label: '全部', value: 'all' },
           { label: '待办', value: 'active' },
-          { label: '盯办', value: 'urgent' },
+          { label: '盯办提醒', value: 'red' },
           { label: '已完成', value: 'completed' }
         ]"
-        :key="tab.label"
+        :key="tab.value"
         :class="[
           'px-4 py-1.5 rounded-btn text-sm font-medium transition-smooth',
-          noteStore.filters.status === tab.value
+          activeTab === tab.value
             ? 'bg-[#3B82F6] text-white'
             : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
         ]"
-        @click="noteStore.fetchNotes({ status: tab.value as NoteStatus | undefined })"
+        @click="handleTabClick(tab.value)"
       >
         {{ tab.label }}
       </button>
+    </div>
+
+    <!-- 错误提示 -->
+    <div v-if="noteStore.error" class="mb-6 px-4 py-3 bg-red-50 border border-red-200 rounded-card text-sm text-red-600 flex items-center justify-between">
+      <span>{{ noteStore.error }}</span>
+      <button class="text-xs text-red-500 underline hover:text-red-700 ml-4" @click="noteStore.fetchNotes()">重试</button>
     </div>
 
     <!-- 加载骨架屏 -->
@@ -70,62 +203,29 @@ function displayTags(note: Note) {
     </div>
 
     <!-- 空态 -->
-    <div v-else-if="!noteStore.loading && noteStore.activeNotes.length === 0" class="flex flex-col items-center justify-center py-24">
+    <div v-else-if="!noteStore.loading && displayedNotes.length === 0 && !noteStore.error" class="flex flex-col items-center justify-center py-24">
       <div class="w-24 h-24 bg-slate-100 rounded-3xl flex items-center justify-center mb-6">
         <svg class="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       </div>
-      <p class="text-slate-400 text-sm">点击右下角 '+' 新建便签</p>
+      <p class="text-slate-400 text-sm">{{ activeTab === 'completed' ? '暂无已完成便签' : '暂无活跃便签' }}</p>
+      <p class="text-slate-300 text-xs mt-1">点击右下角 '+' 新建便签</p>
     </div>
 
     <!-- 便签墙 -->
     <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
-      <div
-        v-for="note in noteStore.activeNotes"
+      <StickyNoteCard
+        v-for="note in displayedNotes"
         :key="note.id"
-        :class="[
-          'p-5 rounded-card shadow-note transition-smooth cursor-pointer relative',
-          getNoteClass(note)
-        ]"
-        style="animation: spring-enter 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards"
+        :note="note"
+        mode="web"
+        :archived="false"
+        class="animate-spring-enter"
         @click="openDetail(note)"
-        @mouseenter="$event.currentTarget.style.transform = 'translateY(-2px)'; $event.currentTarget.style.boxShadow = '0 8px 32px -8px rgba(0,0,0,0.12)'"
-        @mouseleave="$event.currentTarget.style.transform = ''; $event.currentTarget.style.boxShadow = ''"
-      >
-        <!-- 盯办徽章 -->
-        <span v-if="note.priority === 'urgent'" class="badge-corner bg-red-500 text-white">
-          盯办
-        </span>
-        <!-- 已完成角标 -->
-        <span v-if="note.status === 'completed'" class="badge-corner bg-green-500 text-white">
-          已完成
-        </span>
-
-        <h3 class="text-base font-semibold text-slate-900 mb-2 line-clamp-1">{{ note.title || '无标题' }}</h3>
-        <p class="text-sm text-slate-500 line-clamp-3 note-content-mask">{{ note.content || '暂无内容' }}</p>
-
-        <!-- 标签区 -->
-        <div v-if="note.tags.length" class="flex items-center gap-1.5 mt-3 flex-wrap">
-          <span
-            v-for="tag in displayTags(note).visible"
-            :key="tag.id"
-            class="tag-capsule text-white text-[11px]"
-            :style="{ backgroundColor: tag.color || '#64748B' }"
-          >
-            {{ tag.name }}
-          </span>
-          <span v-if="displayTags(note).remaining > 0" class="text-xs text-slate-400">
-            +{{ displayTags(note).remaining }}
-          </span>
-        </div>
-
-        <!-- 底部信息 -->
-        <div class="flex items-center justify-between mt-4 pt-3 border-t border-slate-200/50">
-          <span class="text-xs text-slate-400">{{ note.created_at?.slice(0, 10) }}</span>
-          <span v-if="note.due_time" class="text-xs text-slate-400">截止 {{ note.due_time.slice(0, 10) }}</span>
-        </div>
-      </div>
+        @complete="handleComplete"
+        @remind="handleRemind"
+      />
     </div>
 
     <!-- 悬浮新建按钮 -->
@@ -138,11 +238,11 @@ function displayTags(note: Note) {
       </svg>
     </button>
 
-    <!-- 新建便签模态框 -->
+    <!-- ====== 新建便签模态框 ====== -->
     <Teleport to="body">
-      <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]">
         <div class="overlay-backdrop" @click="showCreateModal = false" />
-        <div class="relative bg-white rounded-card shadow-modal w-full max-w-lg mx-4 animate-fade-in">
+        <div class="relative z-50 bg-white rounded-card shadow-modal w-full max-w-xl mx-4 animate-fade-in">
           <div class="p-6">
             <div class="flex items-center justify-between mb-6">
               <h2 class="text-lg font-semibold text-slate-900">新建便签</h2>
@@ -153,41 +253,60 @@ function displayTags(note: Note) {
               </button>
             </div>
 
-            <form class="space-y-4" @submit.prevent>
-              <input class="input-field" placeholder="便签标题" autofocus />
-              <textarea class="input-field h-32 resize-none" placeholder="便签内容..." />
+            <form class="space-y-4" @submit.prevent="handleSubmit">
+              <input v-model="newTitle" class="input-field" placeholder="便签标题" autofocus />
 
-              <div class="flex items-center gap-2">
-                <span class="tag-capsule bg-blue-100 text-blue-700">
-                  标签1
-                  <button class="ml-1 hover:text-blue-900">&times;</button>
+              <textarea v-model="newContent" class="input-field h-32 resize-none" placeholder="便签内容..." />
+
+              <!-- 标签 -->
+              <div>
+                <span class="text-xs text-slate-500 mb-1.5 block">标签</span>
+                <TagSelector v-model="selectedTagIds" :max="5" @create-tag="handleCreateTag" />
+              </div>
+
+              <!-- 类型选择 -->
+              <div>
+                <span class="text-xs text-slate-500 mb-2 block">便签类型</span>
+                <div class="flex gap-3">
+                  <label
+                    :class="[
+                      'flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-btn border-2 cursor-pointer transition-smooth',
+                      sourceType === 'self' ? 'border-[#3B82F6] bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                    ]"
+                  >
+                    <input v-model="sourceType" type="radio" value="self" class="sr-only" />
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    <span class="text-sm font-medium">仅自己</span>
+                  </label>
+                  <label
+                    :class="[
+                      'flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-btn border-2 cursor-pointer transition-smooth',
+                      sourceType === 'assigned' ? 'border-[#3B82F6] bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                    ]"
+                  >
+                    <input v-model="sourceType" type="radio" value="assigned" class="sr-only" />
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    <span class="text-sm font-medium">指派他人</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- 指派人员选择器 -->
+              <div v-if="sourceType !== 'self'">
+                <span class="text-xs text-slate-500 mb-1.5 block">
+                  {{ sourceType === 'assigned' ? '选择负责人' : '选择协作人员' }}
                 </span>
-                <button class="tag-capsule border border-dashed border-slate-300 text-slate-400 hover:border-slate-400 transition-smooth">
-                  + 添加标签
-                </button>
+                <UserPicker v-model="selectedAssigneeIds" :multiple="sourceType === 'collaboration'" :max="sourceType === 'assigned' ? 1 : 20" />
               </div>
 
-              <div class="flex gap-4 text-sm">
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="type" checked class="w-4 h-4 text-[#3B82F6]" />
-                  <span class="text-slate-700">仅自己</span>
-                </label>
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="type" class="w-4 h-4 text-[#3B82F6]" />
-                  <span class="text-slate-700">指派他人</span>
-                </label>
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="type" class="w-4 h-4 text-[#3B82F6]" />
-                  <span class="text-slate-700">开启协同</span>
-                </label>
-              </div>
+              <p v-if="createError" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-btn">{{ createError }}</p>
 
               <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button class="px-5 py-2.5 text-sm text-slate-600 bg-slate-100 rounded-btn hover:bg-slate-200 transition-smooth" @click="showCreateModal = false">
+                <button type="button" class="px-5 py-2.5 text-sm text-slate-600 bg-slate-100 rounded-btn hover:bg-slate-200 transition-smooth" @click="showCreateModal = false" :disabled="creating">
                   取消
                 </button>
-                <button class="px-5 py-2.5 text-sm text-white bg-[#3B82F6] rounded-btn hover:bg-blue-600 transition-smooth">
-                  创建便签
+                <button type="submit" class="px-5 py-2.5 text-sm text-white bg-[#3B82F6] rounded-btn hover:bg-blue-600 transition-smooth disabled:opacity-50" :disabled="creating">
+                  {{ creating ? '创建中...' : '创建便签' }}
                 </button>
               </div>
             </form>
@@ -196,14 +315,21 @@ function displayTags(note: Note) {
       </div>
     </Teleport>
 
-    <!-- 详情侧滑面板 -->
+    <!-- ====== 详情侧滑面板 ====== -->
     <Teleport to="body">
       <div v-if="showDetailPanel && selectedNote">
         <div class="overlay-backdrop" @click="closeDetail" />
         <div class="slide-panel">
           <div class="p-6 h-full flex flex-col">
+            <!-- 面板标题 -->
             <div class="flex items-center justify-between mb-6">
-              <h2 class="text-lg font-semibold text-slate-900">便签详情</h2>
+              <div class="flex items-center gap-2">
+                <h2 class="text-lg font-semibold text-slate-900">便签详情</h2>
+                <span
+                  v-if="selectedNote.color_status === 'red'"
+                  class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-tag"
+                >盯办中</span>
+              </div>
               <button class="p-1 rounded-lg hover:bg-slate-100 transition-smooth" @click="closeDetail">
                 <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -212,38 +338,62 @@ function displayTags(note: Note) {
             </div>
 
             <div class="flex-1 overflow-auto space-y-5">
-              <input
-                class="input-field text-lg font-semibold"
-                :value="selectedNote.title"
-                placeholder="标题"
-              />
-              <div class="min-h-[200px] p-3 border border-slate-200 rounded-btn text-sm text-slate-700">
-                {{ selectedNote.content || '暂无内容' }}
+              <!-- 标题 -->
+              <div>
+                <span class="text-xs text-slate-400 mb-1 block">标题</span>
+                <input v-model="editingTitle" class="input-field text-base font-semibold" placeholder="便签标题" />
               </div>
 
-              <div v-if="selectedNote.tags.length" class="flex flex-wrap gap-2">
-                <span
-                  v-for="tag in selectedNote.tags"
-                  :key="tag.id"
-                  class="tag-capsule text-white"
-                  :style="{ backgroundColor: tag.color || '#64748B' }"
-                >
-                  {{ tag.name }}
-                </span>
+              <!-- 内容 -->
+              <div>
+                <span class="text-xs text-slate-400 mb-1 block">内容</span>
+                <textarea v-model="editingContent" class="input-field min-h-[180px] resize-y text-sm" placeholder="便签内容..." />
               </div>
 
-              <div class="text-xs text-slate-400 space-y-1">
-                <p>创建人：ID-{{ selectedNote.creator_id }}</p>
-                <p>创建时间：{{ selectedNote.created_at }}</p>
-                <p v-if="selectedNote.due_time">截止时间：{{ selectedNote.due_time }}</p>
+              <!-- 标签 -->
+              <div>
+                <span class="text-xs text-slate-400 mb-1 block">标签</span>
+                <div v-if="selectedNote.tags.length" class="flex flex-wrap gap-2">
+                  <span v-for="tag in selectedNote.tags" :key="tag.id" class="tag-capsule text-white" :style="{ backgroundColor: tag.color || '#64748B' }">{{ tag.name }}</span>
+                </div>
+                <span v-else class="text-xs text-slate-300">无标签</span>
+              </div>
+
+              <!-- 来源与指派信息 -->
+              <div class="bg-slate-50 rounded-card p-4 space-y-2">
+                <div class="flex justify-between text-xs">
+                  <span class="text-slate-400">来源类型</span>
+                  <span class="text-slate-700">{{ selectedNote.source_type === 'self' ? '自己创建' : selectedNote.source_type === 'assigned' ? '上级指派' : '协同任务' }}</span>
+                </div>
+                <div class="flex justify-between text-xs" v-if="selectedNote.assignees?.length">
+                  <span class="text-slate-400">负责人</span>
+                  <span class="text-slate-700">{{ selectedNote.assignees.map(a => a.name).join('、') }}</span>
+                </div>
+                <div class="flex justify-between text-xs">
+                  <span class="text-slate-400">创建时间</span>
+                  <span class="text-slate-700">{{ selectedNote.created_at?.slice(0, 16).replace('T', ' ') }}</span>
+                </div>
+                <div class="flex justify-between text-xs" v-if="selectedNote.due_time">
+                  <span class="text-slate-400">截止时间</span>
+                  <span class="text-slate-700 text-red-500">{{ selectedNote.due_time.slice(0, 16).replace('T', ' ') }}</span>
+                </div>
               </div>
             </div>
 
-            <div class="flex gap-3 pt-4 border-t border-slate-100 mt-4">
-              <button class="flex-1 py-2.5 btn-primary text-sm">保存</button>
-              <button class="flex-1 py-2.5 btn-secondary text-sm" @click="closeDetail">
-                关闭
-              </button>
+            <!-- 底部操作栏 -->
+            <div class="pt-4 border-t border-slate-100 mt-4 space-y-3">
+              <div class="flex gap-2">
+                <button class="flex-1 py-2.5 btn-primary text-sm disabled:opacity-50" :disabled="saving" @click="handleSaveDetail">
+                  {{ saving ? '保存中...' : '保存' }}
+                </button>
+                <button class="flex-1 py-2.5 text-sm bg-green-500 text-white rounded-btn hover:bg-green-600 transition-smooth disabled:opacity-50" :disabled="completing" @click="completing = true; handleComplete(selectedNote!)">
+                  {{ completing ? '归档中...' : '完成并归档' }}
+                </button>
+                <button v-if="selectedNote.color_status !== 'red'" class="flex-1 py-2.5 text-sm bg-red-50 text-red-600 rounded-btn hover:bg-red-100 transition-smooth" @click="handleRemind(selectedNote!)">
+                  盯办
+                </button>
+              </div>
+              <button class="w-full py-2 btn-secondary text-sm" @click="closeDetail">关闭</button>
             </div>
           </div>
         </div>

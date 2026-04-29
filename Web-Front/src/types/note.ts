@@ -3,27 +3,46 @@ import type { UserBrief } from './user'
 
 export type NoteStatus = 'active' | 'completed' | 'archived'
 export type NoteSourceType = 'self' | 'assigned' | 'collaboration'
-export type NotePriority = 'normal' | 'urgent'
 
 export interface Note {
   id: string
   title: string
   content: string
-  status: NoteStatus
+  color_status: 'yellow' | 'red' | 'green'
   source_type: NoteSourceType
-  priority: NotePriority
   owner_id: string
   creator_id: string
+  is_archived: boolean
   tags: Tag[]
   assignees: UserBrief[]
   group_id?: string
+  dept_id?: string
   template_type?: string
   due_time?: string
   completed_at?: string
-  archived_at?: string
+  archive_time?: string
+  remind_count: number
+  serial_no?: string
   created_at: string
   updated_at: string
-  allowed_actions: string[]
+}
+
+export const NOTE_STATUS_LABEL: Record<string, string> = {
+  active: '待办',
+  completed: '已完成',
+  archived: '已归档',
+}
+
+export const NOTE_COLOR_STATUS: Record<string, string> = {
+  yellow: '#FEF3C7',
+  red: '#FEE2E2',
+  green: '#DCFCE7',
+}
+
+export const NOTE_COLOR_BORDER: Record<string, string> = {
+  yellow: '#D97706',
+  red: '#DC2626',
+  green: '#16A34A',
 }
 
 export interface CreateNotePayload {
@@ -34,7 +53,6 @@ export interface CreateNotePayload {
   due_time?: string
   owner_id?: string
   template_type?: string
-  group_id?: string
   assignees?: string[]
 }
 
@@ -42,8 +60,9 @@ export interface UpdateNotePayload {
   title?: string
   content?: string
   tags?: string[]
-  status?: NoteStatus
   due_time?: string
+  color_status?: string
+  owner_id?: string
 }
 
 export interface CompleteNotePayload {
@@ -57,9 +76,9 @@ export interface RemindPayload {
 }
 
 export interface NoteFilters {
-  status?: NoteStatus
-  tag_id?: string
-  dept_id?: string
+  status?: string
+  tag_ids?: string[]
+  department_id?: string
   owner_id?: string
   keyword?: string
   page?: number
@@ -71,7 +90,7 @@ export interface ArchiveFilters {
   date_to?: string
   tag_ids?: string[]
   user_id?: string
-  dept_id?: string
+  department_id?: string
   keyword?: string
   page?: number
   page_size?: number

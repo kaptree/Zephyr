@@ -5,11 +5,11 @@ import { useAuthStore } from '@/stores/auth'
 vi.mock('@/services/admin', () => ({
   login: vi.fn().mockResolvedValue({
     code: 0,
-    data: { token: 'test-token', user: { id: 'user-1', name: '张三', avatar: '', email: '', phone: '', dept_id: 'dept-1', dept_name: '刑警支队', role: 'group_leader', permissions: ['create_note_self', 'create_note_assigned', 'edit_others_note', 'delete_note', 'remind', 'view_dept_archive', 'view_group_archive', 'manage_tags', 'access_screen'] } },
+    data: { access_token: 'test-token', refresh_token: '', expires_in: 7200, user: { id: 'user-1', username: 'zhangsan', name: '张三', avatar: '', email: '', phone: '', rank: '', dept_id: 'dept-1', dept_name: '刑警支队', role: 'group_leader', is_active: true, permissions: ['create_note_self', 'create_note_assigned', 'edit_others_note', 'delete_note', 'remind', 'view_dept_archive', 'view_group_archive', 'manage_tags', 'access_screen'] } },
   }),
   getCurrentUser: vi.fn().mockResolvedValue({
     code: 0,
-    data: { id: 'user-1', name: '张三', avatar: '', email: '', phone: '', dept_id: 'dept-1', dept_name: '刑警支队', role: 'group_leader', permissions: ['create_note_self', 'create_note_assigned', 'edit_others_note', 'delete_note', 'remind', 'view_dept_archive', 'view_group_archive', 'manage_tags', 'access_screen'] },
+    data: { id: 'user-1', username: 'zhangsan', name: '张三', avatar: '', email: '', phone: '', rank: '', dept_id: 'dept-1', dept_name: '刑警支队', role: 'group_leader', is_active: true, permissions: ['create_note_self', 'create_note_assigned', 'edit_others_note', 'delete_note', 'remind', 'view_dept_archive', 'view_group_archive', 'manage_tags', 'access_screen'] },
   }),
 }))
 

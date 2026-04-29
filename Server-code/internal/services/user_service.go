@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"labelpro-server/internal/models"
 	"labelpro-server/internal/repository"
 	apperrors "labelpro-server/pkg/errors"
@@ -65,9 +66,11 @@ func (s *UserService) UpdateUser(id string, req UpdateUserRequest) (*models.User
 	}
 	if req.DepartmentID != "" {
 		did, err := uuid.Parse(req.DepartmentID)
-		if err == nil {
-			user.DepartmentID = &did
+		if err != nil {
+			return nil, fmt.Errorf("invalid department UUID: %w", err)
 		}
+		user.DepartmentID = &did
+		user.Department = nil
 	}
 	if req.IsActive != nil {
 		user.IsActive = *req.IsActive

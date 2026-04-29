@@ -10,10 +10,19 @@ export const useAuthStore = defineStore('auth', () => {
 
   function loadUser(): User | null {
     const stored = localStorage.getItem('auth_user')
-    if (stored) {
-      try { return JSON.parse(stored) } catch { return null }
+    if (!stored) return null
+    try {
+      const u = JSON.parse(stored)
+      // 清理旧 demo 数据（没有 username 字段的是旧数据）
+      if (!u.username) {
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('auth_user')
+        return null
+      }
+      return u
+    } catch {
+      return null
     }
-    return null
   }
 
   const isLoggedIn = computed(() => !!token.value && !!user.value)

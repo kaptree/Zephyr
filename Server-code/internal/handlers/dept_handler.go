@@ -92,3 +92,73 @@ func (h *DepartmentHandler) Create(c *gin.Context) {
 
 	utils.Created(c, model)
 }
+
+func (h *DepartmentHandler) Update(c *gin.Context) {
+	id := c.Param("id")
+	dept, err := h.deptRepo.FindByID(id)
+	if err != nil || dept == nil {
+		utils.NotFound(c, "部门不存在")
+		return
+	}
+
+	var req struct {
+		Name     *string `json:"name"`
+		ParentID *string `json:"parent_id"`
+		Level    *int    `json:"level"`
+		LeaderID *string `json:"leader_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "请求参数错误")
+		return
+	}
+
+	if req.Name != nil && *req.Name != "" {
+		dept.Name = *req.Name
+	}
+	if req.Level != nil {
+		dept.Level = *req.Level
+	}
+	if req.ParentID != nil {
+		if *req.ParentID == "" {
+			dept.ParentID = nil
+		} else {
+			pid, err := uuid.Parse(*req.ParentID)
+			if err == nil {
+				dept.ParentID = &pid
+			}
+		}
+	}
+	if req.LeaderID != nil {
+		if *req.LeaderID == "" {
+			dept.LeaderID = nil
+		} else {
+			lid, err := uuid.Parse(*req.LeaderID)
+			if err == nil {
+				dept.LeaderID = &lid
+			}
+		}
+	}
+
+	if err := h.deptRepo.Update(dept); err != nil {
+		utils.InternalError(c, "更新部门失败")
+		return
+	}
+
+	utils.Success(c, dept)
+}
+
+func (h *DepartmentHandler) Delete(c *gin.Context) {
+	id := c.Param("id")
+	dept, err := h.deptRepo.FindByID(id)
+	if err != nil || dept == nil {
+		utils.NotFound(c, "部门不存在")
+		return
+	}
+
+	if err := h.deptRepo.Delete(id); err != nil {
+		utils.InternalError(c, "删除部门失败")
+		return
+	}
+
+	utils.Success(c, gin.H{"deleted": id, "name": dept.Name})
+}

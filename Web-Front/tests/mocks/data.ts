@@ -15,13 +15,16 @@ export const mockUserBriefs: UserBrief[] = [
 
 export const mockUser: User = {
   id: 'user-1',
+  username: 'zhangsan',
   name: '张三',
   avatar: '',
   email: 'zhangsan@police.gov.cn',
   phone: '13800001111',
+  rank: '',
   dept_id: 'dept-1',
   dept_name: '刑警支队',
   role: 'group_leader',
+  is_active: true,
   permissions: [
     'create_note_self',
     'create_note_assigned',
@@ -38,6 +41,7 @@ export const mockUser: User = {
 export const mockAdminUser: User = {
   ...mockUser,
   id: 'admin-1',
+  username: 'admin',
   name: '管理员',
   dept_name: '公安局',
   role: 'super_admin',
@@ -62,18 +66,18 @@ export function createMockNote(overrides: Partial<Note> = {}): Note {
     id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     title: '测试便签',
     content: '这是测试便签的内容，用于单元测试。',
-    status: 'active',
+    color_status: 'yellow',
     source_type: 'self',
-    priority: 'normal',
     owner_id: 'user-1',
     creator_id: 'user-1',
+    is_archived: false,
     tags: [mockTags[0]],
     assignees: [],
+    remind_count: 0,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    allowed_actions: ['edit', 'delete', 'complete', 'remind'],
     ...overrides,
-  }
+  } as Note
 }
 
 export function createMockNotes(count: number): Note[] {

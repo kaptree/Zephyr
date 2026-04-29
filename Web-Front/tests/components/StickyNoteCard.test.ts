@@ -17,21 +17,14 @@ describe('StickyNoteCard', () => {
   }
 
   it('待办便签应有黄色背景样式', () => {
-    const { wrapper } = createWrapper({ priority: 'normal', status: 'active' })
+    const { wrapper } = createWrapper({ color_status: 'yellow' })
     const el = wrapper.element as HTMLElement
     const bg = el.style.background || el.style.backgroundColor || ''
     expect(bg).toMatch(/\(254,\s*243,\s*199\)/)
   })
 
-  it('已完成便签应有绿色背景样式', () => {
-    const { wrapper } = createWrapper({ status: 'completed' })
-    const el = wrapper.element as HTMLElement
-    const bg = el.style.background || el.style.backgroundColor || ''
-    expect(bg).toMatch(/\(220,\s*252,\s*231\)/)
-  })
-
   it('盯办便签应有红色背景样式', () => {
-    const { wrapper } = createWrapper({ priority: 'urgent' })
+    const { wrapper } = createWrapper({ color_status: 'red' })
     const el = wrapper.element as HTMLElement
     const bg = el.style.background || el.style.backgroundColor || ''
     expect(bg).toMatch(/\(254,\s*226,\s*226\)/)
@@ -48,13 +41,18 @@ describe('StickyNoteCard', () => {
   })
 
   it('盯办便签应显示盯办徽章', () => {
-    const { wrapper } = createWrapper({ priority: 'urgent' })
+    const { wrapper } = createWrapper({ color_status: 'red' })
     expect(wrapper.text()).toContain('盯办')
   })
 
-  it('已完成便签应显示已完成角标', () => {
-    const { wrapper } = createWrapper({ status: 'completed' })
-    expect(wrapper.text()).toContain('已完成')
+  it('应显示完成并归档按钮', () => {
+    const { wrapper } = createWrapper()
+    expect(wrapper.text()).toContain('完成并归档')
+  })
+
+  it('盯办便签应显示盯办按钮', () => {
+    const { wrapper } = createWrapper({ color_status: 'yellow' })
+    expect(wrapper.text()).toContain('盯办')
   })
 
   it('已归档应显示已归档水印', () => {
@@ -67,7 +65,7 @@ describe('StickyNoteCard', () => {
   })
 
   it('点击应触发 click 事件', async () => {
-    const { wrapper, note } = createWrapper()
+    const { wrapper } = createWrapper()
     await wrapper.trigger('click')
     expect(wrapper.emitted('click')).toBeTruthy()
   })

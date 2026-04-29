@@ -80,6 +80,8 @@ func Setup(cfg *config.Config) *gin.Engine {
 			departments.GET("", deptHandler.GetTree)
 			departments.GET("/:id", deptHandler.GetDetail)
 			departments.POST("", middleware.RequireRoles("super_admin", "dept_admin"), deptHandler.Create)
+			departments.PUT("/:id", middleware.RequireRoles("super_admin", "dept_admin"), deptHandler.Update)
+			departments.DELETE("/:id", middleware.RequireRoles("super_admin"), deptHandler.Delete)
 		}
 
 		users := api.Group("/users")

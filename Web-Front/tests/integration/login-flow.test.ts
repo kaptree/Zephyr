@@ -2,15 +2,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 
-// 避免 mock hoisting 问题，在 mock factory 中内联数据
 vi.mock('@/services/admin', () => ({
   login: vi.fn().mockResolvedValue({
     code: 0,
-    data: { token: 'test-token', user: { id: 'user-1', name: '张三', avatar: '', email: '', phone: '', dept_id: 'dept-1', dept_name: '刑警支队', role: 'group_leader', permissions: ['create_note_self', 'create_note_assigned', 'edit_others_note', 'delete_note', 'remind', 'view_dept_archive', 'view_group_archive', 'manage_tags', 'access_screen'] } },
+    data: { access_token: 'test-token', refresh_token: '', expires_in: 7200, user: { id: 'user-1', username: 'zhangsan', name: '张三', avatar: '', email: '', phone: '', rank: '', dept_id: 'dept-1', dept_name: '刑警支队', role: 'group_leader', is_active: true, permissions: ['create_note_self', 'create_note_assigned', 'edit_others_note', 'delete_note', 'remind', 'view_dept_archive', 'view_group_archive', 'manage_tags', 'access_screen'] } },
   }),
   getCurrentUser: vi.fn().mockResolvedValue({
     code: 0,
-    data: { id: 'user-1', name: '张三', avatar: '', email: '', phone: '', dept_id: 'dept-1', dept_name: '刑警支队', role: 'group_leader', permissions: ['create_note_self', 'create_note_assigned', 'edit_others_note', 'delete_note', 'remind', 'view_dept_archive', 'view_group_archive', 'manage_tags', 'access_screen'] },
+    data: { id: 'user-1', username: 'zhangsan', name: '张三', avatar: '', email: '', phone: '', rank: '', dept_id: 'dept-1', dept_name: '刑警支队', role: 'group_leader', is_active: true, permissions: ['create_note_self', 'create_note_assigned', 'edit_others_note', 'delete_note', 'remind', 'view_dept_archive', 'view_group_archive', 'manage_tags', 'access_screen'] },
   }),
 }))
 
@@ -47,7 +46,7 @@ describe('登录流程 - 集成测试', () => {
     const store = useAuthStore()
     store.$patch({
       token: 't',
-      user: { id: 'u1', name: 'U', avatar: '', email: '', phone: '', dept_id: 'd1', dept_name: 'D', role: 'user', permissions: ['create_note_self'] },
+      user: { id: 'u1', username: 'u', name: 'U', avatar: '', email: '', phone: '', rank: '', dept_id: 'd1', dept_name: 'D', role: 'user', is_active: true, permissions: ['create_note_self'] },
       permissions: ['create_note_self'],
     })
     expect(store.permissions).not.toContain('manage_templates')
@@ -59,7 +58,7 @@ describe('登录流程 - 集成测试', () => {
     const adminPerms = ['create_note_self', 'create_note_assigned', 'edit_others_note', 'delete_note', 'remind', 'view_all_archive', 'manage_departments', 'manage_users', 'manage_tags', 'manage_templates', 'access_screen', 'send_command']
     store.$patch({
       token: 'admin-token',
-      user: { id: 'admin-1', name: '管理员', avatar: '', email: '', phone: '', dept_id: 'dept-1', dept_name: '公安局', role: 'super_admin', permissions: adminPerms },
+      user: { id: 'admin-1', username: 'admin', name: '管理员', avatar: '', email: '', phone: '', rank: '', dept_id: 'dept-1', dept_name: '公安局', role: 'super_admin', is_active: true, permissions: adminPerms },
       permissions: adminPerms,
     })
     expect(store.permissions).toContain('manage_templates')

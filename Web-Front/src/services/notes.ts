@@ -2,7 +2,15 @@ import { get, post, put, del } from './api'
 import type { Note, CreateNotePayload, UpdateNotePayload, NoteFilters, PaginatedData, CompleteNotePayload, RemindPayload } from '@/types'
 
 export function fetchNotes(filters: NoteFilters) {
-  return get<PaginatedData<Note>>('/api/v1/notes', filters as Record<string, unknown>)
+  const params: Record<string, unknown> = {}
+  if (filters.status) params.status = filters.status
+  if (filters.tag_ids?.length) params.tag_ids = filters.tag_ids
+  if (filters.department_id) params.department_id = filters.department_id
+  if (filters.owner_id) params.owner_id = filters.owner_id
+  if (filters.keyword) params.keyword = filters.keyword
+  if (filters.page) params.page = filters.page
+  if (filters.page_size) params.page_size = filters.page_size
+  return get<PaginatedData<Note>>('/api/v1/notes', params)
 }
 
 export function fetchNoteById(id: string) {
