@@ -28,7 +28,7 @@ type Template struct {
 	ID        uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	Name      string     `gorm:"type:varchar(100);not null" json:"name"`
 	Type      string     `gorm:"type:varchar(30);default:'default'" json:"type"`
-	Fields    string     `gorm:"type:jsonb" json:"fields"`
+	Fields    string     `gorm:"type:jsonb;default:'[]'" json:"fields"`
 	Layout    string     `gorm:"type:varchar(10);default:'1'" json:"layout"`
 	IsSystem  bool       `gorm:"default:false" json:"is_system"`
 	CreatorID *uuid.UUID `gorm:"type:uuid" json:"creator_id"`
@@ -72,7 +72,7 @@ func (WorkGroupMember) TableName() string {
 type CollaborationRoom struct {
 	ID             uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	NoteID         uuid.UUID  `gorm:"type:uuid;uniqueIndex;not null" json:"note_id"`
-	CanvasData     string     `gorm:"type:jsonb" json:"canvas_data"`
+	CanvasData     string     `gorm:"type:jsonb;default:'{}'" json:"canvas_data"`
 	Columns        int        `gorm:"default:1" json:"columns"`
 	Version        int        `gorm:"default:0" json:"version"`
 	LastActivityAt *time.Time `json:"last_activity_at"`
@@ -108,7 +108,7 @@ type LedgerEntry struct {
 	UserID       uuid.UUID `gorm:"type:uuid;index" json:"user_id"`
 	User         *User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	Action       string    `gorm:"type:varchar(30);not null" json:"action"`
-	ActionDetail string    `gorm:"type:jsonb" json:"action_detail"`
+	ActionDetail string    `gorm:"type:text" json:"action_detail"`
 	IPAddress    string    `gorm:"type:varchar(50)" json:"ip_address"`
 	UserAgent    string    `gorm:"type:varchar(500)" json:"user_agent"`
 	CreatedAt    time.Time `json:"created_at"`

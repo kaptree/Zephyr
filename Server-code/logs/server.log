@@ -1,3 +1,25 @@
 {"level":"info","timestamp":"2026-04-29T09:10:42.189+0800","caller":"Server-code/main.go:47","message":"Starting LabelPro Server...","version":"1.0.0","mode":"debug","demo_mode":true}
 {"level":"info","timestamp":"2026-04-29T09:10:42.203+0800","caller":"Server-code/main.go:134","message":"Demo mode: using SQLite in-memory database"}
 {"level":"fatal","timestamp":"2026-04-29T09:10:42.205+0800","caller":"Server-code/main.go:84","message":"Failed to auto migrate database","error":"near \"(\": syntax error"}
+{"level":"info","timestamp":"2026-04-29T09:41:17.107+0800","caller":"database/postgres.go:57","message":"PostgreSQL connected successfully","host":"127.0.0.1","port":5432,"dbname":"labelpro"}
+{"level":"info","timestamp":"2026-04-29T09:42:01.411+0800","caller":"database/postgres.go:58","message":"PostgreSQL connected successfully","host":"127.0.0.1","port":5432,"dbname":"labelpro"}
+{"level":"info","timestamp":"2026-04-29T09:43:53.098+0800","caller":"database/postgres.go:58","message":"PostgreSQL connected successfully","host":"127.0.0.1","port":5432,"dbname":"labelpro"}
+{"level":"info","timestamp":"2026-04-29T09:45:20.782+0800","caller":"database/postgres.go:58","message":"PostgreSQL connected successfully","host":"127.0.0.1","port":5432,"dbname":"labelpro"}
+{"level":"info","timestamp":"2026-04-29T09:45:54.184+0800","caller":"Server-code/main.go:44","message":"Starting LabelPro Server...","version":"1.0.0","mode":"debug"}
+{"level":"info","timestamp":"2026-04-29T09:45:54.264+0800","caller":"database/postgres.go:58","message":"PostgreSQL connected successfully","host":"127.0.0.1","port":5432,"dbname":"labelpro"}
+{"level":"info","timestamp":"2026-04-29T09:45:54.624+0800","caller":"Server-code/main.go:71","message":"Database migration completed"}
+{"level":"warn","timestamp":"2026-04-29T09:45:54.630+0800","caller":"Server-code/main.go:74","message":"Failed to connect to Redis, continuing without cache","error":"failed to connect to Redis: NOAUTH Authentication required."}
+{"level":"info","timestamp":"2026-04-29T09:45:54.633+0800","caller":"Server-code/main.go:92","message":"Server listening","addr":"0.0.0.0:8080"}
+{"level":"fatal","timestamp":"2026-04-29T09:45:54.634+0800","caller":"Server-code/main.go:94","message":"Failed to start server","error":"listen tcp 0.0.0.0:8080: bind: Only one usage of each socket address (protocol/network address/port) is normally permitted."}
+{"level":"info","timestamp":"2026-04-29T09:46:44.618+0800","caller":"Server-code/main.go:44","message":"Starting LabelPro Server...","version":"1.0.0","mode":"debug"}
+{"level":"info","timestamp":"2026-04-29T09:46:44.793+0800","caller":"database/postgres.go:58","message":"PostgreSQL connected successfully","host":"127.0.0.1","port":5432,"dbname":"labelpro"}
+{"level":"info","timestamp":"2026-04-29T09:46:45.143+0800","caller":"Server-code/main.go:71","message":"Database migration completed"}
+{"level":"info","timestamp":"2026-04-29T09:46:45.150+0800","caller":"database/redis.go:36","message":"Redis connected successfully","addr":"127.0.0.1:6379","db":0}
+{"level":"info","timestamp":"2026-04-29T09:46:45.154+0800","caller":"Server-code/main.go:92","message":"Server listening","addr":"0.0.0.0:8090"}
+{"level":"info","timestamp":"2026-04-29T09:47:09.408+0800","caller":"middleware/request_logger.go:40","message":"request completed","status":200,"method":"GET","path":"/health","query":"","ip":"::1","latency":0,"request_id":"2026042909470922222222"}
+{"level":"info","timestamp":"2026-04-29T09:47:09.570+0800","caller":"middleware/request_logger.go:40","message":"request completed","status":200,"method":"POST","path":"/api/v1/auth/login","query":"","ip":"::1","latency":0.0702049,"request_id":"20260429094709uuuuuuuu"}
+{"level":"info","timestamp":"2026-04-29T09:47:29.657+0800","caller":"middleware/request_logger.go:40","message":"request completed","status":200,"method":"POST","path":"/api/v1/auth/login","query":"","ip":"::1","latency":0.0676687,"request_id":"20260429094729eeeeeeee"}
+{"level":"info","timestamp":"2026-04-29T09:47:42.966+0800","caller":"middleware/request_logger.go:40","message":"request completed","status":200,"method":"POST","path":"/api/v1/auth/login","query":"","ip":"::1","latency":0.0700236,"request_id":"20260429094742eeeeeeee"}
+{"level":"info","timestamp":"2026-04-29T09:47:43.076+0800","caller":"middleware/request_logger.go:40","message":"request completed","status":200,"method":"GET","path":"/api/v1/notes","query":"page=1&page_size=5","ip":"::1","latency":0.0099737,"request_id":"20260429094743eeeeeeee"}
+{"level":"info","timestamp":"2026-04-29T09:48:40.578+0800","caller":"middleware/request_logger.go:40","message":"request completed","status":200,"method":"GET","path":"/health","query":"","ip":"::1","latency":0,"request_id":"20260429094840aaaaaaaa"}
+{"level":"warn","timestamp":"2026-04-29T09:48:40.640+0800","caller":"middleware/request_logger.go:38","message":"request completed","status":404,"method":"GET","path":"/favicon.ico","query":"","ip":"::1","latency":0,"request_id":"20260429094840mmmmmmmm"}

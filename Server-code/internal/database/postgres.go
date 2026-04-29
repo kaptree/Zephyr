@@ -29,7 +29,8 @@ func InitPostgres(cfg *config.Config) error {
 	}
 
 	gormCfg := &gorm.Config{
-		Logger: gormlogger.Default.LogMode(logLevel),
+		Logger:                                   gormlogger.Default.LogMode(logLevel),
+		DisableForeignKeyConstraintWhenMigrating: true,
 		NowFunc: func() time.Time {
 			return time.Now().Local()
 		},

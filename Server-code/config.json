@@ -7,7 +7,7 @@
 
   "server": {
     "_模块": "HTTP服务器配置",
-    "port": 8080,
+    "port": 8090,
     "host": "0.0.0.0",
     "mode": "debug",
     "_mode说明": "debug | release | test",

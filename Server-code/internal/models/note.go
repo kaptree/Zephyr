@@ -11,7 +11,7 @@ type Note struct {
 	ID           uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	Title        string         `gorm:"type:varchar(200);not null" json:"title"`
 	Content      string         `gorm:"type:text" json:"content"`
-	ContentDelta string         `gorm:"type:jsonb" json:"content_delta,omitempty"`
+	ContentDelta string         `gorm:"type:jsonb;default:'{}'" json:"content_delta,omitempty"`
 	ColorStatus  string         `gorm:"type:varchar(20);default:'yellow'" json:"color_status"`
 	SourceType   string         `gorm:"type:varchar(20);default:'self'" json:"source_type"`
 	TemplateType string         `gorm:"type:varchar(30);default:'default'" json:"template_type"`
