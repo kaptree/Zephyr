@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { fetchTags } from '@/services/tags'
-import { DEMO_TAGS, isDemoMode } from '@/services/demoData'
 import type { Tag } from '@/types'
 
 const tags = ref<Tag[]>([])
 const loading = ref(false)
+const loadError = ref('')
 const showNewModal = ref(false)
 const newTagName = ref('')
 const newTagColor = ref('#3B82F6')
@@ -18,9 +18,7 @@ onMounted(async () => {
     const res = await fetchTags()
     tags.value = res.data as unknown as Tag[]
   } catch {
-    if (isDemoMode()) {
-      tags.value = DEMO_TAGS
-    }
+    loadError.value = '加载标签失败'
   } finally {
     loading.value = false
   }
@@ -51,6 +49,8 @@ function addTag() {
     <div v-if="loading" class="grid grid-cols-4 gap-4">
       <div v-for="n in 8" :key="n" class="skeleton h-16 rounded-card" />
     </div>
+
+    <div v-else-if="loadError" class="text-center py-8 text-sm text-red-400">{{ loadError }}</div>
 
     <div v-else class="grid grid-cols-4 gap-4">
       <div

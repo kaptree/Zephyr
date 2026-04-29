@@ -1,12 +1,11 @@
 import axios from 'axios'
 import type { ApiResponse } from '@/types'
-import { isDemoMode } from './demoData'
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 5000,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -30,10 +29,12 @@ api.interceptors.response.use(
   (error) => {
     const { response } = error
     
-    if (response?.status === 401 && !isDemoMode()) {
+    if (response?.status === 401) {
       localStorage.removeItem('auth_token')
       localStorage.removeItem('auth_user')
-      window.location.href = '/login'
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
     }
     
     const errorMsg = response?.data?.message || response?.statusText || '网络请求异常'

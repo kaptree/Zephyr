@@ -12,7 +12,6 @@ const password = ref('')
 const loading = ref(false)
 const errorMsg = ref('')
 const showPassword = ref(false)
-const showDemoInfo = ref(false)
 
 async function handleLogin() {
   errorMsg.value = ''
@@ -28,9 +27,6 @@ async function handleLogin() {
   loading.value = true
   try {
     await auth.login({ username: username.value, password: password.value })
-    if (auth.demoMode) {
-      errorMsg.value = ''
-    }
     const redirect = (route.query.redirect as string) || '/workbench'
     router.push(redirect)
   } catch (e: unknown) {
@@ -40,16 +36,10 @@ async function handleLogin() {
     loading.value = false
   }
 }
-
-function fillDemo(account: string) {
-  username.value = account
-  password.value = account === 'admin' ? 'admin123' : '123456'
-}
 </script>
 
 <template>
   <div class="min-h-screen bg-white flex">
-    <!-- 左侧品牌区 -->
     <div class="hidden lg:flex lg:w-[480px] bg-slate-50 flex-col items-center justify-center p-12">
       <div class="w-20 h-20 bg-blue-500 rounded-2xl flex items-center justify-center mb-8 shadow-lg">
         <svg class="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -68,7 +58,6 @@ function fillDemo(account: string) {
       </div>
     </div>
 
-    <!-- 右侧登录表单 -->
     <div class="flex-1 flex items-center justify-center p-8">
       <div class="w-full max-w-[400px]">
         <div class="lg:hidden mb-10 text-center">
@@ -83,7 +72,6 @@ function fillDemo(account: string) {
         <h2 class="text-2xl font-semibold text-slate-900 mb-2">欢迎登录</h2>
         <p class="text-slate-500 text-sm mb-8">请使用您的公安内部账号登录系统</p>
 
-        <!-- 扫码/账密切换 -->
         <div class="flex bg-slate-100 rounded-btn p-1 mb-8">
           <button class="flex-1 py-2 text-sm font-medium rounded-md bg-white text-slate-900 shadow-sm transition-smooth">
             账号登录
@@ -152,44 +140,7 @@ function fillDemo(account: string) {
         </form>
 
         <div class="mt-6 text-center">
-          <button
-            class="text-xs text-slate-400 hover:text-slate-600 transition-smooth underline underline-offset-2"
-            @click="showDemoInfo = !showDemoInfo"
-          >
-            {{ showDemoInfo ? '收起演示账号' : '查看演示账号' }}
-          </button>
-        </div>
-
-        <!-- 演示账号卡片 -->
-        <div
-          v-if="showDemoInfo"
-          class="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-card"
-        >
-          <div class="flex items-center gap-1.5 mb-3">
-            <svg class="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span class="text-xs font-medium text-amber-700">演示阶段 · 后端未就绪时使用</span>
-          </div>
-          <div class="space-y-2">
-            <button
-              v-for="acc in [
-                { user: 'admin', pass: 'admin123', role: '系统管理员', name: '李建国' },
-                { user: 'zhang', pass: '123456', role: '部门管理员', name: '张振华' },
-                { user: 'wang', pass: '123456', role: '组长', name: '王明辉' },
-                { user: 'li', pass: '123456', role: '普通民警', name: '李思远' },
-              ]"
-              :key="acc.user"
-              class="w-full flex items-center justify-between px-3 py-2 rounded-btn bg-white hover:bg-amber-100/50 transition-smooth text-left"
-              @click="fillDemo(acc.user)"
-            >
-              <div>
-                <span class="text-sm font-medium text-slate-700">{{ acc.name }}</span>
-                <span class="text-xs text-slate-400 ml-2">{{ acc.role }}</span>
-              </div>
-              <span class="text-xs text-slate-400 font-mono">{{ acc.user }} / {{ acc.pass }}</span>
-            </button>
-          </div>
+          <span class="text-xs text-slate-400">忘记密码请联系系统管理员</span>
         </div>
       </div>
     </div>

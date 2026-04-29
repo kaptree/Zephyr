@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { getDepartments } from '@/services/admin'
-import { DEMO_DEPARTMENTS, isDemoMode } from '@/services/demoData'
 import type { Department } from '@/types'
 
 const departments = ref<Department[]>([])
 const loading = ref(false)
-const expanded = ref<Set<string>>(new Set(['dept-001']))
+const loadError = ref('')
+const expanded = ref<Set<string>>(new Set())
 const selectedDept = ref<Department | null>(null)
 
 onMounted(async () => {
@@ -14,10 +14,11 @@ onMounted(async () => {
   try {
     const res = await getDepartments(false)
     departments.value = res.data as unknown as Department[]
-  } catch {
-    if (isDemoMode()) {
-      departments.value = DEMO_DEPARTMENTS
+    if (departments.value.length > 0) {
+      expanded.value.add(departments.value[0].id)
     }
+  } catch {
+    loadError.value = '加载部门架构失败'
   } finally {
     loading.value = false
   }
@@ -47,6 +48,7 @@ function selectDept(dept: Department) {
       <div class="bg-white rounded-card border border-slate-100 p-4">
         <h4 class="text-sm font-semibold text-slate-700 mb-3">组织架构</h4>
         <div v-if="loading" class="skeleton h-40 rounded-lg" />
+        <div v-else-if="loadError" class="text-sm text-red-400 py-8 text-center">{{ loadError }}</div>
         <div v-else class="space-y-1">
           <template v-for="dept in departments" :key="dept.id">
             <button

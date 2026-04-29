@@ -2,7 +2,6 @@
 import { ref, computed, onMounted } from 'vue'
 import type { UserBrief, Department } from '@/types'
 import { getDepartments, getUsers } from '@/services/admin'
-import { DEMO_DEPARTMENTS, DEMO_USERS, isDemoMode } from '@/services/demoData'
 
 const props = withDefaults(defineProps<{
   modelValue: string[]
@@ -22,6 +21,7 @@ const searchText = ref('')
 const departments = ref<Department[]>([])
 const users = ref<UserBrief[]>([])
 const loading = ref(false)
+const loadError = ref('')
 const expandedDepts = ref<Set<string>>(new Set())
 
 const selectedUsers = computed(() =>
@@ -47,17 +47,7 @@ onMounted(async () => {
     departments.value = deptRes.data as unknown as Department[]
     users.value = (userRes.data as unknown as { data: UserBrief[] }).data || []
   } catch {
-    // 演示模式下使用内置演示数据
-    if (isDemoMode()) {
-      departments.value = DEMO_DEPARTMENTS
-      users.value = DEMO_USERS.map(u => ({
-        id: u.id,
-        name: u.name,
-        avatar: u.avatar,
-        dept_name: u.dept_name,
-        role: u.role as UserBrief['role'],
-      }))
-    }
+    loadError.value = '加载组织架构失败'
   } finally {
     loading.value = false
   }
@@ -101,7 +91,6 @@ function toggleDept(deptId: string) {
 
 function getDeptUsers(deptId: string): UserBrief[] {
   return users.value.filter(u => {
-    // 简易匹配：部门名称匹配
     const dept = departments.value.find(d => d.id === deptId)
     return dept && u.dept_name === dept.name
   })
@@ -110,7 +99,6 @@ function getDeptUsers(deptId: string): UserBrief[] {
 
 <template>
   <div class="relative">
-    <!-- 已选人员展示 -->
     <div class="flex flex-wrap gap-1.5 mb-1.5">
       <span
         v-for="user in selectedUsers"
@@ -134,12 +122,10 @@ function getDeptUsers(deptId: string): UserBrief[] {
       </button>
     </div>
 
-    <!-- 下拉面板 -->
     <div
       v-if="open"
       class="absolute top-full left-0 mt-1 w-80 bg-white rounded-card shadow-modal border border-slate-100 z-50 overflow-hidden"
     >
-      <!-- 搜索 -->
       <div class="p-3 border-b border-slate-100">
         <input
           v-model="searchText"
@@ -148,9 +134,9 @@ function getDeptUsers(deptId: string): UserBrief[] {
         />
       </div>
 
-      <!-- 部门树 + 人员 -->
       <div class="max-h-72 overflow-y-auto scrollbar-thin p-2">
         <div v-if="loading" class="text-center py-4 text-xs text-slate-400">加载中...</div>
+        <div v-else-if="loadError" class="text-center py-4 text-xs text-red-400">{{ loadError }}</div>
         <div v-else-if="searchText">
           <button
             v-for="user in filteredUsers"

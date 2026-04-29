@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { getUsers } from '@/services/admin'
-import { DEMO_USERS, isDemoMode } from '@/services/demoData'
 
 const users = ref<{ id: string; name: string; dept_name: string; role: string }[]>([])
 const loading = ref(false)
+const loadError = ref('')
 
 onMounted(async () => {
   loading.value = true
@@ -12,9 +12,7 @@ onMounted(async () => {
     const res = await getUsers({ page: 1 })
     users.value = (res.data as unknown as { data: { id: string; name: string; dept_name: string; role: string }[] }).data || []
   } catch {
-    if (isDemoMode()) {
-      users.value = DEMO_USERS.map(u => ({ id: u.id, name: u.name, dept_name: u.dept_name, role: u.role }))
-    }
+    loadError.value = '加载人员列表失败'
   } finally {
     loading.value = false
   }
@@ -38,6 +36,7 @@ const roleMap: Record<string, string> = {
 
     <div class="bg-white rounded-card border border-slate-100 overflow-hidden">
       <div v-if="loading" class="p-8 text-center text-sm text-slate-400">加载中...</div>
+      <div v-else-if="loadError" class="p-8 text-center text-sm text-red-400">{{ loadError }}</div>
       <table v-else class="w-full">
         <thead>
           <tr class="border-b border-slate-100 bg-slate-50">

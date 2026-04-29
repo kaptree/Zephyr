@@ -2,7 +2,6 @@
 import { ref, computed, onMounted } from 'vue'
 import type { Tag } from '@/types'
 import { fetchTags } from '@/services/tags'
-import { DEMO_TAGS, isDemoMode } from '@/services/demoData'
 
 const props = withDefaults(defineProps<{
   modelValue: string[]
@@ -22,6 +21,7 @@ const open = ref(false)
 const searchText = ref('')
 const allTags = ref<Tag[]>([])
 const loading = ref(false)
+const loadError = ref('')
 
 const selectedTags = computed(() =>
   allTags.value.filter(t => props.modelValue.includes(t.id))
@@ -44,10 +44,7 @@ onMounted(async () => {
     const res = await fetchTags(props.scope)
     allTags.value = res.data as unknown as Tag[]
   } catch {
-    // 演示模式下使用内置演示标签
-    if (isDemoMode()) {
-      allTags.value = DEMO_TAGS
-    }
+    loadError.value = '加载标签失败'
   } finally {
     loading.value = false
   }
@@ -84,7 +81,6 @@ function handleCreateTag() {
 
 <template>
   <div class="relative">
-    <!-- 已选标签展示 -->
     <div class="flex flex-wrap gap-1.5 mb-1.5">
       <span
         v-for="tag in selectedTags"
@@ -103,12 +99,10 @@ function handleCreateTag() {
       </button>
     </div>
 
-    <!-- 下拉面板 -->
     <div
       v-if="open"
       class="absolute top-full left-0 mt-1 w-72 bg-white rounded-card shadow-modal border border-slate-100 z-50 overflow-hidden"
     >
-      <!-- 搜索框 -->
       <div class="p-3 border-b border-slate-100">
         <input
           v-model="searchText"
@@ -118,7 +112,6 @@ function handleCreateTag() {
         />
       </div>
 
-      <!-- 最近使用 -->
       <div v-if="recentTags.length && !searchText" class="px-3 pt-2">
         <span class="text-[10px] text-slate-400 uppercase">最近使用</span>
         <div class="flex flex-wrap gap-1 mt-1">
@@ -137,9 +130,9 @@ function handleCreateTag() {
         </div>
       </div>
 
-      <!-- 标签列表 -->
       <div class="max-h-48 overflow-y-auto scrollbar-thin px-3 py-2">
         <div v-if="loading" class="text-center py-4 text-xs text-slate-400">加载中...</div>
+        <div v-else-if="loadError" class="text-center py-4 text-xs text-red-400">{{ loadError }}</div>
         <div v-else-if="filteredTags.length === 0" class="text-center py-4">
           <p class="text-xs text-slate-400">暂无匹配标签</p>
           <button
@@ -170,7 +163,6 @@ function handleCreateTag() {
         </div>
       </div>
 
-      <!-- 底部操作 -->
       <div class="border-t border-slate-100 p-2 flex justify-end">
         <button
           class="text-xs px-3 py-1.5 bg-slate-100 text-slate-600 rounded-btn hover:bg-slate-200 transition-smooth"
