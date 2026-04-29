@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import type { Tag } from '@/types'
-import { fetchTags } from '@/services/tags'
+import type { Tag, CreateTagPayload } from '@/types'
+import { fetchTags, createTag } from '@/services/tags'
 
 const props = withDefaults(defineProps<{
   modelValue: string[]
@@ -126,11 +126,18 @@ function isSelected(tagId: string): boolean {
   return props.modelValue.includes(tagId)
 }
 
-function handleCreateTag() {
+async function handleCreateTag() {
   const name = searchText.value.trim()
-  if (name) {
-    emit('create-tag', name)
+  if (!name) return
+
+  try {
+    const res = await createTag({ name, color: '#3B82F6', category: '自定义', scope: 'personal' })
+    const newTag = res.data as unknown as Tag
+    allTags.value.push(newTag)
+    toggleTag(newTag.id)
     searchText.value = ''
+  } catch {
+    loadError.value = '创建标签失败'
   }
 }
 </script>

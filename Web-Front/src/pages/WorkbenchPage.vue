@@ -6,7 +6,6 @@ import type { Note } from '@/types'
 import TagSelector from '@/components/common/TagSelector.vue'
 import StickyNoteCard from '@/components/note/StickyNoteCard.vue'
 import UserPicker from '@/components/common/UserPicker.vue'
-import { createTag } from '@/services/tags'
 
 const noteStore = useNoteStore()
 const auth = useAuthStore()
@@ -80,16 +79,6 @@ function closeDetail() {
   showDetailPanel.value = false
   selectedNote.value = null
   completing.value = false
-}
-
-async function handleCreateTag(name: string) {
-  try {
-    const res = await createTag({ name, color: '#3B82F6', category: '自定义', scope: 'personal' })
-    const newTag = res.data as { id: string }
-    selectedTagIds.value = [...selectedTagIds.value, newTag.id]
-  } catch {
-    createError.value = '创建标签失败'
-  }
 }
 
 async function handleSubmit() {
@@ -261,7 +250,7 @@ async function handleRemind(note: Note) {
               <!-- 标签 -->
               <div>
                 <span class="text-xs text-slate-500 mb-1.5 block">标签</span>
-                <TagSelector v-model="selectedTagIds" :max="5" @create-tag="handleCreateTag" />
+                <TagSelector v-model="selectedTagIds" :max="5" />
               </div>
 
               <!-- 类型选择 -->
