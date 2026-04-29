@@ -145,9 +145,10 @@ function handleCreateTag() {
         :style="{ backgroundColor: tag.color || '#64748B' }"
       >
         {{ tag.name }}
-        <button class="ml-1 hover:opacity-70" @click="removeTag(tag.id)">&times;</button>
+        <button type="button" class="ml-1 hover:opacity-70" @click="removeTag(tag.id)">&times;</button>
       </span>
       <button
+        type="button"
         ref="triggerRef"
         class="tag-capsule border border-dashed border-slate-300 text-slate-400 hover:border-slate-400 transition-smooth text-xs"
         @click.stop="toggleOpen"
@@ -197,6 +198,7 @@ function handleCreateTag() {
           <div v-else-if="filteredTags.length === 0" class="text-center py-4">
             <p class="text-xs text-slate-400">暂无匹配标签</p>
             <button
+              type="button"
               v-if="searchText.trim()"
               class="text-xs text-[#3B82F6] hover:underline mt-1"
               @click.stop="handleCreateTag"
@@ -226,6 +228,7 @@ function handleCreateTag() {
 
         <div class="border-t border-slate-100 p-2 flex justify-end">
           <button
+            type="button"
             class="text-xs px-3 py-1.5 bg-slate-100 text-slate-600 rounded-btn hover:bg-slate-200 transition-smooth"
             @click.stop="open = false"
           >

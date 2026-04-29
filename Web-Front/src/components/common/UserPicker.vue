@@ -112,9 +112,10 @@ function getDeptUsers(deptId: string): UserBrief[] {
         </span>
         {{ user.name }}
         <span v-if="user.role === 'group_leader'" class="text-[9px] px-1 bg-amber-100 text-amber-700 rounded">组长</span>
-        <button class="ml-0.5 hover:text-blue-900 transition-smooth" @click="removeUser(user.id)">&times;</button>
+        <button type="button" class="ml-0.5 hover:text-blue-900 transition-smooth" @click="removeUser(user.id)">&times;</button>
       </span>
       <button
+        type="button"
         class="inline-flex items-center px-2.5 py-1 border border-dashed border-slate-300 text-slate-400 rounded-tag text-xs hover:border-slate-400 transition-smooth"
         @click="open = !open"
       >
@@ -205,6 +206,7 @@ function getDeptUsers(deptId: string): UserBrief[] {
       <div class="border-t border-slate-100 p-2 flex justify-between">
         <span class="text-xs text-slate-400">{{ props.modelValue.length }} 人已选</span>
         <button
+          type="button"
           class="text-xs px-3 py-1.5 bg-slate-100 text-slate-600 rounded-btn hover:bg-slate-200 transition-smooth"
           @click="open = false"
         >
