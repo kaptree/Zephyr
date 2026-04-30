@@ -43,7 +43,7 @@ export const mockAdminUser: User = {
   id: 'admin-1',
   username: 'admin',
   name: '管理员',
-  dept_name: '公安局',
+  dept_name: '公司局',
   role: 'super_admin',
   permissions: [
     'create_note_self',

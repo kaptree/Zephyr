@@ -58,7 +58,7 @@ describe('登录流程 - 集成测试', () => {
     const adminPerms = ['create_note_self', 'create_note_assigned', 'edit_others_note', 'delete_note', 'remind', 'view_all_archive', 'manage_departments', 'manage_users', 'manage_tags', 'manage_templates', 'access_screen', 'send_command']
     store.$patch({
       token: 'admin-token',
-      user: { id: 'admin-1', username: 'admin', name: '管理员', avatar: '', email: '', phone: '', rank: '', dept_id: 'dept-1', dept_name: '公安局', role: 'super_admin', is_active: true, permissions: adminPerms },
+      user: { id: 'admin-1', username: 'admin', name: '管理员', avatar: '', email: '', phone: '', rank: '', dept_id: 'dept-1', dept_name: '公司局', role: 'super_admin', is_active: true, permissions: adminPerms },
       permissions: adminPerms,
     })
     expect(store.permissions).toContain('manage_templates')

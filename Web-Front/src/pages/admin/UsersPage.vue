@@ -41,7 +41,7 @@ const roleMap: Record<string, string> = {
   super_admin: '系统管理员',
   dept_admin: '部门管理员',
   group_leader: '组长',
-  user: '普通民警',
+  user: '普通员工',
   screen_role: '大屏角色',
 }
 
@@ -286,7 +286,7 @@ function getStatusClass(active: boolean) {
                   <option value="super_admin">系统管理员</option>
                   <option value="dept_admin">部门管理员</option>
                   <option value="group_leader">组长</option>
-                  <option value="user">普通民警</option>
+                  <option value="user">普通员工</option>
                   <option value="screen_role">大屏角色</option>
                 </select>
               </div>

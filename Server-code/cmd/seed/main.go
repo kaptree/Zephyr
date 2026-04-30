@@ -129,7 +129,7 @@ func seedDepartments() int {
 	zzzdID := uuid.New()
 
 	depts := []models.Department{
-		{ID: gaID, Name: "市公安局", ParentID: nil, Level: 1, SortOrder: 1},
+		{ID: gaID, Name: "市公司局", ParentID: nil, Level: 1, SortOrder: 1},
 		{ID: xjID, Name: "刑警支队", ParentID: &gaID, Level: 2, SortOrder: 1},
 		{ID: zaID, Name: "治安支队", ParentID: &gaID, Level: 2, SortOrder: 2},
 		{ID: waID, Name: "网安支队", ParentID: &gaID, Level: 2, SortOrder: 3},
@@ -152,7 +152,7 @@ func seedUsers() int {
 	}
 
 	var ga, xj, za, wa, jszd, qbzd, yjzd, zzzd models.Department
-	database.DB.Where("name = ?", "市公安局").First(&ga)
+	database.DB.Where("name = ?", "市公司局").First(&ga)
 	database.DB.Where("name = ?", "刑警支队").First(&xj)
 	database.DB.Where("name = ?", "治安支队").First(&za)
 	database.DB.Where("name = ?", "网安支队").First(&wa)
@@ -289,8 +289,8 @@ func seedNotes() int {
 	noteCount++
 
 	due48h := time.Now().Add(48 * time.Hour)
-	n3 := createNote(userMap["admin"], deptMap["市公安局"], []models.Tag{tagMap["紧急"], tagMap["专项行动"]},
-		"「雷霆2026」夏季治安打击专项行动", "<p>根据公安部和省厅统一部署，在全市范围内开展「雷霆2026」夏季治安打击专项行动。主要目标：严厉打击涉黑涉恶、黄赌毒、电信诈骗等突出违法犯罪。</p>",
+	n3 := createNote(userMap["admin"], deptMap["市公司局"], []models.Tag{tagMap["紧急"], tagMap["专项行动"]},
+		"「雷霆2026」夏季治安打击专项行动", "<p>根据公司部和省厅统一部署，在全市范围内开展「雷霆2026」夏季治安打击专项行动。主要目标：严厉打击涉黑涉恶、黄赌毒、电信诈骗等突出违法犯罪。</p>",
 		"red", "assigned", &due48h)
 	addAssignee(n3.ID, userMap["admin"].ID, userMap["wang"].ID)
 	addAssignee(n3.ID, userMap["admin"].ID, userMap["sun"].ID)

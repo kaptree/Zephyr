@@ -53,7 +53,7 @@ async function handleLogin() {
           <svg class="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
           </svg>
-          <span class="text-xs text-blue-600 font-medium">公安内部系统 · 安全连接</span>
+          <span class="text-xs text-blue-600 font-medium">公司内部系统 · 安全连接</span>
         </div>
       </div>
     </div>
@@ -70,7 +70,7 @@ async function handleLogin() {
         </div>
 
         <h2 class="text-2xl font-semibold text-slate-900 mb-2">欢迎登录</h2>
-        <p class="text-slate-500 text-sm mb-8">请使用您的公安内部账号登录系统</p>
+        <p class="text-slate-500 text-sm mb-8">请使用您的公司内部账号登录系统</p>
 
         <div class="flex bg-slate-100 rounded-btn p-1 mb-8">
           <button class="flex-1 py-2 text-sm font-medium rounded-md bg-white text-slate-900 shadow-sm transition-smooth">
