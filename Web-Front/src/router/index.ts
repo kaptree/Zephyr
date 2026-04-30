@@ -72,7 +72,7 @@ const routes: RouteRecordRaw[] = [
     path: '/screen/:id',
     name: 'Screen',
     component: () => import('@/pages/ScreenPage.vue'),
-    meta: { title: '应急大屏', permissions: ['access_screen'] },
+    meta: { title: '数据大屏', permissions: ['access_screen'] },
   },
   {
     path: '/profile',

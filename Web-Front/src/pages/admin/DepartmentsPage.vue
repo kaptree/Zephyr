@@ -145,7 +145,7 @@ function getDeptLevelLabel(level?: number): string {
 
     <div class="grid grid-cols-2 gap-6">
       <!-- 左侧：部门树 -->
-      <div class="bg-white rounded-card border border-slate-100 p-4">
+      <div class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-4 transition-colors duration-300">
         <h4 class="text-sm font-semibold text-slate-700 mb-3">组织架构</h4>
         <div v-if="loading" class="skeleton h-40 rounded-lg" />
         <div v-else-if="loadError" class="text-sm text-red-400 py-8 text-center">
@@ -172,7 +172,7 @@ function getDeptLevelLabel(level?: number): string {
                 @click.stop="openNewModal(dept.id)"
               >+</button>
             </div>
-            <div v-if="expanded.has(dept.id) && dept.children" class="ml-6 space-y-1 border-l border-slate-100 pl-4">
+            <div v-if="expanded.has(dept.id) && dept.children" class="ml-6 space-y-1 border-l border-slate-100 dark:border-slate-700 pl-4">
               <template v-for="child in dept.children" :key="child.id">
                 <div class="flex items-center gap-1">
                   <button
@@ -221,7 +221,7 @@ function getDeptLevelLabel(level?: number): string {
 
           <p v-if="saveError" class="text-xs text-red-500">{{ saveError }}</p>
 
-          <div class="flex gap-2 pt-3 border-t border-slate-100">
+          <div class="flex gap-2 pt-3 border-t border-slate-100 dark:border-slate-700">
             <button class="btn-primary text-xs !py-1.5 !px-3" :disabled="saving" @click="handleSave">
               {{ saving ? '保存中...' : '保存' }}
             </button>
@@ -237,7 +237,7 @@ function getDeptLevelLabel(level?: number): string {
     <Teleport to="body">
       <div v-if="showNewModal" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="overlay-backdrop" @click="showNewModal = false" />
-        <div class="relative z-50 bg-white rounded-card shadow-modal w-full max-w-sm mx-4 p-6 animate-fade-in">
+        <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-sm mx-4 p-6 animate-fade-in">
           <h3 class="text-base font-semibold text-slate-900 mb-4">新建部门</h3>
           <form @submit.prevent="handleCreate" class="space-y-4">
             <div>

@@ -56,7 +56,7 @@ function addTag() {
       <div
         v-for="tag in tags"
         :key="tag.id"
-        class="bg-white rounded-card border border-slate-100 p-4 flex items-center gap-3 hover:shadow-note transition-smooth"
+        class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-4 flex items-center gap-3 hover:shadow-note transition-smooth"
       >
         <span class="w-4 h-4 rounded-full shrink-0" :style="{ backgroundColor: tag.color }" />
         <div class="flex-1 min-w-0">
@@ -73,7 +73,7 @@ function addTag() {
     <Teleport to="body">
       <div v-if="showNewModal" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="overlay-backdrop" @click="showNewModal = false" />
-        <div class="relative z-50 bg-white rounded-card shadow-modal w-full max-w-sm mx-4 p-6 animate-fade-in">
+        <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-sm mx-4 p-6 animate-fade-in">
           <h3 class="text-base font-semibold text-slate-900 mb-4">新建标签</h3>
           <form @submit.prevent="addTag" class="space-y-4">
             <input v-model="newTagName" class="input-field" placeholder="标签名称" autofocus />

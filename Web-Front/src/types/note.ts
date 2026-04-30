@@ -73,6 +73,7 @@ export interface CompleteNotePayload {
 export interface RemindPayload {
   remind_type?: 'urgent' | 'normal'
   message?: string
+  target_id: string
 }
 
 export interface NoteFilters {

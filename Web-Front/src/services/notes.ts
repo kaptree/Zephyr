@@ -47,3 +47,7 @@ export function exportNote(id: string, templateId?: string) {
     template_id: templateId,
   })
 }
+
+export function fetchNoteStats(params?: { days?: number; dept_id?: string; status?: string }) {
+  return get<{ total_notes: number; active_notes: number; trend: { date: string; count: number }[] }>('/api/v1/notes/stats', params as Record<string, unknown>)
+}

@@ -106,6 +106,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 			notes.POST("/:id/remind", noteHandler.RemindNote)
 			notes.DELETE("/:id", noteHandler.DeleteNote)
 			notes.POST("/:id/restore", noteHandler.RestoreNote)
+			notes.GET("/stats", noteHandler.Stats)
 		}
 
 		tags := api.Group("/tags")

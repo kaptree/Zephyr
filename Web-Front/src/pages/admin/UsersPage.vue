@@ -196,7 +196,7 @@ function getStatusClass(active: boolean) {
       <button class="btn-primary text-sm" @click="openCreate">新建人员</button>
     </div>
 
-    <div class="bg-white rounded-card border border-slate-100 overflow-hidden">
+    <div class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 overflow-hidden transition-colors duration-300">
       <div v-if="loading" class="p-8 text-center text-sm text-slate-400">加载中...</div>
       <div v-else-if="loadError" class="p-8 text-center text-sm text-red-400">
         {{ loadError }}
@@ -204,7 +204,7 @@ function getStatusClass(active: boolean) {
       </div>
       <table v-else class="w-full">
         <thead>
-          <tr class="border-b border-slate-100 bg-slate-50">
+          <tr class="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
             <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">姓名</th>
             <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">用户名</th>
             <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">部门</th>
@@ -253,7 +253,7 @@ function getStatusClass(active: boolean) {
     <Teleport to="body">
       <div v-if="showModal" class="fixed inset-0 z-50 flex items-start justify-center pt-[8vh]">
         <div class="overlay-backdrop" @click="showModal = false" />
-        <div class="relative z-50 bg-white rounded-card shadow-modal w-full max-w-lg mx-4 p-6 animate-fade-in">
+        <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-lg mx-4 p-6 animate-fade-in">
           <h3 class="text-base font-semibold text-slate-900 mb-4">{{ editingUserId ? '编辑人员' : '新建人员' }}</h3>
 
           <form @submit.prevent="handleSubmit" class="space-y-3 max-h-[70vh] overflow-y-auto pr-1 scrollbar-thin">
@@ -320,7 +320,7 @@ function getStatusClass(active: boolean) {
 
             <p v-if="formError" class="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-btn">{{ formError }}</p>
 
-            <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <div class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
               <button type="button" class="btn-secondary text-xs !py-1.5 !px-4" @click="showModal = false">取消</button>
               <button type="submit" class="btn-primary text-xs !py-1.5 !px-4" :disabled="submitting">
                 {{ submitting ? '提交中...' : editingUserId ? '保存修改' : '创建人员' }}

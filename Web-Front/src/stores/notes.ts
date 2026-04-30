@@ -111,8 +111,8 @@ export const useNoteStore = defineStore('notes', () => {
     }
   }
 
-  async function remindNote(id: string, message?: string) {
-    const res = await noteService.remindNote(id, { message, remind_type: 'urgent' })
+  async function remindNote(id: string, targetId: string, message?: string) {
+    const res = await noteService.remindNote(id, { message, target_id: targetId, remind_type: 'urgent' })
     const index = activeNotes.value.findIndex(n => n.id === id)
     if (index !== -1) {
       activeNotes.value[index] = normalizeNote(res.data as unknown as BackendNote)

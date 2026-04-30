@@ -4,6 +4,7 @@ export default {
     "./index.html",
     "./src/**/*.{vue,js,ts,jsx,tsx}",
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
@@ -105,8 +106,21 @@ export default {
           "warning": "#D97706",
           "error": "#DC2626",
         },
+        dark: {
+          "primary": "#60A5FA",
+          "secondary": "#94A3B8",
+          "accent": "#A78BFA",
+          "neutral": "#F1F5F9",
+          "base-100": "#1E293B",
+          "base-200": "#0F172A",
+          "base-300": "#334155",
+          "info": "#60A5FA",
+          "success": "#4ADE80",
+          "warning": "#FBBF24",
+          "error": "#F87171",
+        },
       },
     ],
-    darkTheme: false,
+    darkTheme: 'dark',
   },
 }

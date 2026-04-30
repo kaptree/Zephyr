@@ -27,7 +27,7 @@ const menuItems: MenuItem[] = [
   { icon: 'user', label: '人员管理', path: '/admin/users', permission: 'manage_users' },
   { icon: 'tag', label: '标签管理', path: '/admin/tags', permission: 'manage_tags' },
   { icon: 'template', label: '模板管理', path: '/admin/templates', permission: 'manage_templates' },
-  { icon: 'monitor', label: '应急大屏', path: '/screen/default', permission: 'access_screen' },
+  { icon: 'monitor', label: '数据大屏', path: '/screen/default', permission: 'access_screen' },
 ]
 
 const bottomItems: MenuItem[] = [
@@ -53,22 +53,22 @@ function navigate(path: string) {
 <template>
   <aside
     :class="[
-      'bg-[#F8FAFC] border-r border-slate-200 flex flex-col transition-smooth overflow-hidden',
+      'bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 flex flex-col transition-colors duration-300 overflow-hidden',
       collapsed ? 'w-16' : 'w-60'
     ]"
   >
     <!-- 顶部 Logo -->
-    <div class="h-14 flex items-center border-b border-slate-200 px-4 shrink-0">
+    <div class="h-14 flex items-center border-b border-slate-200 dark:border-slate-700 px-4 shrink-0 transition-colors duration-300">
       <button
-        class="p-1.5 rounded-lg hover:bg-slate-200 transition-smooth shrink-0"
+        class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-smooth shrink-0"
         @click="collapsed = !collapsed"
       >
-        <svg class="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg class="w-5 h-5 text-slate-500 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
       <transition name="fade">
-        <span v-if="!collapsed" class="ml-3 text-sm font-semibold text-slate-900 whitespace-nowrap truncate">轻燕</span>
+        <span v-if="!collapsed" class="ml-3 text-sm font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap truncate">轻燕</span>
       </transition>
     </div>
 
@@ -80,8 +80,8 @@ function navigate(path: string) {
             :class="[
               'w-full flex items-center gap-3 px-3 py-2.5 rounded-btn text-sm transition-smooth',
               isActive(item.path)
-                ? 'bg-blue-50 text-[#3B82F6] font-medium border-l-[3px] border-[#3B82F6]'
-                : 'text-slate-600 hover:bg-slate-100 border-l-[3px] border-transparent'
+                ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium border-l-[3px] border-blue-500 dark:border-blue-400'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border-l-[3px] border-transparent'
             ]"
             :title="collapsed ? item.label : ''"
             @click="navigate(item.path)"
@@ -105,15 +105,15 @@ function navigate(path: string) {
     </nav>
 
     <!-- 底部区域 -->
-    <div class="border-t border-slate-200 p-2 shrink-0">
+    <div class="border-t border-slate-200 dark:border-slate-700 p-2 shrink-0 transition-colors duration-300">
       <ul class="space-y-0.5">
         <li v-for="item in bottomItems" :key="item.path">
           <button
             :class="[
               'w-full flex items-center gap-3 px-3 py-2.5 rounded-btn text-sm transition-smooth',
               isActive(item.path)
-                ? 'bg-blue-50 text-[#3B82F6] font-medium border-l-[3px] border-[#3B82F6]'
-                : 'text-slate-600 hover:bg-slate-100 border-l-[3px] border-transparent'
+                ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium border-l-[3px] border-blue-500 dark:border-blue-400'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border-l-[3px] border-transparent'
             ]"
             :title="collapsed ? item.label : ''"
             @click="navigate(item.path)"
@@ -130,16 +130,16 @@ function navigate(path: string) {
           {{ auth.user.name.charAt(0) }}
         </div>
         <div v-if="!collapsed" class="flex-1 min-w-0">
-          <div class="text-xs font-medium text-slate-900 truncate">{{ auth.user.name }}</div>
-          <div class="text-[10px] text-slate-400 truncate">{{ auth.user.dept_name }}</div>
+          <div class="text-xs font-medium text-slate-900 dark:text-slate-100 truncate">{{ auth.user.name }}</div>
+          <div class="text-[10px] text-slate-400 dark:text-slate-500 truncate">{{ auth.user.dept_name }}</div>
         </div>
         <button
           v-if="!collapsed"
-          class="shrink-0 p-1 rounded hover:bg-slate-200 transition-smooth"
+          class="shrink-0 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-smooth"
           title="退出登录"
           @click="auth.logout(); router.push('/login')"
         >
-          <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg class="w-4 h-4 text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </svg>
         </button>

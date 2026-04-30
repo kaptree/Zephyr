@@ -46,3 +46,8 @@ export function updateUser(id: string, payload: { name?: string; role?: string; 
 export function deleteUser(id: string) {
   return del<{ success: boolean }>(`/api/v1/users/${id}`)
 }
+
+// ---- Ledger ----
+export function fetchLedger(params?: { page?: number; page_size?: number; dept_id?: string }) {
+  return get<{ data: any[]; total: number }>('/api/v1/ledger', params as Record<string, unknown>)
+}

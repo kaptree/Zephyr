@@ -300,4 +300,58 @@ func GenerateSerialNo(year, seq int) string {
 	return fmt.Sprintf("资警轻燕〔%d〕%04d号", year, seq)
 }
 
+type NoteDayStat struct {
+	Date  string `json:"date"`
+	Count int64  `json:"count"`
+}
+
+func (r *NoteRepository) StatsByDay(days int, archivedOnly bool) ([]NoteDayStat, error) {
+	var stats []NoteDayStat
+	query := r.db.Model(&models.Note{}).
+		Select("DATE(created_at) as date, COUNT(*) as count").
+		Where("created_at >= ?", time.Now().AddDate(0, 0, -days))
+	if archivedOnly {
+		query = query.Where("is_archived = ?", true)
+	}
+	err := query.Group("DATE(created_at)").Order("date ASC").Find(&stats).Error
+	return stats, err
+}
+
+func (r *NoteRepository) StatsByDayAndDept(days int, deptID string, archivedOnly bool) ([]NoteDayStat, error) {
+	var stats []NoteDayStat
+	query := r.db.Model(&models.Note{}).
+		Select("DATE(notes.created_at) as date, COUNT(*) as count").
+		Joins("LEFT JOIN users ON users.id = notes.owner_id").
+		Where("notes.created_at >= ?", time.Now().AddDate(0, 0, -days))
+	if deptID != "" {
+		query = query.Where("users.department_id = ?", deptID)
+	}
+	if archivedOnly {
+		query = query.Where("notes.is_archived = ?", true)
+	}
+	err := query.Group("DATE(notes.created_at)").Order("date ASC").Find(&stats).Error
+	return stats, err
+}
+
+func (r *NoteRepository) CountAll() (int64, error) {
+	var count int64
+	err := r.db.Model(&models.Note{}).Count(&count).Error
+	return count, err
+}
+
+func (r *NoteRepository) CountActive() (int64, error) {
+	var count int64
+	err := r.db.Model(&models.Note{}).Where("is_archived = false").Count(&count).Error
+	return count, err
+}
+
+func (r *NoteRepository) CountByDept(deptID string) (int64, error) {
+	var count int64
+	err := r.db.Model(&models.Note{}).
+		Joins("JOIN users ON users.id = notes.owner_id").
+		Where("users.department_id = ?", deptID).
+		Count(&count).Error
+	return count, err
+}
+
 var _ = strings.TrimSpace

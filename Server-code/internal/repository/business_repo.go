@@ -234,3 +234,23 @@ type LedgerFilter struct {
 	Page     int
 	PageSize int
 }
+
+func (r *LedgerRepository) CountByAction() (map[string]int64, error) {
+	type row struct {
+		Action string
+		Count  int64
+	}
+	var rows []row
+	err := r.db.Model(&models.LedgerEntry{}).
+		Select("action, COUNT(*) as count").
+		Group("action").
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[string]int64)
+	for _, r := range rows {
+		m[r.Action] = r.Count
+	}
+	return m, nil
+}

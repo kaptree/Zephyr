@@ -76,7 +76,7 @@ function groupNotesByMonth(notes: Note[]) {
 <template>
   <div>
     <!-- 筛选栏 -->
-    <div class="bg-white rounded-card p-4 mb-6 flex flex-wrap items-center gap-3 border border-slate-100">
+    <div class="bg-white dark:bg-slate-800 rounded-card p-4 mb-6 flex flex-wrap items-center gap-3 border border-slate-100 dark:border-slate-700 transition-colors duration-300">
       <div class="flex items-center gap-2">
         <input v-model="dateFrom" type="date" class="input-field !w-auto" />
         <span class="text-slate-400 text-sm">至</span>
@@ -130,7 +130,7 @@ function groupNotesByMonth(notes: Note[]) {
         <div class="space-y-3">
           <div v-for="note in group.notes" :key="note.id" class="flex items-start gap-4">
             <span class="text-xs text-slate-400 w-10 shrink-0 pt-1">{{ (note.archive_time || note.created_at)?.slice(8, 10) }}日</span>
-            <div class="flex-1 bg-white rounded-card border border-slate-100 p-4 relative hover:shadow-note transition-smooth cursor-pointer" @click="openDetail(note)">
+            <div class="flex-1 bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-4 relative hover:shadow-note transition-smooth cursor-pointer" @click="openDetail(note)">
               <h4 class="text-sm font-medium text-slate-900 mb-1 truncate">{{ note.title || '无标题' }}</h4>
               <p class="text-xs text-slate-400 line-clamp-2">{{ note.content || '暂无内容' }}</p>
               <div class="flex items-center gap-2 mt-2">
@@ -190,7 +190,7 @@ function groupNotesByMonth(notes: Note[]) {
               <div v-if="selectedNote.tags?.length" class="flex flex-wrap gap-2">
                 <span v-for="tag in selectedNote.tags" :key="tag.id" class="tag-capsule text-white" :style="{ backgroundColor: tag.color || '#64748B' }">{{ tag.name }}</span>
               </div>
-              <div class="bg-slate-50 rounded-card p-4 space-y-2 text-xs">
+              <div class="bg-slate-50 dark:bg-slate-900 rounded-card p-4 space-y-2 text-xs transition-colors duration-300">
                 <div class="flex justify-between"><span class="text-slate-400">创建时间</span><span class="text-slate-700">{{ selectedNote.created_at?.slice(0, 16).replace('T', ' ') }}</span></div>
                 <div class="flex justify-between"><span class="text-slate-400">完成时间</span><span class="text-slate-700">{{ selectedNote.completed_at?.slice(0, 16).replace('T', ' ') || '—' }}</span></div>
                 <div class="flex justify-between"><span class="text-slate-400">归档时间</span><span class="text-slate-700">{{ selectedNote.archive_time?.slice(0, 16).replace('T', ' ') || '—' }}</span></div>

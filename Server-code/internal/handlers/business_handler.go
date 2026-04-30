@@ -185,8 +185,12 @@ func (h *LedgerHandler) List(c *gin.Context) {
 }
 
 func (h *LedgerHandler) Stats(c *gin.Context) {
+	counts, err := h.ledgerRepo.CountByAction()
+	if err != nil {
+		utils.InternalError(c, "查询统计失败")
+		return
+	}
 	utils.Success(c, gin.H{
-		"data":    []interface{}{},
-		"summary": gin.H{"total": 0},
+		"by_action": counts,
 	})
 }

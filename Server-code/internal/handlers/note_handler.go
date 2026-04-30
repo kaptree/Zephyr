@@ -136,14 +136,19 @@ func (h *NoteHandler) UpdateNote(c *gin.Context) {
 func (h *NoteHandler) CompleteNote(c *gin.Context) {
 	id := c.Param("id")
 	userID := middleware.GetUserID(c)
+	role := middleware.GetUserRole(c)
 
 	var req services.CompleteNoteRequest
 	_ = c.ShouldBindJSON(&req)
 
-	note, err := h.noteService.Complete(id, userID, req)
+	note, err := h.noteService.Complete(id, userID, role, req)
 	if err != nil {
 		if err == apperrors.ErrNoteNotFound {
 			utils.NotFound(c, "便签不存在")
+			return
+		}
+		if err == apperrors.ErrPermissionDenied {
+			utils.Forbidden(c, "仅被指派人可以完成此便签")
 			return
 		}
 		utils.InternalError(c, "办结便签失败")
@@ -199,6 +204,18 @@ func (h *NoteHandler) RestoreNote(c *gin.Context) {
 	}
 
 	utils.Success(c, note)
+}
+
+func (h *NoteHandler) Stats(c *gin.Context) {
+	days, _ := strconv.Atoi(c.DefaultQuery("days", "7"))
+	deptID := c.Query("dept_id")
+	status := c.Query("status")
+	stats, err := h.noteService.GetStats(days, deptID, status)
+	if err != nil {
+		utils.InternalError(c, "查询统计失败")
+		return
+	}
+	utils.Success(c, stats)
 }
 
 func parseTime(s string) *time.Time {

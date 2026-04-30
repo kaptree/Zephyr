@@ -108,10 +108,15 @@ func (s *NoteService) Create(userID, role, deptID string, req CreateNoteRequest)
 	}
 
 	now := time.Now()
+	initialColorStatus := "yellow"
+	if sourceType == "assigned" {
+		initialColorStatus = "red"
+	}
+
 	note := &models.Note{
 		Title:        req.Title,
 		Content:      req.Content,
-		ColorStatus:  "yellow",
+		ColorStatus:  initialColorStatus,
 		SourceType:   sourceType,
 		TemplateType: req.TemplateType,
 		CreatorID:    creatorID,
@@ -227,10 +232,15 @@ func (s *NoteService) Update(id, userID string, req UpdateNoteRequest) (*models.
 	return s.noteRepo.FindByID(id)
 }
 
-func (s *NoteService) Complete(id, userID string, req CompleteNoteRequest) (*models.Note, error) {
+func (s *NoteService) Complete(id, userID, role string, req CompleteNoteRequest) (*models.Note, error) {
 	note, err := s.noteRepo.FindByID(id)
 	if err != nil || note == nil {
 		return nil, apperrors.ErrNoteNotFound
+	}
+
+	if note.SourceType == "assigned" && note.OwnerID.String() != userID &&
+		role != "super_admin" && role != "dept_admin" {
+		return nil, apperrors.ErrPermissionDenied
 	}
 
 	now := time.Now()
@@ -313,4 +323,36 @@ func (s *NoteService) recordLedger(noteID, userID, action, detail, ip, ua string
 		UserAgent:    ua,
 	}
 	return s.noteRepo.CreateLedger(entry)
+}
+
+type NoteStats struct {
+	TotalNotes  int64                    `json:"total_notes"`
+	ActiveNotes int64                    `json:"active_notes"`
+	Trend       []repository.NoteDayStat `json:"trend"`
+}
+
+func (s *NoteService) GetStats(days int, deptID string, status string) (*NoteStats, error) {
+	total, err := s.noteRepo.CountAll()
+	if err != nil {
+		return nil, err
+	}
+	active, err := s.noteRepo.CountActive()
+	if err != nil {
+		return nil, err
+	}
+	archivedOnly := status == "archived"
+	var trend []repository.NoteDayStat
+	if deptID != "" {
+		trend, err = s.noteRepo.StatsByDayAndDept(days, deptID, archivedOnly)
+	} else {
+		trend, err = s.noteRepo.StatsByDay(days, archivedOnly)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &NoteStats{
+		TotalNotes:  total,
+		ActiveNotes: active,
+		Trend:       trend,
+	}, nil
 }

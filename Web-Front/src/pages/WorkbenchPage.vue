@@ -112,7 +112,7 @@ async function handleSubmit() {
 
     if (sourceType.value !== 'self' && created) {
       try {
-        await noteStore.remindNote(created.id, `【任务指派】${auth.user?.name || '管理员'} 指派您处理：${newTitle.value.trim()}`)
+        await noteStore.remindNote(created.id, created.owner_id, `【任务指派】${auth.user?.name || '管理员'} 指派您处理：${newTitle.value.trim()}`)
       } catch { /* 提醒发送失败不阻塞流程 */ }
     }
 
@@ -149,7 +149,7 @@ async function handleComplete(note: Note) {
 }
 
 async function handleRemind(note: Note) {
-  await noteStore.remindNote(note.id, '请尽快处理')
+  await noteStore.remindNote(note.id, note.owner_id, '请尽快处理')
   if (showDetailPanel.value && selectedNote.value?.id === note.id) {
     selectedNote.value = { ...selectedNote.value, color_status: 'red' as const }
   }
@@ -172,7 +172,7 @@ async function handleRemind(note: Note) {
           'px-4 py-1.5 rounded-btn text-sm font-medium transition-smooth',
           activeTab === tab.value
             ? 'bg-[#3B82F6] text-white'
-            : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-600'
         ]"
         @click="handleTabClick(tab.value)"
       >
@@ -192,14 +192,14 @@ async function handleRemind(note: Note) {
     </div>
 
     <!-- 空态 -->
-    <div v-else-if="!noteStore.loading && displayedNotes.length === 0 && !noteStore.error" class="flex flex-col items-center justify-center py-24">
-      <div class="w-24 h-24 bg-slate-100 rounded-3xl flex items-center justify-center mb-6">
-        <svg class="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <div v-else-if="!noteStore.loading && displayedNotes.length === 0 && !noteStore.error" class="flex flex-col items-center justify-center py-24 transition-colors duration-300">
+      <div class="w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mb-6">
+        <svg class="w-12 h-12 text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       </div>
-      <p class="text-slate-400 text-sm">{{ activeTab === 'completed' ? '暂无已完成便签' : '暂无活跃便签' }}</p>
-      <p class="text-slate-300 text-xs mt-1">点击右下角 '+' 新建便签</p>
+      <p class="text-slate-400 dark:text-slate-500 text-sm">{{ activeTab === 'completed' ? '暂无已完成便签' : '暂无活跃便签' }}</p>
+      <p class="text-slate-300 dark:text-slate-600 text-xs mt-1">点击右下角 '+' 新建便签</p>
     </div>
 
     <!-- 便签墙 -->
@@ -231,12 +231,12 @@ async function handleRemind(note: Note) {
     <Teleport to="body">
       <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]">
         <div class="overlay-backdrop" @click="showCreateModal = false" />
-        <div class="relative z-50 bg-white rounded-card shadow-modal w-full max-w-xl mx-4 animate-fade-in">
+        <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-xl mx-4 animate-fade-in">
           <div class="p-6">
             <div class="flex items-center justify-between mb-6">
-              <h2 class="text-lg font-semibold text-slate-900">新建便签</h2>
-              <button class="p-1 rounded-lg hover:bg-slate-100 transition-smooth" @click="showCreateModal = false">
-                <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">新建便签</h2>
+              <button class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth" @click="showCreateModal = false">
+                <svg class="w-5 h-5 text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -260,7 +260,7 @@ async function handleRemind(note: Note) {
                   <label
                     :class="[
                       'flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-btn border-2 cursor-pointer transition-smooth',
-                      sourceType === 'self' ? 'border-[#3B82F6] bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                      sourceType === 'self' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-500 hover:border-slate-300 dark:hover:border-slate-500'
                     ]"
                   >
                     <input v-model="sourceType" type="radio" value="self" class="sr-only" />
@@ -270,7 +270,7 @@ async function handleRemind(note: Note) {
                   <label
                     :class="[
                       'flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-btn border-2 cursor-pointer transition-smooth',
-                      sourceType === 'assigned' ? 'border-[#3B82F6] bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                      sourceType === 'assigned' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400' : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-500 hover:border-slate-300 dark:hover:border-slate-500'
                     ]"
                   >
                     <input v-model="sourceType" type="radio" value="assigned" class="sr-only" />
@@ -290,8 +290,8 @@ async function handleRemind(note: Note) {
 
               <p v-if="createError" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-btn">{{ createError }}</p>
 
-              <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button type="button" class="px-5 py-2.5 text-sm text-slate-600 bg-slate-100 rounded-btn hover:bg-slate-200 transition-smooth" @click="showCreateModal = false" :disabled="creating">
+              <div class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
+                <button type="button" class="px-5 py-2.5 text-sm text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 rounded-btn hover:bg-slate-200 dark:hover:bg-slate-600 transition-smooth" @click="showCreateModal = false" :disabled="creating">
                   取消
                 </button>
                 <button type="submit" class="px-5 py-2.5 text-sm text-white bg-[#3B82F6] rounded-btn hover:bg-blue-600 transition-smooth disabled:opacity-50" :disabled="creating">
@@ -319,8 +319,8 @@ async function handleRemind(note: Note) {
                   class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-tag"
                 >盯办中</span>
               </div>
-              <button class="p-1 rounded-lg hover:bg-slate-100 transition-smooth" @click="closeDetail">
-                <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <button class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth" @click="closeDetail">
+                <svg class="w-5 h-5 text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -345,32 +345,32 @@ async function handleRemind(note: Note) {
                 <div v-if="selectedNote.tags.length" class="flex flex-wrap gap-2">
                   <span v-for="tag in selectedNote.tags" :key="tag.id" class="tag-capsule text-white" :style="{ backgroundColor: tag.color || '#64748B' }">{{ tag.name }}</span>
                 </div>
-                <span v-else class="text-xs text-slate-300">无标签</span>
+                <span v-else class="text-xs text-slate-300 dark:text-slate-600">无标签</span>
               </div>
 
               <!-- 来源与指派信息 -->
-              <div class="bg-slate-50 rounded-card p-4 space-y-2">
+              <div class="bg-slate-50 dark:bg-slate-900 rounded-card p-4 space-y-2 transition-colors duration-300">
                 <div class="flex justify-between text-xs">
-                  <span class="text-slate-400">来源类型</span>
-                  <span class="text-slate-700">{{ selectedNote.source_type === 'self' ? '自己创建' : selectedNote.source_type === 'assigned' ? '上级指派' : '协同任务' }}</span>
+                  <span class="text-slate-400 dark:text-slate-500">来源类型</span>
+                  <span class="text-slate-700 dark:text-slate-300">{{ selectedNote.source_type === 'self' ? '自己创建' : selectedNote.source_type === 'assigned' ? '上级指派' : '协同任务' }}</span>
                 </div>
                 <div class="flex justify-between text-xs" v-if="selectedNote.assignees?.length">
-                  <span class="text-slate-400">负责人</span>
-                  <span class="text-slate-700">{{ selectedNote.assignees.map(a => a.name).join('、') }}</span>
+                  <span class="text-slate-400 dark:text-slate-500">负责人</span>
+                  <span class="text-slate-700 dark:text-slate-300">{{ selectedNote.assignees.map(a => a.name).join('、') }}</span>
                 </div>
                 <div class="flex justify-between text-xs">
-                  <span class="text-slate-400">创建时间</span>
-                  <span class="text-slate-700">{{ selectedNote.created_at?.slice(0, 16).replace('T', ' ') }}</span>
+                  <span class="text-slate-400 dark:text-slate-500">创建时间</span>
+                  <span class="text-slate-700 dark:text-slate-300">{{ selectedNote.created_at?.slice(0, 16).replace('T', ' ') }}</span>
                 </div>
                 <div class="flex justify-between text-xs" v-if="selectedNote.due_time">
-                  <span class="text-slate-400">截止时间</span>
-                  <span class="text-slate-700 text-red-500">{{ selectedNote.due_time.slice(0, 16).replace('T', ' ') }}</span>
+                  <span class="text-slate-400 dark:text-slate-500">截止时间</span>
+                  <span class="text-slate-700 dark:text-slate-300 text-red-500">{{ selectedNote.due_time.slice(0, 16).replace('T', ' ') }}</span>
                 </div>
               </div>
             </div>
 
             <!-- 底部操作栏 -->
-            <div class="pt-4 border-t border-slate-100 mt-4 space-y-3">
+            <div class="pt-4 border-t border-slate-100 dark:border-slate-700 mt-4 space-y-3">
               <div class="flex gap-2">
                 <button class="flex-1 py-2.5 btn-primary text-sm disabled:opacity-50" :disabled="saving" @click="handleSaveDetail">
                   {{ saving ? '保存中...' : '保存' }}
