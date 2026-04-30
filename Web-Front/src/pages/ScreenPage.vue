@@ -140,7 +140,7 @@ function timeAgo(ts: string): string {
         <span class="text-slate-500 text-sm">{{ formatDate(currentTime) }}</span>
       </div>
       <div class="flex items-center gap-4">
-        <h1 class="text-slate-900 font-semibold text-lg tracking-wide">资警数智·轻燕 · 数据大屏</h1>
+        <h1 class="text-slate-900 font-semibold text-lg tracking-wide">轻燕数智·轻燕 · 数据大屏</h1>
         <div class="flex items-center gap-2 px-3 py-1 rounded-full border border-green-300 bg-green-50">
           <span class="w-2 h-2 rounded-full bg-green-500 shadow-lg shadow-green-400/50 animate-pulse" />
           <span class="text-green-600 text-xs font-medium">实时</span>
@@ -277,7 +277,7 @@ function timeAgo(ts: string): string {
       <span class="text-slate-300 text-xs">|</span>
       <span class="text-slate-400 text-xs">数据刷新间隔: 实时</span>
       <span class="flex-1" />
-      <span class="text-slate-300 text-xs">资警数智·轻燕 v1.0</span>
+      <span class="text-slate-300 text-xs">轻燕数智·轻燕 v1.0</span>
     </div>
   </div>
 </template>

@@ -155,7 +155,7 @@ interface TreeNode {
 ```
 VITE_API_BASE_URL=http://localhost:8080/api
 VITE_WS_URL=http://localhost:8080
-VITE_APP_TITLE=资警数智·轻燕
+VITE_APP_TITLE=轻燕数智·轻燕
 ```
 
 ## 验收标准

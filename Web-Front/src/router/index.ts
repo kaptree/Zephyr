@@ -107,7 +107,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to, _from, next) => {
-  document.title = `${to.meta.title || '资警数智·轻燕'} - 轻燕`
+  document.title = `${to.meta.title || '轻燕数智·轻燕'} - 轻燕`
 
   if (to.meta.public) {
     const token = localStorage.getItem('auth_token')
