@@ -46,7 +46,7 @@ async function handleLogin() {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
         </svg>
       </div>
-      <h1 class="text-2xl font-semibold text-slate-900 mb-2" style="letter-spacing: -0.02em">轻燕数智·轻燕</h1>
+      <h1 class="text-2xl font-semibold text-slate-900 mb-2" style="letter-spacing: -0.02em">轻燕工作台</h1>
       <p class="text-slate-500 text-sm">轻量化情指行一体化支撑解决方案</p>
       <div class="mt-12 text-center">
         <div class="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg">
@@ -66,7 +66,7 @@ async function handleLogin() {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
             </svg>
           </div>
-          <h1 class="text-xl font-semibold text-slate-900">轻燕数智·轻燕</h1>
+          <h1 class="text-xl font-semibold text-slate-900">轻燕工作台</h1>
         </div>
 
         <h2 class="text-2xl font-semibold text-slate-900 mb-2">欢迎登录</h2>
