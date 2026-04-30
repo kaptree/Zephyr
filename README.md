@@ -90,7 +90,7 @@
 
 1. **克隆项目**
 ```bash
-git clone https://github.com/MangataTS/Zephyr.g
+git clone https://github.com/MangataTS/Zephyr.git
 cd Zephyr/Server-code
 ```
 
