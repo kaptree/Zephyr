@@ -280,18 +280,6 @@ docker run -d -p 8090:8090 --name Zephyr Zephyr-server
 - 更新相关文档
 - 保持向后兼容性
 
-## 许可证信息
-
-本项目采用 Apache License 2.0 许可证。
-
-```
-Apache License
-Version 2.0, January 2004
-http://www.apache.org/licenses/
-
-TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-...
-```
 
 ## 联系方式
 
