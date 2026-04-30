@@ -25,34 +25,43 @@ const editPhone = ref('')
 const editEmail = ref('')
 const editRank = ref('')
 
-const viewMode = ref<'12w' | '26w'>('26w')
+const thisYear = new Date().getFullYear()
+const yearOptions = computed(() => {
+  const years: number[] = []
+  for (let y = thisYear; y >= thisYear - 3; y--) years.push(y)
+  return years
+})
+const selectedYear = ref(thisYear)
 const hoveredCell = ref<{ date: string; count: number } | null>(null)
 
 interface HeatCell {
   date: string
   dayOfWeek: number
+  week: number
   count: number
   level: number
 }
 
 function generateHeatData(): HeatCell[] {
   const cells: HeatCell[] = []
-  const weeks = viewMode.value === '12w' ? 12 : 26
-  const today = new Date()
-  for (let w = weeks - 1; w >= 0; w--) {
-    for (let d = 0; d < 7; d++) {
-      const date = new Date(today)
-      date.setDate(date.getDate() - (w * 7 + (6 - d)))
-      const dateStr = date.toISOString().slice(0, 10)
-      const trendPoint = trendData.value.find(t => t.date === dateStr)
-      const count = trendPoint?.count || 0
-      let level = 0
-      if (count > 0) level = 1
-      if (count > 2) level = 2
-      if (count > 5) level = 3
-      if (count > 10) level = 4
-      cells.push({ date: dateStr, dayOfWeek: date.getDay(), count, level })
-    }
+  const year = selectedYear.value
+  const start = new Date(year, 0, 1)
+  const end = new Date(year, 11, 31)
+  let w = 0
+  let prevDow = -1
+  for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const dow = d.getDay()
+    if (dow <= prevDow) w++
+    prevDow = dow
+    const dateStr = d.toISOString().slice(0, 10)
+    const trendPoint = trendData.value.find(t => t.date === dateStr)
+    const count = trendPoint?.count || 0
+    let level = 0
+    if (count > 0) level = 1
+    if (count > 2) level = 2
+    if (count > 5) level = 3
+    if (count > 10) level = 4
+    cells.push({ date: dateStr, dayOfWeek: dow, week: w, count, level })
   }
   return cells
 }
@@ -62,9 +71,17 @@ const heatData = computed(() => generateHeatData())
 const weekGroups = computed(() => {
   const groups: HeatCell[][] = []
   const data = heatData.value
-  for (let i = 0; i < data.length; i += 7) {
-    groups.push(data.slice(i, i + 7))
+  let cur: HeatCell[] = []
+  let curWeek = -1
+  for (const cell of data) {
+    if (cell.week !== curWeek) {
+      if (cur.length) groups.push(cur)
+      cur = []
+      curWeek = cell.week
+    }
+    cur.push(cell)
   }
+  if (cur.length) groups.push(cur)
   return groups
 })
 
@@ -72,12 +89,12 @@ const monthLabels = computed(() => {
   const labels: { col: number; label: string }[] = []
   const groups = weekGroups.value
   if (groups.length === 0) return labels
-  let prevMonth = ''
+  let prevMonth = -1
   groups.forEach((week, colIdx) => {
-    const d = new Date(week[0].date)
-    const m = `${d.getFullYear()}-${d.getMonth() + 1}`
+    const d = new Date(week[0]?.date || '')
+    const m = d.getMonth()
     if (m !== prevMonth) {
-      labels.push({ col: colIdx, label: `${d.getMonth() + 1}月` })
+      labels.push({ col: colIdx, label: `${m + 1}月` })
       prevMonth = m
     }
   })
@@ -100,8 +117,13 @@ async function loadData() {
   loading.value = true
   loadError.value = ''
   try {
+    const isCurrentYear = selectedYear.value === thisYear
+    const start = new Date(selectedYear.value, 0, 1)
+    const end = isCurrentYear ? new Date() : new Date(selectedYear.value, 11, 31)
+    const days = Math.max(Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1, 30)
+
     const [statsRes] = await Promise.all([
-      fetchNoteStats({ days: viewMode.value === '12w' ? 84 : 182, status: 'archived' }),
+      fetchNoteStats({ days, status: 'archived' }),
     ])
     totalNotes.value = statsRes.data.total_notes || 0
     activeNotes.value = statsRes.data.active_notes || 0
@@ -219,24 +241,31 @@ async function handleSaveProfile() {
         </div>
       </div>
 
-      <!-- 活动热力图 + 个人信息表单 -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
-        <!-- 活动热力图 (占 2/3) -->
-        <div class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300">
+      <!-- 活动热力图 (全宽) -->
+      <div class="mb-5">
+        <div class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300">
           <div class="flex items-center justify-between mb-4">
             <div>
               <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100">归档活动热力图</h4>
               <span v-if="hoveredCell" class="text-xs text-slate-500 dark:text-slate-400 ml-2">
-                {{ hoveredCell.date }} · {{ hoveredCell.count }}条
+                {{ hoveredCell.date }} · {{ hoveredCell.count }}条归档
               </span>
             </div>
-            <div class="flex gap-1 bg-slate-100 dark:bg-slate-700 rounded-btn p-0.5">
-              <button
-                v-for="p in ([{v:'12w',l:'12周'},{v:'26w',l:'26周'}] as const)"
-                :key="p.v"
-                :class="['px-2.5 py-1 rounded-md text-xs transition-all', viewMode === p.v ? 'bg-blue-500 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200']"
-                @click="viewMode = p.v"
-              >{{ p.l }}</button>
+            <div class="flex items-center gap-3">
+              <select
+                v-model="selectedYear"
+                class="input-field !w-auto !py-1 !text-xs"
+                @change="loadData"
+              >
+                <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}年</option>
+              </select>
+              <div class="hidden sm:flex items-center gap-1">
+                <div class="w-3 h-3 rounded-[2px]" style="background-color:#F1F5F9" title="0" />
+                <div class="w-3 h-3 rounded-[2px]" style="background-color:#93C5FD" title="1-2" />
+                <div class="w-3 h-3 rounded-[2px]" style="background-color:#60A5FA" title="3-5" />
+                <div class="w-3 h-3 rounded-[2px]" style="background-color:#3B82F6" title="6-10" />
+                <div class="w-3 h-3 rounded-[2px]" style="background-color:#1D4ED8" title="10+" />
+              </div>
             </div>
           </div>
 
@@ -280,23 +309,14 @@ async function handleSaveProfile() {
                   />
                 </div>
               </div>
-
-              <!-- 图例 -->
-              <div class="flex items-center gap-1.5 mt-3 justify-end">
-                <span class="text-[9px] text-slate-400 dark:text-slate-600 mr-1">少</span>
-                <div class="w-3 h-3 rounded-[2px]" style="background-color: #F1F5F9" />
-                <div class="w-3 h-3 rounded-[2px]" style="background-color: #93C5FD" />
-                <div class="w-3 h-3 rounded-[2px]" style="background-color: #60A5FA" />
-                <div class="w-3 h-3 rounded-[2px]" style="background-color: #3B82F6" />
-                <div class="w-3 h-3 rounded-[2px]" style="background-color: #1D4ED8" />
-                <span class="text-[9px] text-slate-400 dark:text-slate-600 ml-1">多</span>
-              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- 个人信息编辑表单 (占 1/3) -->
-        <div class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300">
+      <!-- 个人信息编辑表单 -->
+      <div class="mb-6">
+        <div class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300 max-w-lg">
           <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4">个人信息</h4>
 
           <form @submit.prevent="handleSaveProfile" class="space-y-3">
