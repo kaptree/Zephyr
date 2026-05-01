@@ -15,6 +15,7 @@ export type Permission =
   | 'manage_templates'
   | 'access_screen'
   | 'send_command'
+  | 'manage_system'
 
 export interface User {
   id: string

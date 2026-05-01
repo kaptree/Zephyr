@@ -18,6 +18,7 @@ interface MenuItem {
   label: string
   path: string
   permission?: string
+  adminOnly?: boolean
 }
 
 const menuItems: MenuItem[] = [
@@ -28,6 +29,8 @@ const menuItems: MenuItem[] = [
   { icon: 'tag', label: '标签管理', path: '/admin/tags', permission: 'manage_tags' },
   { icon: 'template', label: '模板管理', path: '/admin/templates', permission: 'manage_templates' },
   { icon: 'monitor', label: '数据大屏', path: '/screen/default', permission: 'access_screen' },
+  { icon: 'settings', label: '系统管理', path: '/admin/system', permission: 'manage_system', adminOnly: true },
+  { icon: 'list', label: '操作日志', path: '/admin/operation-log', permission: 'manage_system', adminOnly: true },
 ]
 
 const bottomItems: MenuItem[] = [
@@ -36,6 +39,8 @@ const bottomItems: MenuItem[] = [
 
 const visibleMenuItems = computed(() =>
   menuItems.filter(item => {
+    if (item.adminOnly && !auth.isAdmin) return false
+    if (item.adminOnly && auth.isAdmin) return true
     if (!item.permission) return true
     return auth.permissions.includes(item.permission as never)
   })
@@ -96,6 +101,7 @@ function navigate(path: string) {
               <template v-else-if="item.icon === 'template'">📄</template>
               <template v-else-if="item.icon === 'monitor'">📊</template>
               <template v-else-if="item.icon === 'settings'">⚙️</template>
+              <template v-else-if="item.icon === 'list'">📋</template>
               <template v-else>📌</template>
             </span>
             <span v-if="!collapsed" class="truncate">{{ item.label }}</span>

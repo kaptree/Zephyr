@@ -66,6 +66,18 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/admin/TemplatesPage.vue'),
         meta: { title: '模板管理', permissions: ['manage_templates'] },
       },
+      {
+        path: 'system',
+        name: 'SystemSettings',
+        component: () => import('@/pages/admin/SystemSettingsPage.vue'),
+        meta: { title: '系统管理', permissions: ['manage_system'] },
+      },
+      {
+        path: 'operation-log',
+        name: 'OperationLog',
+        component: () => import('@/pages/admin/OperationLogPage.vue'),
+        meta: { title: '操作日志', permissions: ['manage_system'] },
+      },
     ],
   },
   {
@@ -127,9 +139,13 @@ router.beforeEach((to, _from, next) => {
     }
 
     const userStr = localStorage.getItem('auth_user')
-    if (userStr && to.meta.permissions) {
+    if (userStr && to.meta.permissions && (to.meta.permissions as string[]).length > 0) {
       try {
         const user = JSON.parse(userStr)
+        if (user.role === 'super_admin') {
+          next()
+          return
+        }
         const userPerms: string[] = user.permissions || []
         const requiredPerms = to.meta.permissions as string[]
         const hasPermission = requiredPerms.every((p: string) => userPerms.includes(p))

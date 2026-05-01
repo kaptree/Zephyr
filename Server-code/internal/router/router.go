@@ -40,6 +40,8 @@ func Setup(cfg *config.Config) *gin.Engine {
 	groupRepo := repository.NewWorkGroupRepository(database.DB)
 	roomRepo := repository.NewCollaborationRoomRepository(database.DB)
 	ledgerRepo := repository.NewLedgerRepository(database.DB)
+	sysRepo := repository.NewSystemRepository(database.DB)
+	middleware.SetOperationLogRepo(sysRepo)
 
 	authService := services.NewAuthService(userRepo, cfg)
 	userService := services.NewUserService(userRepo, deptRepo)
@@ -54,6 +56,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	groupHandler := handlers.NewWorkGroupHandler(groupRepo)
 	roomHandler := handlers.NewRoomHandler(roomRepo)
 	ledgerHandler := handlers.NewLedgerHandler(ledgerRepo)
+	sysHandler := handlers.NewSystemHandler(sysRepo)
 
 	if cfg.WebSocket.Enabled {
 		hub := ws.InitHub()
@@ -74,8 +77,10 @@ func Setup(cfg *config.Config) *gin.Engine {
 			auth.GET("/me", middleware.AuthMiddleware(cfg), authHandler.GetCurrentUser)
 		}
 
+		api.Use(middleware.AuthMiddleware(cfg))
+		api.Use(middleware.OperationLogger())
+
 		departments := api.Group("/departments")
-		departments.Use(middleware.AuthMiddleware(cfg))
 		{
 			departments.GET("", deptHandler.GetTree)
 			departments.GET("/:id", deptHandler.GetDetail)
@@ -85,7 +90,6 @@ func Setup(cfg *config.Config) *gin.Engine {
 		}
 
 		users := api.Group("/users")
-		users.Use(middleware.AuthMiddleware(cfg))
 		{
 			users.GET("", userHandler.ListUsers)
 			users.GET("/visible", userHandler.GetVisibleUsers)
@@ -96,7 +100,6 @@ func Setup(cfg *config.Config) *gin.Engine {
 		}
 
 		notes := api.Group("/notes")
-		notes.Use(middleware.AuthMiddleware(cfg))
 		{
 			notes.GET("", noteHandler.ListNotes)
 			notes.POST("", noteHandler.CreateNote)
@@ -110,7 +113,6 @@ func Setup(cfg *config.Config) *gin.Engine {
 		}
 
 		tags := api.Group("/tags")
-		tags.Use(middleware.AuthMiddleware(cfg))
 		{
 			tags.GET("", tagHandler.List)
 			tags.POST("", tagHandler.Create)
@@ -119,14 +121,12 @@ func Setup(cfg *config.Config) *gin.Engine {
 		}
 
 		templates := api.Group("/templates")
-		templates.Use(middleware.AuthMiddleware(cfg))
 		{
 			templates.GET("", tmplHandler.List)
 			templates.GET("/:id", tmplHandler.Get)
 		}
 
 		groups := api.Group("/groups")
-		groups.Use(middleware.AuthMiddleware(cfg))
 		{
 			groups.POST("", groupHandler.Create)
 			groups.GET("/:id/members", groupHandler.GetMembers)
@@ -134,17 +134,33 @@ func Setup(cfg *config.Config) *gin.Engine {
 		}
 
 		rooms := api.Group("/rooms")
-		rooms.Use(middleware.AuthMiddleware(cfg))
 		{
 			rooms.GET("/:note_id/canvas", roomHandler.GetCanvas)
 			rooms.POST("/:note_id/command", middleware.RequireRoles("super_admin", "dept_admin", "group_leader"), roomHandler.SendCommand)
 		}
 
 		ledger := api.Group("/ledger")
-		ledger.Use(middleware.AuthMiddleware(cfg))
 		{
 			ledger.GET("", ledgerHandler.List)
 			ledger.GET("/stats", middleware.RequireRoles("super_admin", "dept_admin"), ledgerHandler.Stats)
+		}
+
+		system := api.Group("/system")
+		system.Use(middleware.RequireRoles("super_admin"))
+		{
+			system.GET("/config", sysHandler.GetConfig)
+			system.PUT("/config", sysHandler.UpdateConfig)
+			system.GET("/ai-configs", sysHandler.ListAIConfigs)
+			system.POST("/ai-configs", sysHandler.CreateAIConfig)
+			system.PUT("/ai-configs/:id", sysHandler.UpdateAIConfig)
+			system.DELETE("/ai-configs/:id", sysHandler.DeleteAIConfig)
+			system.GET("/config-files", sysHandler.ListConfigFiles)
+			system.GET("/config-files/:name", sysHandler.GetConfigFile)
+			system.PUT("/config-files/:name", sysHandler.UpdateConfigFile)
+			system.GET("/config-files/:name/history", sysHandler.GetConfigFileHistory)
+			system.GET("/logs", sysHandler.ListAdminLogs)
+			system.GET("/operations", sysHandler.ListOperations)
+			system.GET("/operations/actions", sysHandler.GetOperationActions)
 		}
 	}
 

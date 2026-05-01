@@ -25,6 +25,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
 		os.Exit(1)
 	}
+	config.SetActive(cfg, "config.json")
 
 	if err := logger.Init(
 		cfg.Log.Level,
@@ -65,6 +66,10 @@ func main() {
 		&models.CollaborationRoom{},
 		&models.Reminder{},
 		&models.LedgerEntry{},
+		&models.AIConfig{},
+		&models.ConfigFileHistory{},
+		&models.AdminLog{},
+		&models.OperationLog{},
 	); err != nil {
 		logger.Fatal("Failed to auto migrate database", zap.Error(err))
 	}

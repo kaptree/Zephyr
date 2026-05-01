@@ -5,6 +5,13 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
+)
+
+var (
+	activeConfig *Config
+	configMu     sync.RWMutex
+	configPath   string
 )
 
 type Config struct {
@@ -253,4 +260,40 @@ func validateNotEmpty(s string, field string) error {
 		return fmt.Errorf("config field '%s' is required but empty", field)
 	}
 	return nil
+}
+
+func SetActive(cfg *Config, path string) {
+	configMu.Lock()
+	defer configMu.Unlock()
+	activeConfig = cfg
+	configPath = path
+}
+
+func GetActive() *Config {
+	configMu.RLock()
+	defer configMu.RUnlock()
+	return activeConfig
+}
+
+func GetConfigPath() string {
+	configMu.RLock()
+	defer configMu.RUnlock()
+	return configPath
+}
+
+func ReloadConfig() (*Config, error) {
+	configMu.RLock()
+	path := configPath
+	configMu.RUnlock()
+
+	cfg, err := Load(path)
+	if err != nil {
+		return nil, err
+	}
+
+	configMu.Lock()
+	activeConfig = cfg
+	configMu.Unlock()
+
+	return cfg, nil
 }
