@@ -24,6 +24,7 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   { icon: 'clipboard', label: '工作台', path: '/workbench' },
   { icon: 'archive', label: '归档查询', path: '/workbench/archive' },
+  { icon: 'chart', label: '工作成效分析', path: '/analytics' },
   { icon: 'users', label: '部门管理', path: '/admin/departments', permission: 'manage_departments' },
   { icon: 'user', label: '人员管理', path: '/admin/users', permission: 'manage_users' },
   { icon: 'tag', label: '标签管理', path: '/admin/tags', permission: 'manage_tags' },
@@ -95,6 +96,7 @@ function navigate(path: string) {
             <span class="w-5 h-5 shrink-0 flex items-center justify-center text-lg leading-none">
               <template v-if="item.icon === 'clipboard'">📋</template>
               <template v-else-if="item.icon === 'archive'">📁</template>
+              <template v-else-if="item.icon === 'chart'">📈</template>
               <template v-else-if="item.icon === 'users'">🏢</template>
               <template v-else-if="item.icon === 'user'">👤</template>
               <template v-else-if="item.icon === 'tag'">🏷️</template>

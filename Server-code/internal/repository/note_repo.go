@@ -354,4 +354,73 @@ func (r *NoteRepository) CountByDept(deptID string) (int64, error) {
 	return count, err
 }
 
+type PersonalStats struct {
+	TotalCreated       int64          `json:"total_created"`
+	TotalCompleted     int64          `json:"total_completed"`
+	CompletionRate     float64        `json:"completion_rate"`
+	RemindReceived     int64          `json:"remind_received"`
+	AvgCompletionHours float64        `json:"avg_completion_hours"`
+	DailyTrend         []NoteDayStat  `json:"daily_trend"`
+	TagBreakdown       []TagBreakdown `json:"tag_breakdown"`
+}
+
+type TagBreakdown struct {
+	TagName string `json:"tag_name"`
+	Count   int64  `json:"count"`
+}
+
+func (r *NoteRepository) GetPersonalStats(userID string, days int) (*PersonalStats, error) {
+	stats := &PersonalStats{}
+	since := time.Now().AddDate(0, 0, -days)
+
+	r.db.Model(&models.Note{}).Where("creator_id = ? AND created_at >= ?", userID, since).Count(&stats.TotalCreated)
+
+	r.db.Model(&models.Note{}).
+		Where("owner_id = ? AND is_archived = ? AND completed_at >= ?", userID, true, since).
+		Count(&stats.TotalCompleted)
+
+	if stats.TotalCreated > 0 {
+		stats.CompletionRate = float64(stats.TotalCompleted) / float64(stats.TotalCreated) * 100
+	}
+
+	r.db.Model(&models.Reminder{}).Where("target_id = ? AND created_at >= ?", userID, since).Count(&stats.RemindReceived)
+
+	var dailyTrend []NoteDayStat
+	r.db.Model(&models.Note{}).
+		Select("DATE(created_at) as date, COUNT(*) as count").
+		Where("creator_id = ? AND created_at >= ?", userID, since).
+		Group("DATE(created_at)").Order("date ASC").Find(&dailyTrend)
+	stats.DailyTrend = dailyTrend
+	if stats.DailyTrend == nil {
+		stats.DailyTrend = []NoteDayStat{}
+	}
+
+	var tagBreakdown []TagBreakdown
+	r.db.Table("note_tags").
+		Select("tags.name as tag_name, COUNT(note_tags.note_id) as count").
+		Joins("JOIN tags ON tags.id = note_tags.tag_id").
+		Joins("JOIN notes ON notes.id = note_tags.note_id").
+		Where("notes.creator_id = ? AND notes.created_at >= ?", userID, since).
+		Group("tags.name").Order("count DESC").Limit(10).Find(&tagBreakdown)
+	stats.TagBreakdown = tagBreakdown
+	if stats.TagBreakdown == nil {
+		stats.TagBreakdown = []TagBreakdown{}
+	}
+
+	rows, err := r.db.Model(&models.Note{}).
+		Select("AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) / 3600)").
+		Where("owner_id = ? AND is_archived = ? AND completed_at IS NOT NULL AND completed_at >= ?", userID, true, since).
+		Rows()
+	if err == nil && rows.Next() {
+		var avgHours *float64
+		rows.Scan(&avgHours)
+		if avgHours != nil {
+			stats.AvgCompletionHours = *avgHours
+		}
+		rows.Close()
+	}
+
+	return stats, nil
+}
+
 var _ = strings.TrimSpace

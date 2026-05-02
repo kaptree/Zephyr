@@ -117,16 +117,17 @@ func parseOperation(path, method string) (action, resource, resourceID, detail s
 		return "logout", "auth", "", "用户登出"
 
 	case strings.HasPrefix(path, "notes"):
-		if method == "POST" && len(parts) == 2 && parts[1] == "complete" {
-			return "complete_note", "note", parts[0], "完成任务"
-		} else if method == "POST" && len(parts) == 2 && parts[1] == "remind" {
+		lastPart := parts[len(parts)-1]
+		if method == "POST" && len(parts) >= 2 && lastPart == "complete" {
+			return "complete_note", "note", parts[0], "完成并归档"
+		} else if method == "POST" && len(parts) >= 2 && lastPart == "remind" {
 			return "remind_note", "note", parts[0], "盯办提醒"
-		} else if method == "POST" && len(parts) == 2 && parts[1] == "restore" {
+		} else if method == "POST" && len(parts) >= 2 && lastPart == "restore" {
 			return "restore_note", "note", parts[0], "恢复便签"
 		} else if method == "POST" {
 			return "create_note", "note", "", "创建便签"
 		} else if method == "PUT" {
-			return "update_note", "note", parts[0], "更新便签"
+			return "update_note", "note", parts[0], "编辑便签"
 		} else if method == "DELETE" {
 			return "delete_note", "note", parts[0], "删除便签"
 		}

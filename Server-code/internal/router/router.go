@@ -57,6 +57,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	roomHandler := handlers.NewRoomHandler(roomRepo)
 	ledgerHandler := handlers.NewLedgerHandler(ledgerRepo)
 	sysHandler := handlers.NewSystemHandler(sysRepo)
+	analyticsHandler := handlers.NewAnalyticsHandler(noteRepo, sysRepo)
 
 	if cfg.WebSocket.Enabled {
 		hub := ws.InitHub()
@@ -143,6 +144,12 @@ func Setup(cfg *config.Config) *gin.Engine {
 		{
 			ledger.GET("", ledgerHandler.List)
 			ledger.GET("/stats", middleware.RequireRoles("super_admin", "dept_admin"), ledgerHandler.Stats)
+		}
+
+		analytics := api.Group("/analytics")
+		{
+			analytics.GET("/personal-stats", analyticsHandler.PersonalStats)
+			analytics.POST("/ai-report", analyticsHandler.GenerateAIReport)
 		}
 
 		system := api.Group("/system")

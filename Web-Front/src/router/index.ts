@@ -38,6 +38,19 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   {
+    path: '/analytics',
+    component: () => import('@/layouts/AdminLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        name: 'Analytics',
+        component: () => import('@/pages/AnalyticsPage.vue'),
+        meta: { title: '工作成效分析' },
+      },
+    ],
+  },
+  {
     path: '/admin',
     component: () => import('@/layouts/AdminLayout.vue'),
     meta: { requiresAuth: true },
