@@ -46,6 +46,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	c.Set("user_id", resp.User.ID)
+	c.Set("username", resp.User.Username)
+	c.Set("role", resp.User.Role)
+
 	utils.Success(c, resp)
 }
 
@@ -64,6 +68,12 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	if err != nil {
 		utils.Unauthorized(c, "令牌无效或已过期")
 		return
+	}
+
+	if claims, parseErr := utils.ParseToken(req.RefreshToken); parseErr == nil {
+		c.Set("user_id", claims.UserID)
+		c.Set("username", claims.Username)
+		c.Set("role", claims.Role)
 	}
 
 	utils.Success(c, tokens)

@@ -71,6 +71,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 		})
 
 		auth := api.Group("/auth")
+		auth.Use(middleware.OperationLogger())
 		{
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/refresh", authHandler.RefreshToken)

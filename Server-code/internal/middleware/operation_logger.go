@@ -38,9 +38,7 @@ func OperationLogger() gin.HandlerFunc {
 			return
 		}
 
-		userID := c.GetString("user_id")
-		username := c.GetString("username")
-		role := c.GetString("role")
+		action, resource, resourceID, detail := parseOperation(path, method)
 
 		var bodyBytes []byte
 		if c.Request.Body != nil {
@@ -48,30 +46,40 @@ func OperationLogger() gin.HandlerFunc {
 			c.Request.Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
 		}
 
+		var bodyMap map[string]interface{}
+		if len(bodyBytes) > 0 {
+			json.Unmarshal(bodyBytes, &bodyMap)
+		}
+
 		c.Next()
 
 		statusCode := c.Writer.Status()
 
+		userID := c.GetString("user_id")
+		username := c.GetString("username")
+		role := c.GetString("role")
+
 		if userID == "" {
-			return
+			if action == "login" && bodyMap != nil {
+				if un, ok := bodyMap["username"].(string); ok && un != "" {
+					username = un
+				}
+			}
+			if username == "" {
+				return
+			}
 		}
 
-		action, resource, resourceID, detail := parseOperation(path, method)
-
-		var bodyMap map[string]interface{}
-		if len(bodyBytes) > 0 {
-			json.Unmarshal(bodyBytes, &bodyMap)
-			if bodyMap != nil {
-				if pw, ok := bodyMap["password"].(string); ok && pw != "" {
-					bodyMap["password"] = "***"
-				}
-				if apiKey, ok := bodyMap["api_key"].(string); ok && apiKey != "" {
-					bodyMap["api_key"] = "***"
-				}
-				detailBytes, _ := json.Marshal(bodyMap)
-				if detail == "" {
-					detail = string(detailBytes)
-				}
+		if bodyMap != nil {
+			if pw, ok := bodyMap["password"].(string); ok && pw != "" {
+				bodyMap["password"] = "***"
+			}
+			if apiKey, ok := bodyMap["api_key"].(string); ok && apiKey != "" {
+				bodyMap["api_key"] = "***"
+			}
+			detailBytes, _ := json.Marshal(bodyMap)
+			if detail == "" {
+				detail = string(detailBytes)
 			}
 		}
 

@@ -10,18 +10,28 @@ import (
 	"strings"
 )
 
-var encryptionKey = []byte("labelpro-aes-key-32bytes!!12345")
+var encryptionKey = []byte("labelpro-aes-key-32bytes!!123456")
 
 func SetEncryptionKey(key string) {
-	if len(key) >= 32 {
-		encryptionKey = []byte(key[:32])
+	keyLen := len(key)
+	var finalKey string
+	if keyLen >= 32 {
+		finalKey = key[:32]
+	} else if keyLen >= 24 {
+		finalKey = key[:24]
+	} else if keyLen >= 16 {
+		finalKey = key[:16]
 	} else {
-		padded := key + strings.Repeat("0", 32-len(key))
-		encryptionKey = []byte(padded[:32])
+		finalKey = key + strings.Repeat("0", 16-keyLen)
 	}
+	encryptionKey = []byte(finalKey)
 }
 
 func EncryptAES(plaintext string) (string, error) {
+	if len(encryptionKey) != 16 && len(encryptionKey) != 24 && len(encryptionKey) != 32 {
+		return "", errors.New("invalid AES key size: must be 16, 24, or 32 bytes")
+	}
+
 	block, err := aes.NewCipher(encryptionKey)
 	if err != nil {
 		return "", err
@@ -45,6 +55,10 @@ func DecryptAES(encoded string) (string, error) {
 	ciphertext, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
 		return "", err
+	}
+
+	if len(encryptionKey) != 16 && len(encryptionKey) != 24 && len(encryptionKey) != 32 {
+		return "", errors.New("invalid AES key size: must be 16, 24, or 32 bytes")
 	}
 
 	block, err := aes.NewCipher(encryptionKey)

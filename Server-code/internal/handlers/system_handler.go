@@ -126,7 +126,7 @@ func (h *SystemHandler) CreateAIConfig(c *gin.Context) {
 
 	encryptedKey, err := utils.EncryptAES(body.APIKey)
 	if err != nil {
-		utils.InternalError(c, "密钥加密失败")
+		utils.InternalError(c, "密钥加密失败: "+err.Error())
 		return
 	}
 
