@@ -235,6 +235,10 @@ func (r *NoteRepository) CreateReminder(reminder *models.Reminder) error {
 	return r.db.Create(reminder).Error
 }
 
+func (r *NoteRepository) CreateAssignee(assignee *models.NoteAssignee) error {
+	return r.db.Create(assignee).Error
+}
+
 func (r *NoteRepository) CheckUserAccess(noteID, userID string) (bool, error) {
 	var count int64
 	err := r.db.Model(&models.Note{}).

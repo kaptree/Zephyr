@@ -4,6 +4,7 @@ import (
 	"labelpro-server/internal/models"
 	"sort"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -151,6 +152,46 @@ func (r *WorkGroupRepository) UpdateMember(groupID, userID, role, subGroup strin
 	return r.db.Model(&models.WorkGroupMember{}).
 		Where("group_id = ? AND user_id = ?", groupID, userID).
 		Updates(updates).Error
+}
+
+func (r *WorkGroupRepository) FindAll() ([]models.WorkGroup, error) {
+	var groups []models.WorkGroup
+	err := r.db.Preload("Members.User").Preload("Initiator").Order("created_at DESC").Find(&groups).Error
+	return groups, err
+}
+
+func (r *WorkGroupRepository) FindByUserID(userID string) ([]models.WorkGroup, error) {
+	var groups []models.WorkGroup
+	subQuery := r.db.Model(&models.WorkGroupMember{}).Select("group_id").Where("user_id = ?", userID)
+	err := r.db.Preload("Members.User").Preload("Initiator").
+		Where("initiator_id = ? OR id IN (?)", userID, subQuery).
+		Order("created_at DESC").
+		Find(&groups).Error
+	return groups, err
+}
+
+func (r *WorkGroupRepository) AddMember(groupID, userID, role, subGroup string) error {
+	member := &models.WorkGroupMember{
+		GroupID:      uuid.MustParse(groupID),
+		UserID:       uuid.MustParse(userID),
+		Role:         role,
+		SubGroupName: subGroup,
+	}
+	return r.db.Create(member).Error
+}
+
+func (r *WorkGroupRepository) RemoveMember(groupID, userID string) error {
+	return r.db.Where("group_id = ? AND user_id = ?", groupID, userID).
+		Delete(&models.WorkGroupMember{}).Error
+}
+
+func (r *WorkGroupRepository) UpdateStatus(groupID, status string) error {
+	return r.db.Model(&models.WorkGroup{}).Where("id = ?", groupID).Update("status", status).Error
+}
+
+func (r *WorkGroupRepository) Delete(id string) error {
+	r.db.Where("group_id = ?", id).Delete(&models.WorkGroupMember{})
+	return r.db.Delete(&models.WorkGroup{}, "id = ?", id).Error
 }
 
 type CollaborationRoomRepository struct {

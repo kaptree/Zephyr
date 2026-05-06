@@ -41,14 +41,17 @@ func (Template) TableName() string {
 }
 
 type WorkGroup struct {
-	ID          uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	Name        string     `gorm:"type:varchar(200);not null" json:"name"`
-	NoteID      *uuid.UUID `gorm:"type:uuid" json:"note_id"`
-	InitiatorID uuid.UUID  `gorm:"type:uuid;not null" json:"initiator_id"`
-	Initiator   *User      `gorm:"foreignKey:InitiatorID" json:"initiator,omitempty"`
-	Status      string     `gorm:"type:varchar(20);default:'active'" json:"status"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID           uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	Name         string     `gorm:"type:varchar(200);not null" json:"name"`
+	Description  string     `gorm:"type:text" json:"description"`
+	NoteID       *uuid.UUID `gorm:"type:uuid" json:"note_id"`
+	InitiatorID  uuid.UUID  `gorm:"type:uuid;not null" json:"initiator_id"`
+	Initiator    *User      `gorm:"foreignKey:InitiatorID" json:"initiator,omitempty"`
+	TemplateType string     `gorm:"type:varchar(30);default:'default'" json:"template_type"`
+	Status       string     `gorm:"type:varchar(20);default:'active'" json:"status"`
+	DueTime      *time.Time `json:"due_time"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 
 	Members []WorkGroupMember `gorm:"foreignKey:GroupID" json:"members,omitempty"`
 }

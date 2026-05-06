@@ -53,7 +53,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	noteHandler := handlers.NewNoteHandler(noteService)
 	tagHandler := handlers.NewTagHandler(tagRepo)
 	tmplHandler := handlers.NewTemplateHandler(tmplRepo)
-	groupHandler := handlers.NewWorkGroupHandler(groupRepo)
+	groupHandler := handlers.NewWorkGroupHandler(groupRepo, noteRepo, userRepo)
 	roomHandler := handlers.NewRoomHandler(roomRepo)
 	ledgerHandler := handlers.NewLedgerHandler(ledgerRepo)
 	sysHandler := handlers.NewSystemHandler(sysRepo)
@@ -130,7 +130,11 @@ func Setup(cfg *config.Config) *gin.Engine {
 
 		groups := api.Group("/groups")
 		{
+			groups.GET("", groupHandler.List)
+			groups.GET("/mine", groupHandler.MyGroups)
 			groups.POST("", groupHandler.Create)
+			groups.GET("/:id", groupHandler.GetDetail)
+			groups.DELETE("/:id", groupHandler.Delete)
 			groups.GET("/:id/members", groupHandler.GetMembers)
 			groups.PUT("/:id/members/:user_id", groupHandler.UpdateMember)
 		}
@@ -151,6 +155,11 @@ func Setup(cfg *config.Config) *gin.Engine {
 		{
 			analytics.GET("/personal-stats", analyticsHandler.PersonalStats)
 			analytics.POST("/ai-report", analyticsHandler.GenerateAIReport)
+			analytics.GET("/reports", analyticsHandler.ListReports)
+			analytics.GET("/reports/:id", analyticsHandler.GetReport)
+			analytics.DELETE("/reports/:id", analyticsHandler.DeleteReport)
+			analytics.GET("/report-template", analyticsHandler.GetReportTemplate)
+			analytics.PUT("/report-template", analyticsHandler.SaveReportTemplate)
 		}
 
 		system := api.Group("/system")

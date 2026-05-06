@@ -75,3 +75,31 @@ type OperationLog struct {
 func (OperationLog) TableName() string {
 	return "operation_logs"
 }
+
+type WorkReport struct {
+	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	UserID       string    `gorm:"type:varchar(50);not null;index" json:"user_id"`
+	UserName     string    `gorm:"type:varchar(100);not null" json:"user_name"`
+	Period       string    `gorm:"type:varchar(20);not null" json:"period"`
+	PeriodLabel  string    `gorm:"type:varchar(20)" json:"period_label"`
+	ReportType   string    `gorm:"type:varchar(20);default:'ai'" json:"report_type"`
+	Title        string    `gorm:"type:varchar(300)" json:"title"`
+	Content      string    `gorm:"type:text" json:"content"`
+	StatsSummary string    `gorm:"type:text" json:"stats_summary"`
+	CreatedAt    time.Time `gorm:"index" json:"created_at"`
+}
+
+func (WorkReport) TableName() string {
+	return "work_reports"
+}
+
+type ReportTemplate struct {
+	ID        string    `gorm:"type:varchar(50);primaryKey" json:"id"`
+	Name      string    `gorm:"type:varchar(200);not null" json:"name"`
+	Content   string    `gorm:"type:text;not null" json:"content"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (ReportTemplate) TableName() string {
+	return "report_templates"
+}

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"labelpro-server/internal/models"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -137,4 +138,86 @@ func (r *SystemRepository) GetDistinctActions() ([]string, error) {
 	var actions []string
 	err := r.db.Model(&models.OperationLog{}).Distinct("action").Pluck("action", &actions).Error
 	return actions, err
+}
+
+func (r *SystemRepository) CreateWorkReport(report *models.WorkReport) error {
+	return r.db.Create(report).Error
+}
+
+type WorkReportFilter struct {
+	UserID   string
+	Period   string
+	Keyword  string
+	DateFrom string
+	DateTo   string
+	Page     int
+	PageSize int
+}
+
+func (r *SystemRepository) ListWorkReports(f WorkReportFilter) ([]models.WorkReport, int64, error) {
+	var reports []models.WorkReport
+	var total int64
+
+	query := r.db.Model(&models.WorkReport{})
+
+	if f.UserID != "" {
+		query = query.Where("user_id = ?", f.UserID)
+	}
+	if f.Period != "" {
+		query = query.Where("period = ?", f.Period)
+	}
+	if f.Keyword != "" {
+		kw := "%" + f.Keyword + "%"
+		query = query.Where("title ILIKE ? OR content ILIKE ?", kw, kw)
+	}
+	if f.DateFrom != "" {
+		query = query.Where("created_at >= ?", f.DateFrom)
+	}
+	if f.DateTo != "" {
+		query = query.Where("created_at <= ?", f.DateTo+"T23:59:59")
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (f.Page - 1) * f.PageSize
+	err := query.Order("created_at DESC").Offset(offset).Limit(f.PageSize).Find(&reports).Error
+	return reports, total, err
+}
+
+func (r *SystemRepository) GetWorkReport(id string) (*models.WorkReport, error) {
+	var report models.WorkReport
+	err := r.db.Where("id = ?", id).First(&report).Error
+	if err != nil {
+		return nil, err
+	}
+	return &report, nil
+}
+
+func (r *SystemRepository) DeleteWorkReport(id string) error {
+	return r.db.Delete(&models.WorkReport{}, "id = ?", id).Error
+}
+
+func (r *SystemRepository) GetReportTemplate(id string) (*models.ReportTemplate, error) {
+	var tpl models.ReportTemplate
+	err := r.db.Where("id = ?", id).First(&tpl).Error
+	if err != nil {
+		return nil, err
+	}
+	return &tpl, nil
+}
+
+func (r *SystemRepository) SaveReportTemplate(tpl *models.ReportTemplate) error {
+	var existing models.ReportTemplate
+	err := r.db.Where("id = ?", tpl.ID).First(&existing).Error
+	if err != nil {
+		return r.db.Create(tpl).Error
+	}
+	tpl.UpdatedAt = time.Now()
+	return r.db.Model(&models.ReportTemplate{}).Where("id = ?", tpl.ID).Updates(map[string]interface{}{
+		"name":       tpl.Name,
+		"content":    tpl.Content,
+		"updated_at": tpl.UpdatedAt,
+	}).Error
 }

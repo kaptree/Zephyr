@@ -2,12 +2,15 @@ package handlers
 
 import (
 	"strconv"
+	"time"
 
+	"labelpro-server/internal/middleware"
 	"labelpro-server/internal/models"
 	"labelpro-server/internal/repository"
 	"labelpro-server/internal/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type TemplateHandler struct {
@@ -40,26 +43,55 @@ func (h *TemplateHandler) Get(c *gin.Context) {
 
 type WorkGroupHandler struct {
 	groupRepo *repository.WorkGroupRepository
+	noteRepo  *repository.NoteRepository
+	userRepo  *repository.UserRepository
 }
 
-func NewWorkGroupHandler(groupRepo *repository.WorkGroupRepository) *WorkGroupHandler {
-	return &WorkGroupHandler{groupRepo: groupRepo}
+func NewWorkGroupHandler(groupRepo *repository.WorkGroupRepository, noteRepo *repository.NoteRepository, userRepo *repository.UserRepository) *WorkGroupHandler {
+	return &WorkGroupHandler{groupRepo: groupRepo, noteRepo: noteRepo, userRepo: userRepo}
+}
+
+type CreateWorkGroupReq struct {
+	Name         string           `json:"name" binding:"required"`
+	Description  string           `json:"description"`
+	TemplateType string           `json:"template_type"`
+	DueTime      string           `json:"due_time"`
+	Members      []GroupMemberReq `json:"members"`
+	Tags         []string         `json:"tags"`
 }
 
 func (h *WorkGroupHandler) Create(c *gin.Context) {
-	var req struct {
-		Name    string           `json:"name" binding:"required"`
-		NoteID  string           `json:"note_id"`
-		Members []GroupMemberReq `json:"members"`
-	}
+	var req CreateWorkGroupReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.BadRequest(c, "请求参数错误")
+		utils.BadRequest(c, "请填写完整的工作组信息")
 		return
 	}
 
+	userID := middleware.GetUserID(c)
+	initiatorUID, _ := uuid.Parse(userID)
+
+	var dueTime *time.Time
+	if req.DueTime != "" {
+		parsed, err := time.Parse(time.RFC3339, req.DueTime)
+		if err == nil {
+			dueTime = &parsed
+		}
+	}
+
+	templateType := req.TemplateType
+	if templateType == "" {
+		templateType = "default"
+	}
+
+	groupID := uuid.New()
 	group := &models.WorkGroup{
-		Name:   req.Name,
-		Status: "active",
+		ID:           groupID,
+		Name:         req.Name,
+		Description:  req.Description,
+		InitiatorID:  initiatorUID,
+		TemplateType: templateType,
+		Status:       "active",
+		DueTime:      dueTime,
 	}
 
 	if err := h.groupRepo.Create(group); err != nil {
@@ -67,13 +99,88 @@ func (h *WorkGroupHandler) Create(c *gin.Context) {
 		return
 	}
 
-	utils.Created(c, group)
+	memberCount := 0
+	for _, m := range req.Members {
+		memberUID, err := uuid.Parse(m.UserID)
+		if err != nil {
+			continue
+		}
+		role := m.Role
+		if role == "" {
+			role = "member"
+		}
+		_ = h.groupRepo.AddMember(groupID.String(), memberUID.String(), role, m.SubGroup)
+
+		noteID := uuid.New()
+		groupNoteID := uuid.NullUUID{UUID: noteID, Valid: true}
+		if group.NoteID == nil {
+			group.NoteID = &groupNoteID.UUID
+		}
+
+		var serialNo string
+		if sn, _ := h.noteRepo.GetNextSerialNumber(time.Now().Year()); sn > 0 {
+			serialNo = repository.GenerateSerialNo(time.Now().Year(), sn)
+		}
+
+		note := &models.Note{
+			ID:           noteID,
+			Title:        req.Name + " - " + roleLabelZh(role),
+			Content:      req.Description,
+			SourceType:   "assigned",
+			TemplateType: templateType,
+			ColorStatus:  "yellow",
+			CreatorID:    initiatorUID,
+			OwnerID:      memberUID,
+			AssignerID:   &initiatorUID,
+			GroupID:      &groupID,
+			DueTime:      dueTime,
+			SerialNo:     serialNo,
+		}
+		if err := h.noteRepo.Create(note); err == nil {
+			assignee := models.NoteAssignee{
+				NoteID:     noteID,
+				UserID:     memberUID,
+				RoleInNote: role,
+			}
+			h.noteRepo.CreateAssignee(&assignee)
+			memberCount++
+		}
+	}
+
+	if memberCount > 0 {
+		h.groupRepo.UpdateStatus(groupID.String(), "active")
+	}
+
+	created, _ := h.groupRepo.FindByID(groupID.String())
+	if created == nil {
+		created = group
+	}
+	utils.Created(c, created)
 }
 
-type GroupMemberReq struct {
-	UserID   string `json:"user_id"`
-	Role     string `json:"role"`
-	SubGroup string `json:"sub_group_name"`
+func (h *WorkGroupHandler) List(c *gin.Context) {
+	groups, err := h.groupRepo.FindAll()
+	if err != nil {
+		utils.InternalError(c, "获取工作组列表失败")
+		return
+	}
+	if groups == nil {
+		groups = []models.WorkGroup{}
+	}
+	utils.Success(c, groups)
+}
+
+func (h *WorkGroupHandler) MyGroups(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	groups, err := h.groupRepo.FindByUserID(userID)
+	if err != nil {
+		utils.InternalError(c, "获取工作组列表失败")
+		return
+	}
+	if groups == nil {
+		groups = []models.WorkGroup{}
+	}
+	utils.Success(c, groups)
 }
 
 func (h *WorkGroupHandler) GetMembers(c *gin.Context) {
@@ -105,6 +212,42 @@ func (h *WorkGroupHandler) UpdateMember(c *gin.Context) {
 	}
 
 	utils.Success(c, gin.H{"success": true})
+}
+
+func (h *WorkGroupHandler) Delete(c *gin.Context) {
+	id := c.Param("id")
+	if err := h.groupRepo.Delete(id); err != nil {
+		utils.InternalError(c, "删除工作组失败")
+		return
+	}
+	utils.SuccessWithMessage(c, "工作组已删除", nil)
+}
+
+func (h *WorkGroupHandler) GetDetail(c *gin.Context) {
+	id := c.Param("id")
+	group, err := h.groupRepo.FindByID(id)
+	if err != nil {
+		utils.NotFound(c, "工作组不存在")
+		return
+	}
+	utils.Success(c, group)
+}
+
+func roleLabelZh(role string) string {
+	switch role {
+	case "leader":
+		return "组长任务"
+	case "sub_leader":
+		return "副组长任务"
+	default:
+		return "组员任务"
+	}
+}
+
+type GroupMemberReq struct {
+	UserID   string `json:"user_id"`
+	Role     string `json:"role"`
+	SubGroup string `json:"sub_group_name"`
 }
 
 type RoomHandler struct {
