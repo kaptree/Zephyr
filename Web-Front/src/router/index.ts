@@ -41,6 +41,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/GroupDetailPage.vue'),
         meta: { title: '专项行动详情' },
       },
+      {
+        path: 'groups/:id/dashboard',
+        name: 'WorkGroupDashboard',
+        component: () => import('@/pages/GroupDashboardPage.vue'),
+        meta: { title: '数据大屏' },
+      },
     ],
   },
   {

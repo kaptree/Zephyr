@@ -142,6 +142,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 			groups.DELETE("/:id/members/:user_id", groupHandler.RemoveMember)
 			groups.GET("/:id/notes", groupHandler.GetGroupNotes)
 			groups.POST("/:id/notes", groupHandler.CreateGroupNote)
+			groups.GET("/:id/dashboard", groupHandler.GetDashboard)
 		}
 
 		rooms := api.Group("/rooms")

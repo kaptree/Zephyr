@@ -449,6 +449,81 @@ func (h *WorkGroupHandler) requireAdmin(groupID string, c *gin.Context) (*models
 	return group, true
 }
 
+type DashboardItem struct {
+	UserName    string       `json:"user_name"`
+	NoteID      string       `json:"note_id"`
+	NoteTitle   string       `json:"note_title"`
+	NoteContent string       `json:"note_content"`
+	Tags        []models.Tag `json:"tags"`
+	CompletedAt string       `json:"completed_at"`
+}
+
+type DashboardColumn struct {
+	SubGroupName string           `json:"sub_group_name"`
+	Items        []DashboardItem  `json:"items"`
+}
+
+func (h *WorkGroupHandler) GetDashboard(c *gin.Context) {
+	groupID := c.Param("id")
+	group, err := h.groupRepo.FindByID(groupID)
+	if err != nil {
+		utils.NotFound(c, "工作组不存在")
+		return
+	}
+
+	memberSubGroup := map[string]string{}
+	for _, m := range group.Members {
+		memberSubGroup[m.UserID.String()] = m.SubGroupName
+	}
+
+	notes, err := h.noteRepo.ListByGroupCompleted(groupID)
+	if err != nil {
+		utils.InternalError(c, "获取数据失败")
+		return
+	}
+
+	columns := map[string][]DashboardItem{}
+	for _, note := range notes {
+		sg := memberSubGroup[note.OwnerID.String()]
+		if sg == "" {
+			sg = "未分组"
+		}
+		completedAt := ""
+		if note.CompletedAt != nil {
+			completedAt = note.CompletedAt.Format("01-02 15:04")
+		}
+		item := DashboardItem{
+			UserName:    note.Owner.Name,
+			NoteID:      note.ID.String(),
+			NoteTitle:   note.Title,
+			NoteContent: note.Content,
+			Tags:        note.Tags,
+			CompletedAt: completedAt,
+		}
+		columns[sg] = append(columns[sg], item)
+	}
+
+	result := make([]DashboardColumn, 0)
+	for _, m := range group.Members {
+		sg := m.SubGroupName
+		if sg == "" {
+			sg = "未分组"
+		}
+		if items, ok := columns[sg]; ok {
+			result = append(result, DashboardColumn{SubGroupName: sg, Items: items})
+			delete(columns, sg)
+		}
+	}
+	for sg, items := range columns {
+		result = append(result, DashboardColumn{SubGroupName: sg, Items: items})
+	}
+
+	utils.Success(c, gin.H{
+		"group":   group,
+		"columns": result,
+	})
+}
+
 type RoomHandler struct {
 	roomRepo *repository.CollaborationRoomRepository
 }

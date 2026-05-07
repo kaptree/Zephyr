@@ -444,4 +444,15 @@ func (r *NoteRepository) ListByGroup(groupID string, userID string, page, pageSi
 	return notes, total, err
 }
 
+func (r *NoteRepository) ListByGroupCompleted(groupID string) ([]models.Note, error) {
+	var notes []models.Note
+	err := r.db.Model(&models.Note{}).
+		Where("group_id = ? AND color_status = ?", groupID, "green").
+		Preload("Tags").
+		Preload("Owner").
+		Order("completed_at DESC").
+		Find(&notes).Error
+	return notes, err
+}
+
 var _ = strings.TrimSpace
