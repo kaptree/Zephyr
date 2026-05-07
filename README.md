@@ -7,6 +7,7 @@
 **轻燕工作台** 是一款专为公司系统设计的轻量化情指行一体化支撑解决方案，以"电脑桌面便签"为唯一统一入口，承载被动接单、主动记工、即时协同全场景。系统包含桌面端（WinUI 3）、Web管理端（Vue 3）和大屏端，实现任务接收、工作记录、协同反馈、盯办预警的极致轻量化体验。
 
 ### 核心理念
+
 - **无感嵌入办公环境**：以桌面悬浮便签为载体，不改变员工原有电脑操作习惯
 - **多端协同**：桌面端、Web端、大屏端数据实时同步
 - **极简交互**：纯白为底、极简为形、高级交互为魂，打造零学习成本的办公新体验
@@ -14,23 +15,41 @@
 ## 核心功能
 
 ### 1. 智能便签管理
+
 - **多色状态管理**：黄色待办、绿色完成、红色盯办
 - **便签生命周期**：创建 → 编辑 → 完成 → 归档 → 追溯
 - **标签系统**：支持自定义标签分类管理
 - **模板配置**：预设工作模板，提升效率
 
+![模板配置](./asset/01.png)
+
 ### 2. 协同办公
+
 - **即时协同**：多人同屏画布协作
 - **专项工作组**：构建工作小组，内置分工协作
 - **任务分配与跟踪**：扁平化任务管理，实时跟踪进度
 - **盯办预警**：自动盯办机制，确保任务按时完成
 
+![协同办公](./asset/02.png)
+
+![协同办公](./asset/03.png)
+
+![工作成效1](./asset/04.png)
+
+![工作成效2](./asset/05.png)
+
 ### 3. 组织管理
+
 - **部门架构**：树形组织架构管理
 - **人员管理**：角色权限精细化控制
 - **权限矩阵**：基于角色的数据权限与操作权限
 
+![组织架构](./asset/06.png)
+![组织架构](./asset/07.png)
+![组织架构](./asset/08.png)
+
 ### 4. 数据追溯
+
 - **台账系统**：完整工作轨迹记录
 - **归档查询**：按标签/时间/人员多维度检索
 - **文号生成**：自动生成标准文号
@@ -39,6 +58,7 @@
 ## 技术栈详情
 
 ### 桌面端 (WinUI 3)
+
 - **UI框架**: WinUI 3 (Windows App SDK)
 - **语言**: C# 11 / .NET 8
 - **架构**: MVVM (CommunityToolkit.Mvvm)
@@ -47,6 +67,7 @@
 - **系统集成**: Windows原生通知、托盘集成
 
 ### Web前端 (Vue 3)
+
 - **框架**: Vue 3 (Composition API)
 - **UI组件库**: DaisyUI + Tailwind CSS
 - **状态管理**: Pinia
@@ -56,6 +77,7 @@
 - **构建工具**: Vite
 
 ### 服务端 (Go)
+
 - **语言/框架**: Go 1.22 + Gin
 - **ORM**: Gorm v2
 - **数据库**: PostgreSQL 15+ (JSONB支持)
@@ -67,17 +89,20 @@
 ## 环境要求
 
 ### 桌面端
+
 - **操作系统**: Windows 10/11 (Build 19041+)
 - **运行时**: .NET 8 Runtime
 - **内存**: 4GB RAM (推荐8GB)
 - **存储**: 500MB 可用空间
 
 ### Web前端
+
 - **Node.js**: 18.x 或更高版本
 - **包管理器**: npm 8.x 或 yarn 1.x
 - **浏览器**: Chrome 90+, Firefox 88+, Safari 15+, Edge 90+
 
 ### 服务端
+
 - **操作系统**: Linux/macOS/Windows
 - **Go**: 1.22 或更高版本
 - **数据库**: PostgreSQL 15+
@@ -89,17 +114,20 @@
 ### 服务端部署
 
 1. **克隆项目**
+
 ```bash
 git clone https://github.com/MangataTS/Zephyr.git
 cd Zephyr/Server-code
 ```
 
 2. **安装依赖**
+
 ```bash
 go mod tidy
 ```
 
 3. **配置数据库**
+
 ```bash
 # 修改 config.json 中的数据库连接信息
 {
@@ -114,6 +142,7 @@ go mod tidy
 ```
 
 4. **生成JWT密钥**
+
 ```bash
 # 在 Server-code/keys 目录下生成密钥对
 openssl genrsa -out private.pem 2048
@@ -121,6 +150,7 @@ openssl rsa -in private.pem -pubout -out public.pem
 ```
 
 5. **启动服务**
+
 ```bash
 go run main.go
 ```
@@ -128,12 +158,14 @@ go run main.go
 ### Web前端部署
 
 1. **安装依赖**
+
 ```bash
 cd Web-Front
 npm install
 ```
 
 2. **配置环境变量**
+
 ```bash
 # .env
 VITE_API_BASE_URL=http://localhost:8090
@@ -142,11 +174,13 @@ VITE_APP_TITLE=轻燕工作台
 ```
 
 3. **启动开发服务器**
+
 ```bash
 npm run dev
 ```
 
 4. **构建生产版本**
+
 ```bash
 npm run build
 ```
@@ -159,12 +193,12 @@ npm run build
 
 ### 用户角色与权限
 
-| 角色 | 权限范围 | 主要功能 |
-|------|----------|----------|
-| 系统管理员 | 全局 | 所有功能，包括系统配置、模板管理 |
-| 部门管理员 | 本部门 | 部门内人员管理、便签管理、盯办操作 |
-| 组长 | 本组 | 小组内任务分配、盯办、协同管理 |
-| 普通用户 | 个人 | 个人便签管理、协作参与 |
+| 角色       | 权限范围 | 主要功能                           |
+| ---------- | -------- | ---------------------------------- |
+| 系统管理员 | 全局     | 所有功能，包括系统配置、模板管理   |
+| 部门管理员 | 本部门   | 部门内人员管理、便签管理、盯办操作 |
+| 组长       | 本组     | 小组内任务分配、盯办、协同管理     |
+| 普通用户   | 个人     | 个人便签管理、协作参与             |
 
 ### 核心工作流程
 
@@ -189,15 +223,18 @@ npm run build
 ## 开发规范
 
 ### 代码规范
+
 - **Go**: 遵循 Effective Go 和 Go Code Review Comments
 - **Vue**: 遵循 Vue 官方风格指南
 - **C#**: 遵循 Microsoft C# 编码约定
 
 ### 提交规范
+
 - 使用 Conventional Commits 规范
 - 提交信息格式：`<type>(<scope>): <subject>`
 
 ### 分支管理
+
 - `main`: 生产环境分支
 - `develop`: 开发主分支
 - `feature/*`: 功能开发分支
@@ -206,16 +243,19 @@ npm run build
 ## 测试流程
 
 ### 单元测试
+
 - **Go**: 使用内置testing包
 - **Vue**: 使用Vitest + Vue Test Utils
 - **C#**: 使用xUnit
 
 ### 集成测试
+
 - API接口测试
 - 前后端联调测试
 - 多端协同测试
 
 ### 运行测试
+
 ```bash
 # Go测试
 cd Server-code
@@ -234,6 +274,7 @@ npm run test:coverage
 ### 生产环境部署
 
 1. **服务端部署**
+
 ```bash
 # 构建二进制文件
 go build -o Zephyr-server main.go
@@ -247,6 +288,7 @@ cp config.json config.production.json
 ```
 
 2. **前端部署**
+
 ```bash
 # 构建静态资源
 npm run build
@@ -256,6 +298,7 @@ npm run build
 ```
 
 ### Docker部署 (可选)
+
 ```bash
 # 构建Docker镜像
 docker build -t Zephyr-server .
@@ -275,11 +318,11 @@ docker run -d -p 8090:8090 --name Zephyr Zephyr-server
 5. 开启 Pull Request
 
 ### 贡献者协议
+
 - 遵循项目编码规范
 - 提供充分的测试用例
 - 更新相关文档
 - 保持向后兼容性
-
 
 ## 联系方式
 
