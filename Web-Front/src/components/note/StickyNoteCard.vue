@@ -1,48 +1,52 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import type { Note } from '@/types'
+import { ref, computed } from 'vue';
+import type { Note } from '@/types';
 
-const props = withDefaults(defineProps<{
-  note: Note
-  mode?: 'desktop' | 'web'
-  archived?: boolean
-}>(), {
-  mode: 'web',
-  archived: false,
-})
+const props = withDefaults(
+  defineProps<{
+    note: Note;
+    mode?: 'desktop' | 'web';
+    archived?: boolean;
+  }>(),
+  {
+    mode: 'web',
+    archived: false,
+  }
+);
 
 const emit = defineEmits<{
-  click: [note: Note]
-  'context-menu': [event: MouseEvent, note: Note]
-  complete: [note: Note]
-  remind: [note: Note]
-  restore: [note: Note]
-  export: [note: Note]
-}>()
+  click: [note: Note];
+  'context-menu': [event: MouseEvent, note: Note];
+  complete: [note: Note];
+  remind: [note: Note];
+  restore: [note: Note];
+  export: [note: Note];
+}>();
 
-const expanded = ref(false)
+const expanded = ref(false);
 
-const isUrgent = computed(() => props.note.color_status === 'red')
-const isArchived = computed(() => props.archived || props.note.is_archived)
+const isUrgent = computed(() => props.note.color_status === 'red');
+const isArchived = computed(() => props.archived || props.note.is_archived);
 
 const displayTags = computed(() => {
-  const max = 2
-  const visible = props.note.tags.slice(0, max)
-  const remaining = props.note.tags.length - max
-  return { visible, remaining }
-})
+  const max = 2;
+  const tags = props.note.tags || [];
+  const visible = tags.slice(0, max);
+  const remaining = tags.length - max;
+  return { visible, remaining };
+});
 
 function handleClick() {
-  emit('click', props.note)
+  emit('click', props.note);
 }
 
 function handleContextMenu(e: MouseEvent) {
-  e.preventDefault()
-  emit('context-menu', e, props.note)
+  e.preventDefault();
+  emit('context-menu', e, props.note);
 }
 
 function toggleExpand() {
-  expanded.value = !expanded.value
+  expanded.value = !expanded.value;
 }
 </script>
 
@@ -90,7 +94,7 @@ function toggleExpand() {
     </button>
 
     <!-- 标签区 -->
-    <div v-if="note.tags.length" class="flex items-center gap-1.5 mt-3 flex-wrap">
+    <div v-if="(note.tags || []).length" class="flex items-center gap-1.5 mt-3 flex-wrap">
       <span
         v-for="tag in displayTags.visible"
         :key="tag.id"

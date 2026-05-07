@@ -1,143 +1,152 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import type { Tag, CreateTagPayload } from '@/types'
-import { fetchTags, createTag } from '@/services/tags'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
+import type { Tag, CreateTagPayload } from '@/types';
+import { fetchTags, createTag } from '@/services/tags';
 
-const props = withDefaults(defineProps<{
-  modelValue: string[]
-  max?: number
-  scope?: 'personal' | 'system' | 'all'
-}>(), {
-  max: 10,
-  scope: 'all',
-})
+const props = withDefaults(
+  defineProps<{
+    modelValue: string[];
+    max?: number;
+    scope?: 'personal' | 'system' | 'all';
+  }>(),
+  {
+    max: 10,
+    scope: 'all',
+  }
+);
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string[]]
-  'create-tag': [name: string]
-}>()
+  'update:modelValue': [value: string[]];
+  'create-tag': [name: string];
+}>();
 
-const open = ref(false)
-const searchText = ref('')
-const allTags = ref<Tag[]>([])
-const loading = ref(false)
-const loadError = ref('')
+const open = ref(false);
+const searchText = ref('');
+const allTags = ref<Tag[]>([]);
+const loading = ref(false);
+const loadError = ref('');
 
-const triggerRef = ref<HTMLElement | null>(null)
-const panelRef = ref<HTMLElement | null>(null)
-const panelStyle = ref({ top: '0px', left: '0px', minWidth: '288px' })
+const triggerRef = ref<HTMLElement | null>(null);
+const panelRef = ref<HTMLElement | null>(null);
+const panelStyle = ref({ top: '0px', left: '0px', minWidth: '288px' });
 
-const selectedTags = computed(() =>
-  allTags.value.filter(t => props.modelValue.includes(t.id))
-)
+const selectedTags = computed(() => allTags.value.filter((t) => props.modelValue.includes(t.id)));
 
 const recentTags = computed(() => {
-  const recent = JSON.parse(localStorage.getItem('recent_tags') || '[]') as string[]
-  return recent.map((id: string) => allTags.value.find(t => t.id === id)).filter(Boolean) as Tag[]
-})
+  const recent = JSON.parse(localStorage.getItem('recent_tags') || '[]') as string[];
+  return recent
+    .map((id: string) => allTags.value.find((t) => t.id === id))
+    .filter(Boolean) as Tag[];
+});
 
 const filteredTags = computed(() => {
-  if (!searchText.value) return allTags.value
-  const q = searchText.value.toLowerCase()
-  return allTags.value.filter(t => t.name.toLowerCase().includes(q))
-})
+  if (!searchText.value) return allTags.value;
+  const q = searchText.value.toLowerCase();
+  return allTags.value.filter((t) => t.name.toLowerCase().includes(q));
+});
 
 onMounted(async () => {
-  loading.value = true
+  loading.value = true;
   try {
-    const res = await fetchTags(props.scope)
-    allTags.value = res.data as unknown as Tag[]
+    const res = await fetchTags(props.scope);
+    allTags.value = res.data as unknown as Tag[];
   } catch {
-    loadError.value = '加载标签失败'
+    loadError.value = '加载标签失败';
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-})
+});
 
 function recalcPosition() {
-  if (!triggerRef.value) return
-  const rect = triggerRef.value.getBoundingClientRect()
+  if (!triggerRef.value) return;
+  const rect = triggerRef.value.getBoundingClientRect();
   panelStyle.value = {
-    top: (rect.bottom + 4) + 'px',
+    top: rect.bottom + 4 + 'px',
     left: rect.left + 'px',
     minWidth: Math.max(288, rect.width) + 'px',
-  }
+  };
 }
 
 function toggleOpen() {
-  open.value = !open.value
+  open.value = !open.value;
   if (open.value) {
-    searchText.value = ''
+    searchText.value = '';
     nextTick(() => {
-      recalcPosition()
-      const input = panelRef.value?.querySelector('input')
-      input?.focus()
-    })
+      recalcPosition();
+      const input = panelRef.value?.querySelector('input');
+      input?.focus();
+    });
   }
 }
 
 function handleClickOutside(e: MouseEvent) {
-  if (panelRef.value && !panelRef.value.contains(e.target as Node) &&
-      triggerRef.value && !triggerRef.value.contains(e.target as Node)) {
-    open.value = false
+  if (
+    panelRef.value &&
+    !panelRef.value.contains(e.target as Node) &&
+    triggerRef.value &&
+    !triggerRef.value.contains(e.target as Node)
+  ) {
+    open.value = false;
   }
 }
 
-let scrollHandler: (() => void) | null = null
+let scrollHandler: (() => void) | null = null;
 
 watch(open, (val) => {
   if (val) {
-    scrollHandler = () => { if (open.value) recalcPosition() }
-    window.addEventListener('scroll', scrollHandler, true)
-    document.addEventListener('click', handleClickOutside, true)
+    scrollHandler = () => {
+      if (open.value) recalcPosition();
+    };
+    window.addEventListener('scroll', scrollHandler, true);
+    document.addEventListener('click', handleClickOutside, true);
   } else {
     if (scrollHandler) {
-      window.removeEventListener('scroll', scrollHandler, true)
-      scrollHandler = null
+      window.removeEventListener('scroll', scrollHandler, true);
+      scrollHandler = null;
     }
-    document.removeEventListener('click', handleClickOutside, true)
+    document.removeEventListener('click', handleClickOutside, true);
   }
-})
+});
 
 onUnmounted(() => {
   if (scrollHandler) {
-    window.removeEventListener('scroll', scrollHandler, true)
+    window.removeEventListener('scroll', scrollHandler, true);
   }
-  document.removeEventListener('click', handleClickOutside, true)
-})
+  document.removeEventListener('click', handleClickOutside, true);
+});
 
 function toggleTag(tagId: string) {
-  const current = [...props.modelValue]
-  const idx = current.indexOf(tagId)
+  const current = [...props.modelValue];
+  const idx = current.indexOf(tagId);
   if (idx >= 0) {
-    current.splice(idx, 1)
+    current.splice(idx, 1);
   } else if (current.length < props.max) {
-    current.push(tagId)
+    current.push(tagId);
   }
-  emit('update:modelValue', current)
+  emit('update:modelValue', current);
 }
 
 function removeTag(tagId: string) {
-  const current = props.modelValue.filter(id => id !== tagId)
-  emit('update:modelValue', current)
+  const current = props.modelValue.filter((id) => id !== tagId);
+  emit('update:modelValue', current);
 }
 
 function isSelected(tagId: string): boolean {
-  return props.modelValue.includes(tagId)
+  return props.modelValue.includes(tagId);
 }
 
 async function handleCreateTag() {
-  const name = searchText.value.trim()
-  if (!name) return
+  const name = searchText.value.trim();
+  if (!name) return;
 
   try {
-    const res = await createTag({ name, color: '#3B82F6', category: '自定义', scope: 'personal' })
-    const newTag = res.data as unknown as Tag
-    allTags.value.push(newTag)
-    toggleTag(newTag.id)
-    searchText.value = ''
+    const res = await createTag({ name, color: '#3B82F6', category: '自定义', scope: 'personal' });
+    const newTag = res.data as unknown as Tag;
+    allTags.value.push(newTag);
+    toggleTag(newTag.id);
+    searchText.value = '';
   } catch {
-    loadError.value = '创建标签失败'
+    loadError.value = '创建标签失败';
   }
 }
 </script>
@@ -152,7 +161,9 @@ async function handleCreateTag() {
         :style="{ backgroundColor: tag.color || '#64748B' }"
       >
         {{ tag.name }}
-        <button type="button" class="ml-1 hover:opacity-70" @click="removeTag(tag.id)">&times;</button>
+        <button type="button" class="ml-1 hover:opacity-70" @click="removeTag(tag.id)">
+          &times;
+        </button>
       </span>
       <button
         type="button"
@@ -177,7 +188,7 @@ async function handleCreateTag() {
             v-model="searchText"
             class="input-field !text-xs"
             placeholder="搜索标签...（Enter 创建）"
-            @keyup.enter="handleCreateTag"
+            @keyup.enter.prevent="handleCreateTag"
           />
         </div>
 
@@ -189,9 +200,12 @@ async function handleCreateTag() {
               :key="tag.id"
               :class="[
                 'tag-capsule cursor-pointer text-xs transition-smooth',
-                isSelected(tag.id) ? 'ring-2 ring-offset-1 ring-blue-400' : ''
+                isSelected(tag.id) ? 'ring-2 ring-offset-1 ring-blue-400' : '',
               ]"
-              :style="{ backgroundColor: isSelected(tag.id) ? (tag.color || '#64748B') : '#F1F5F9', color: isSelected(tag.id) ? '#fff' : '#475569' }"
+              :style="{
+                backgroundColor: isSelected(tag.id) ? tag.color || '#64748B' : '#F1F5F9',
+                color: isSelected(tag.id) ? '#fff' : '#475569',
+              }"
               @click.stop="toggleTag(tag.id)"
             >
               {{ tag.name }}
@@ -201,7 +215,9 @@ async function handleCreateTag() {
 
         <div class="max-h-48 overflow-y-auto scrollbar-thin px-3 py-2">
           <div v-if="loading" class="text-center py-4 text-xs text-slate-400">加载中...</div>
-          <div v-else-if="loadError" class="text-center py-4 text-xs text-red-400">{{ loadError }}</div>
+          <div v-else-if="loadError" class="text-center py-4 text-xs text-red-400">
+            {{ loadError }}
+          </div>
           <div v-else-if="filteredTags.length === 0" class="text-center py-4">
             <p class="text-xs text-slate-400">暂无匹配标签</p>
             <button
@@ -219,7 +235,7 @@ async function handleCreateTag() {
               :key="tag.id"
               :class="[
                 'w-full flex items-center gap-2 px-3 py-2 rounded-btn text-sm text-left transition-smooth',
-                isSelected(tag.id) ? 'bg-blue-50' : 'hover:bg-slate-50'
+                isSelected(tag.id) ? 'bg-blue-50' : 'hover:bg-slate-50',
               ]"
               @click.stop="toggleTag(tag.id)"
             >

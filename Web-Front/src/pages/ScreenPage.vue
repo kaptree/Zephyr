@@ -28,14 +28,37 @@ const CHART_W = 460;
 const CHART_Y0 = 15;
 const CHART_H = 240;
 
+function buildSmoothPath(pts: { x: number; y: number }[]): string {
+  if (pts.length === 0) return '';
+  if (pts.length === 1) return `M${pts[0].x},${pts[0].y}`;
+  const tension = 0.3;
+  const cp: { x: number; y: number }[][] = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(i - 1, 0)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(i + 2, pts.length - 1)];
+    const dx = p2.x - p1.x;
+    cp[i] = [
+      { x: p1.x + dx * tension, y: p1.y + (p2.y - p0.y) * tension * 0.5 },
+      { x: p2.x - dx * tension, y: p2.y - (p3.y - p1.y) * tension * 0.5 },
+    ];
+  }
+  let d = `M${pts[0].x},${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const c = cp[i];
+    d += ` C${c[0].x},${c[0].y} ${c[1].x},${c[1].y} ${pts[i + 1].x},${pts[i + 1].y}`;
+  }
+  return d;
+}
+
 const linePath = computed(() => {
   if (trendData.value.length === 0) return '';
-  const pts = trendData.value.map((d, i) => {
-    const x = CHART_X0 + (i / Math.max(trendData.value.length - 1, 1)) * CHART_W;
-    const y = CHART_Y0 + CHART_H - (d.count / maxCount.value) * CHART_H;
-    return `${x},${y}`;
-  });
-  return `M${pts.join(' L')}`;
+  const pts = trendData.value.map((d, i) => ({
+    x: CHART_X0 + (i / Math.max(trendData.value.length - 1, 1)) * CHART_W,
+    y: CHART_Y0 + CHART_H - (d.count / maxCount.value) * CHART_H,
+  }));
+  return buildSmoothPath(pts);
 });
 
 const areaPath = computed(() => {

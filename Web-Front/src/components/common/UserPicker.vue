@@ -1,53 +1,53 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, h, defineComponent, type PropType } from 'vue'
-import type { UserBrief, Department } from '@/types'
-import { getDepartments, getUsers } from '@/services/admin'
+import { ref, computed, onMounted, h, defineComponent, type PropType } from 'vue';
+import type { UserBrief, Department } from '@/types';
+import { getDepartments, getUsers } from '@/services/admin';
 
-const props = withDefaults(defineProps<{
-  modelValue: string[]
-  multiple?: boolean
-  max?: number
-}>(), {
-  multiple: true,
-  max: 20,
-})
+const props = withDefaults(
+  defineProps<{
+    modelValue: string[];
+    multiple?: boolean;
+    max?: number;
+  }>(),
+  {
+    multiple: true,
+    max: 20,
+  }
+);
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string[]]
-}>()
+  'update:modelValue': [value: string[]];
+}>();
 
-const open = ref(false)
-const searchText = ref('')
-const departments = ref<Department[]>([])
-const users = ref<UserBrief[]>([])
-const loading = ref(false)
-const loadError = ref('')
-const expandedDepts = ref<Set<string>>(new Set())
+const open = ref(false);
+const searchText = ref('');
+const departments = ref<Department[]>([]);
+const users = ref<UserBrief[]>([]);
+const loading = ref(false);
+const loadError = ref('');
+const expandedDepts = ref<Set<string>>(new Set());
 
-const selectedUsers = computed(() =>
-  users.value.filter(u => props.modelValue.includes(u.id))
-)
+const selectedUsers = computed(() => users.value.filter((u) => props.modelValue.includes(u.id)));
 
 const filteredUsers = computed(() => {
-  if (!searchText.value) return users.value
-  const q = searchText.value.toLowerCase()
-  return users.value.filter(u =>
-    u.name.toLowerCase().includes(q) ||
-    u.dept_name.toLowerCase().includes(q)
-  )
-})
+  if (!searchText.value) return users.value;
+  const q = searchText.value.toLowerCase();
+  return users.value.filter(
+    (u) => u.name.toLowerCase().includes(q) || u.dept_name.toLowerCase().includes(q)
+  );
+});
 
 async function loadData() {
-  loading.value = true
-  loadError.value = ''
+  loading.value = true;
+  loadError.value = '';
   try {
     const [deptRes, userRes] = await Promise.all([
       getDepartments(false),
       getUsers({ page: 1, page_size: 100 }),
-    ])
-    departments.value = (deptRes.data as unknown as Department[]) || []
+    ]);
+    departments.value = (deptRes.data as unknown as Department[]) || [];
 
-    const rawData = (userRes.data as unknown as { data: any[] }).data || []
+    const rawData = (userRes.data as unknown as { data: any[] }).data || [];
     users.value = rawData.map((u: any) => ({
       id: u.id || '',
       name: u.name || '',
@@ -55,54 +55,54 @@ async function loadData() {
       dept_id: u.dept_id || u.department?.id || '',
       dept_name: u.department?.name || u.dept_name || '',
       role: u.role || 'user',
-    })) as UserBrief[]
+    })) as UserBrief[];
   } catch {
-    loadError.value = '加载组织架构失败，请检查网络连接后重试'
+    loadError.value = '加载组织架构失败，请检查网络连接后重试';
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
-onMounted(loadData)
+onMounted(loadData);
 
 function toggleUser(userId: string) {
-  const current = [...props.modelValue]
-  const idx = current.indexOf(userId)
+  const current = [...props.modelValue];
+  const idx = current.indexOf(userId);
   if (idx >= 0) {
-    current.splice(idx, 1)
+    current.splice(idx, 1);
   } else if (props.multiple) {
     if (current.length < props.max) {
-      current.push(userId)
+      current.push(userId);
     }
   } else {
-    emit('update:modelValue', [userId])
-    open.value = false
-    return
+    emit('update:modelValue', [userId]);
+    open.value = false;
+    return;
   }
-  emit('update:modelValue', current)
+  emit('update:modelValue', current);
 }
 
 function removeUser(userId: string) {
-  const current = props.modelValue.filter(id => id !== userId)
-  emit('update:modelValue', current)
+  const current = props.modelValue.filter((id) => id !== userId);
+  emit('update:modelValue', current);
 }
 
 function isSelected(userId: string): boolean {
-  return props.modelValue.includes(userId)
+  return props.modelValue.includes(userId);
 }
 
 function toggleDept(deptId: string) {
-  const current = new Set(expandedDepts.value)
+  const current = new Set(expandedDepts.value);
   if (current.has(deptId)) {
-    current.delete(deptId)
+    current.delete(deptId);
   } else {
-    current.add(deptId)
+    current.add(deptId);
   }
-  expandedDepts.value = current
+  expandedDepts.value = current;
 }
 
 function getDirectDeptUsers(deptId: string): UserBrief[] {
-  return users.value.filter(u => (u as any).dept_id === deptId)
+  return users.value.filter((u) => (u as any).dept_id === deptId);
 }
 
 const DeptTreeItem = defineComponent({
@@ -116,64 +116,117 @@ const DeptTreeItem = defineComponent({
   emits: ['toggle-dept', 'toggle-user'],
   setup(props, { emit }) {
     function getDirect(deptId: string): UserBrief[] {
-      return props.userList.filter((u: any) => u.dept_id === deptId)
+      return props.userList.filter((u: any) => u.dept_id === deptId);
     }
     function isSel(id: string): boolean {
-      return props.selectedIds.includes(id)
+      return props.selectedIds.includes(id);
     }
-    function onToggleDept(id: string) { emit('toggle-dept', id) }
-    function onToggleUser(id: string) { emit('toggle-user', id) }
+    function onToggleDept(id: string) {
+      emit('toggle-dept', id);
+    }
+    function onToggleUser(id: string) {
+      emit('toggle-user', id);
+    }
 
     return () => {
-      return h('div', { class: 'space-y-1' },
-        props.departments.map(dept => {
-          const isExpanded = props.expandedSet.has(dept.id)
-          const directUsers = getDirect(dept.id)
-          const hasChildren = dept.children && dept.children.length > 0
+      return h(
+        'div',
+        { class: 'space-y-1' },
+        props.departments.map((dept) => {
+          const isExpanded = props.expandedSet.has(dept.id);
+          const directUsers = getDirect(dept.id);
+          const hasChildren = dept.children && dept.children.length > 0;
 
           return h('div', { key: dept.id }, [
-            h('button', {
-              class: 'w-full flex items-center gap-2 px-3 py-2.5 rounded-btn text-sm text-left transition-smooth hover:bg-slate-50',
-              onClick: () => onToggleDept(dept.id),
-            }, [
-              h('svg', {
-                class: `w-3.5 h-3.5 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`,
-                fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor',
-              }, [
-                h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M9 5l7 7-7 7' }),
-              ]),
-              h('span', { class: 'font-medium text-slate-700' }, dept.name),
-              h('span', { class: 'text-xs text-slate-400 ml-auto' }, String(dept.member_count || 0)),
-            ]),
+            h(
+              'button',
+              {
+                class:
+                  'w-full flex items-center gap-2 px-3 py-2.5 rounded-btn text-sm text-left transition-smooth hover:bg-slate-50',
+                onClick: () => onToggleDept(dept.id),
+              },
+              [
+                h(
+                  'svg',
+                  {
+                    class: `w-3.5 h-3.5 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`,
+                    fill: 'none',
+                    viewBox: '0 0 24 24',
+                    stroke: 'currentColor',
+                  },
+                  [
+                    h('path', {
+                      'stroke-linecap': 'round',
+                      'stroke-linejoin': 'round',
+                      'stroke-width': '2',
+                      d: 'M9 5l7 7-7 7',
+                    }),
+                  ]
+                ),
+                h('span', { class: 'font-medium text-slate-700' }, dept.name),
+                h(
+                  'span',
+                  { class: 'text-xs text-slate-400 ml-auto' },
+                  String(dept.member_count || 0)
+                ),
+              ]
+            ),
 
-            isExpanded ? h('div', { class: 'ml-6 space-y-1' }, [
-              hasChildren ? h(DeptTreeItem, {
-                departments: dept.children!,
-                expandedSet: props.expandedSet,
-                userList: props.userList,
-                selectedIds: props.selectedIds,
-                'onToggle-dept': onToggleDept,
-                'onToggle-user': onToggleUser,
-              }) : null,
+            isExpanded
+              ? h('div', { class: 'ml-6 space-y-1' }, [
+                  hasChildren
+                    ? h(DeptTreeItem, {
+                        departments: dept.children!,
+                        expandedSet: props.expandedSet,
+                        userList: props.userList,
+                        selectedIds: props.selectedIds,
+                        'onToggle-dept': onToggleDept,
+                        'onToggle-user': onToggleUser,
+                      })
+                    : null,
 
-              ...directUsers.map(user => h('button', {
-                class: `w-full flex items-center gap-3 px-3 py-2 rounded-btn text-sm text-left transition-smooth ${isSel(user.id) ? 'bg-blue-50' : 'hover:bg-slate-50'}`,
-                onClick: () => onToggleUser(user.id),
-              }, [
-                h('div', { class: 'w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-medium text-slate-600 shrink-0' }, user.name.charAt(0)),
-                h('span', { class: 'text-sm text-slate-900 truncate' }, user.name),
-                user.role === 'group_leader' ? h('span', { class: 'text-[9px] px-1 bg-amber-100 text-amber-700 rounded' }, '组长') : null,
-                isSel(user.id) ? h('span', { class: 'text-xs text-[#3B82F6] ml-auto' }, '✓') : null,
-              ])),
+                  ...directUsers.map((user) =>
+                    h(
+                      'button',
+                      {
+                        class: `w-full flex items-center gap-3 px-3 py-2 rounded-btn text-sm text-left transition-smooth ${isSel(user.id) ? 'bg-blue-50' : 'hover:bg-slate-50'}`,
+                        onClick: () => onToggleUser(user.id),
+                      },
+                      [
+                        h(
+                          'div',
+                          {
+                            class:
+                              'w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-medium text-slate-600 shrink-0',
+                          },
+                          user.name.charAt(0)
+                        ),
+                        h('span', { class: 'text-sm text-slate-900 truncate' }, user.name),
+                        user.role === 'group_leader'
+                          ? h(
+                              'span',
+                              { class: 'text-[9px] px-1 bg-amber-100 text-amber-700 rounded' },
+                              '组长'
+                            )
+                          : null,
+                        isSel(user.id)
+                          ? h('span', { class: 'text-xs text-[#3B82F6] ml-auto' }, '✓')
+                          : null,
+                      ]
+                    )
+                  ),
 
-              (!hasChildren && directUsers.length === 0) ? h('div', { class: 'px-3 py-2 text-xs text-slate-400' }, '暂无人员') : null,
-            ]) : null,
-          ])
+                  !hasChildren && directUsers.length === 0
+                    ? h('div', { class: 'px-3 py-2 text-xs text-slate-400' }, '暂无人员')
+                    : null,
+                ])
+              : null,
+          ]);
         })
-      )
-    }
+      );
+    };
   },
-})
+});
 </script>
 
 <template>
@@ -190,8 +243,18 @@ const DeptTreeItem = defineComponent({
           {{ user.name.charAt(0) }}
         </span>
         {{ user.name }}
-        <span v-if="user.role === 'group_leader'" class="text-[9px] px-1 bg-amber-100 text-amber-700 rounded">组长</span>
-        <button type="button" class="ml-0.5 hover:text-blue-900 transition-smooth" @click="removeUser(user.id)">&times;</button>
+        <span
+          v-if="user.role === 'group_leader'"
+          class="text-[9px] px-1 bg-amber-100 text-amber-700 rounded"
+          >组长</span
+        >
+        <button
+          type="button"
+          class="ml-0.5 hover:text-blue-900 transition-smooth"
+          @click="removeUser(user.id)"
+        >
+          &times;
+        </button>
       </span>
       <button
         type="button"
@@ -211,6 +274,7 @@ const DeptTreeItem = defineComponent({
           v-model="searchText"
           class="input-field !text-xs"
           placeholder="搜索人员（支持拼音首字母）"
+          @keydown.enter.prevent
         />
       </div>
 
@@ -232,7 +296,7 @@ const DeptTreeItem = defineComponent({
             :key="user.id"
             :class="[
               'w-full flex items-center gap-3 px-3 py-2.5 rounded-btn text-sm text-left transition-smooth',
-              isSelected(user.id) ? 'bg-blue-50' : 'hover:bg-slate-50'
+              isSelected(user.id) ? 'bg-blue-50' : 'hover:bg-slate-50',
             ]"
             @click="toggleUser(user.id)"
           >

@@ -192,7 +192,7 @@ async function handleRemind(note: Note) {
               <button class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth" @click="showNoteModal = false"><svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
             </div>
             <form class="space-y-4" @submit.prevent="handleCreateNote">
-              <input v-model="noteTitle" class="input-field" placeholder="便签标题" autofocus />
+              <input v-model="noteTitle" class="input-field" placeholder="便签标题" autofocus @keydown.enter.prevent />
               <textarea v-model="noteContent" class="input-field h-24 resize-none" placeholder="便签内容..." />
               <div class="grid grid-cols-2 gap-3">
                 <div><label class="text-xs text-slate-500 mb-1 block">负责人（可选）</label><select v-model="noteOwnerId" class="input-field text-sm"><option value="">自己</option><option v-for="m in group?.members || []" :key="m.user_id" :value="m.user_id">{{ m.user?.name || m.user_id }} ({{ roleLabel(m.role) }})</option></select></div>
