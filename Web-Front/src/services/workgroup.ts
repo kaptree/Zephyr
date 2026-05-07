@@ -97,3 +97,48 @@ export function removeWorkGroupMember(
 export function deleteWorkGroup(id: string): Promise<ApiResponse<null>> {
   return del(`/api/v1/groups/${id}`);
 }
+
+export interface WorkGroupReport {
+  id: string
+  user_id: string
+  user_name: string
+  group_id: string
+  report_type: string
+  title: string
+  content: string
+  stats_summary: string
+  created_at: string
+}
+
+export interface GenerateReportResult {
+  report_id: string
+  report_type: string
+  report: string
+  generated_at: string
+}
+
+export function generateGroupReport(groupId: string): Promise<ApiResponse<GenerateReportResult>> {
+  return post(`/api/v1/groups/${groupId}/reports`)
+}
+
+export function listGroupReports(
+  groupId: string,
+  params?: Record<string, unknown>
+): Promise<ApiResponse<PaginatedData<WorkGroupReport>>> {
+  return get(`/api/v1/groups/${groupId}/reports`, params)
+}
+
+export function getGroupReport(groupId: string, reportId: string): Promise<ApiResponse<WorkGroupReport>> {
+  return get(`/api/v1/groups/${groupId}/reports/${reportId}`)
+}
+
+export function deleteGroupReport(groupId: string, reportId: string): Promise<ApiResponse<null>> {
+  return del(`/api/v1/groups/${groupId}/reports/${reportId}`)
+}
+
+export function exportGroupReport(groupId: string, reportId: string, format: string): Promise<Blob> {
+  const token = localStorage.getItem('auth_token')
+  return fetch(`/api/v1/groups/${groupId}/reports/${reportId}/export?format=${format}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  }).then(r => r.blob())
+}

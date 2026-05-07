@@ -14,6 +14,7 @@ const data = ref<DashboardData | null>(null);
 const loading = ref(true);
 const error = ref('');
 const autoRefresh = ref(true);
+const isFullscreen = ref(false);
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let mounted = true;
 
@@ -33,6 +34,7 @@ onMounted(() => {
   mounted = true;
   loadDashboard();
   refreshTimer = setInterval(loadDashboard, 5000);
+  document.addEventListener('fullscreenchange', onFullscreenChange);
   onNoteUpdated.value = () => {
     loadDashboard();
   };
@@ -41,6 +43,7 @@ onMounted(() => {
 onUnmounted(() => {
   mounted = false;
   if (refreshTimer) clearInterval(refreshTimer);
+  document.removeEventListener('fullscreenchange', onFullscreenChange);
   onNoteUpdated.value = null;
 });
 
@@ -52,6 +55,20 @@ function toggleAutoRefresh() {
     clearInterval(refreshTimer);
     refreshTimer = null;
   }
+}
+
+async function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    await document.documentElement.requestFullscreen();
+    isFullscreen.value = true;
+  } else {
+    await document.exitFullscreen();
+    isFullscreen.value = false;
+  }
+}
+
+function onFullscreenChange() {
+  isFullscreen.value = !!document.fullscreenElement;
 }
 
 const totalCompleted = computed(() => {
@@ -87,7 +104,7 @@ function tagColorHex(color: string) {
         </button>
         <h1 class="text-xl font-bold tracking-tight">
           {{ data?.group?.name || '加载中...' }}
-          <span class="ml-3 text-sm font-normal text-purple-400">数据大屏</span>
+          <span class="ml-3 text-sm font-normal text-purple-400">协作大屏</span>
         </h1>
       </div>
       <div class="flex items-center gap-4 text-sm">
@@ -111,6 +128,28 @@ function tagColorHex(color: string) {
           @click="loadDashboard()"
         >
           🔄 手动刷新
+        </button>
+        <button
+          class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-400 hover:bg-slate-700 transition-smooth flex items-center gap-1"
+          @click="toggleFullscreen"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              v-if="!isFullscreen"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+            />
+            <path
+              v-else
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+          {{ isFullscreen ? '退出全屏' : '全屏' }}
         </button>
       </div>
     </div>

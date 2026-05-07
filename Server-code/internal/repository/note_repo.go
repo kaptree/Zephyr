@@ -455,4 +455,16 @@ func (r *NoteRepository) ListByGroupCompleted(groupID string) ([]models.Note, er
 	return notes, err
 }
 
+func (r *NoteRepository) ListAllByGroup(groupID string) ([]models.Note, error) {
+	var notes []models.Note
+	err := r.db.Model(&models.Note{}).
+		Where("group_id = ?", groupID).
+		Preload("Tags").
+		Preload("Owner").
+		Preload("Creator").
+		Order("created_at ASC").
+		Find(&notes).Error
+	return notes, err
+}
+
 var _ = strings.TrimSpace

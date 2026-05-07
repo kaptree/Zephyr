@@ -12,6 +12,7 @@ import {
 } from '@/services/workgroup';
 import { getGroupNotes, createGroupNote } from '@/services/groupNotes';
 import { updateNote } from '@/services/notes';
+import { generateGroupReport, type WorkGroupReport } from '@/services/workgroup';
 import { useNoteStore } from '@/stores/notes';
 import { useAuthStore } from '@/stores/auth';
 import StickyNoteCard from '@/components/note/StickyNoteCard.vue';
@@ -53,6 +54,21 @@ const editingTitle = ref('');
 const editingContent = ref('');
 const saving = ref(false);
 const completing = ref(false);
+
+const generatingReport = ref(false);
+
+async function handleGenerateReport() {
+  generatingReport.value = true;
+  try {
+    const res = await generateGroupReport(groupId);
+    const data = res.data as unknown as { report_id: string; report: string; report_type: string };
+    router.push(`/workbench/groups/${groupId}/reports/${data.report_id}`);
+  } catch {
+    alert('生成报告失败，请确认已配置AI大模型');
+  } finally {
+    generatingReport.value = false;
+  }
+}
 
 const showMemberManager = ref(false);
 const addMemberUserIds = ref<string[]>([]);
@@ -367,7 +383,36 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
                   d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
                 />
               </svg>
-              数据大屏
+              协作大屏
+            </button>
+            <button
+              class="px-3 py-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-lg transition-smooth flex items-center gap-1"
+              :disabled="generatingReport"
+              @click="handleGenerateReport()"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+              {{ generatingReport ? '生成中...' : '生成报告' }}
+            </button>
+            <button
+              class="px-3 py-1.5 text-xs font-medium text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/40 rounded-lg transition-smooth flex items-center gap-1"
+              @click="router.push(`/workbench/groups/${groupId}/reports`)"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+              查看报告
             </button>
             <button
               v-if="isCreator"

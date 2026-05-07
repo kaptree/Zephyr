@@ -53,7 +53,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	noteHandler := handlers.NewNoteHandler(noteService)
 	tagHandler := handlers.NewTagHandler(tagRepo)
 	tmplHandler := handlers.NewTemplateHandler(tmplRepo)
-	groupHandler := handlers.NewWorkGroupHandler(groupRepo, noteRepo, userRepo)
+	groupHandler := handlers.NewWorkGroupHandler(groupRepo, noteRepo, userRepo, sysRepo)
 	roomHandler := handlers.NewRoomHandler(roomRepo)
 	ledgerHandler := handlers.NewLedgerHandler(ledgerRepo)
 	sysHandler := handlers.NewSystemHandler(sysRepo)
@@ -143,6 +143,11 @@ func Setup(cfg *config.Config) *gin.Engine {
 			groups.GET("/:id/notes", groupHandler.GetGroupNotes)
 			groups.POST("/:id/notes", groupHandler.CreateGroupNote)
 			groups.GET("/:id/dashboard", groupHandler.GetDashboard)
+			groups.POST("/:id/reports", groupHandler.GenerateReport)
+			groups.GET("/:id/reports", groupHandler.ListReports)
+			groups.GET("/:id/reports/:reportId", groupHandler.GetReport)
+			groups.DELETE("/:id/reports/:reportId", groupHandler.DeleteReport)
+			groups.GET("/:id/reports/:reportId/export", groupHandler.ExportReport)
 		}
 
 		rooms := api.Group("/rooms")

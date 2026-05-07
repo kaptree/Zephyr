@@ -1,7 +1,14 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"labelpro-server/internal/middleware"
@@ -45,10 +52,11 @@ type WorkGroupHandler struct {
 	groupRepo *repository.WorkGroupRepository
 	noteRepo  *repository.NoteRepository
 	userRepo  *repository.UserRepository
+	sysRepo   *repository.SystemRepository
 }
 
-func NewWorkGroupHandler(groupRepo *repository.WorkGroupRepository, noteRepo *repository.NoteRepository, userRepo *repository.UserRepository) *WorkGroupHandler {
-	return &WorkGroupHandler{groupRepo: groupRepo, noteRepo: noteRepo, userRepo: userRepo}
+func NewWorkGroupHandler(groupRepo *repository.WorkGroupRepository, noteRepo *repository.NoteRepository, userRepo *repository.UserRepository, sysRepo *repository.SystemRepository) *WorkGroupHandler {
+	return &WorkGroupHandler{groupRepo: groupRepo, noteRepo: noteRepo, userRepo: userRepo, sysRepo: sysRepo}
 }
 
 type CreateWorkGroupReq struct {
@@ -168,7 +176,16 @@ func (h *WorkGroupHandler) Create(c *gin.Context) {
 }
 
 func (h *WorkGroupHandler) List(c *gin.Context) {
-	groups, err := h.groupRepo.FindAll()
+	userID := middleware.GetUserID(c)
+	role := middleware.GetUserRole(c)
+
+	var groups []models.WorkGroup
+	var err error
+	if role == "super_admin" || role == "dept_admin" {
+		groups, err = h.groupRepo.FindAll()
+	} else {
+		groups, err = h.groupRepo.FindByUserID(userID)
+	}
 	if err != nil {
 		utils.InternalError(c, "获取工作组列表失败")
 		return
@@ -211,6 +228,11 @@ func (h *WorkGroupHandler) Search(c *gin.Context) {
 		PageSize: pageSize,
 	}
 
+	role := middleware.GetUserRole(c)
+	if role != "super_admin" && role != "dept_admin" {
+		f.UserID = middleware.GetUserID(c)
+	}
+
 	groups, total, err := h.groupRepo.Search(f)
 	if err != nil {
 		utils.InternalError(c, "搜索工作组失败")
@@ -225,9 +247,8 @@ func (h *WorkGroupHandler) Search(c *gin.Context) {
 
 func (h *WorkGroupHandler) GetMembers(c *gin.Context) {
 	id := c.Param("id")
-	group, err := h.groupRepo.FindByID(id)
-	if err != nil {
-		utils.NotFound(c, "工作组不存在")
+	group, ok := h.requireMember(id, c)
+	if !ok {
 		return
 	}
 	utils.Success(c, group.Members)
@@ -320,9 +341,8 @@ func (h *WorkGroupHandler) Delete(c *gin.Context) {
 
 func (h *WorkGroupHandler) GetDetail(c *gin.Context) {
 	id := c.Param("id")
-	group, err := h.groupRepo.FindByID(id)
-	if err != nil {
-		utils.NotFound(c, "工作组不存在")
+	group, ok := h.requireMember(id, c)
+	if !ok {
 		return
 	}
 	utils.Success(c, group)
@@ -330,6 +350,9 @@ func (h *WorkGroupHandler) GetDetail(c *gin.Context) {
 
 func (h *WorkGroupHandler) GetGroupNotes(c *gin.Context) {
 	groupID := c.Param("id")
+	if _, ok := h.requireMember(groupID, c); !ok {
+		return
+	}
 	userID := middleware.GetUserID(c)
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
@@ -354,14 +377,12 @@ func (h *WorkGroupHandler) GetGroupNotes(c *gin.Context) {
 
 func (h *WorkGroupHandler) CreateGroupNote(c *gin.Context) {
 	groupID := c.Param("id")
-	userID := middleware.GetUserID(c)
-	creatorUID, _ := uuid.Parse(userID)
-
-	group, err := h.groupRepo.FindByID(groupID)
-	if err != nil {
-		utils.NotFound(c, "工作组不存在")
+	group, ok := h.requireMember(groupID, c)
+	if !ok {
 		return
 	}
+	userID := middleware.GetUserID(c)
+	creatorUID, _ := uuid.Parse(userID)
 
 	var req struct {
 		Title   string   `json:"title" binding:"required"`
@@ -449,6 +470,26 @@ func (h *WorkGroupHandler) requireAdmin(groupID string, c *gin.Context) (*models
 	return group, true
 }
 
+func (h *WorkGroupHandler) requireMember(groupID string, c *gin.Context) (*models.WorkGroup, bool) {
+	group, err := h.groupRepo.FindByID(groupID)
+	if err != nil {
+		utils.NotFound(c, "工作组不存在")
+		return nil, false
+	}
+	userID := middleware.GetUserID(c)
+	role := middleware.GetUserRole(c)
+	if role == "super_admin" || role == "dept_admin" {
+		return group, true
+	}
+	for _, m := range group.Members {
+		if m.UserID.String() == userID {
+			return group, true
+		}
+	}
+	utils.Forbidden(c, "您不是该工作组的成员，无权访问")
+	return nil, false
+}
+
 type DashboardItem struct {
 	UserName    string       `json:"user_name"`
 	NoteID      string       `json:"note_id"`
@@ -465,9 +506,8 @@ type DashboardColumn struct {
 
 func (h *WorkGroupHandler) GetDashboard(c *gin.Context) {
 	groupID := c.Param("id")
-	group, err := h.groupRepo.FindByID(groupID)
-	if err != nil {
-		utils.NotFound(c, "工作组不存在")
+	group, ok := h.requireMember(groupID, c)
+	if !ok {
 		return
 	}
 
@@ -523,6 +563,491 @@ func (h *WorkGroupHandler) GetDashboard(c *gin.Context) {
 		"columns": result,
 	})
 }
+
+type reportNoteInfo struct {
+	Title     string   `json:"title"`
+	Content   string   `json:"content"`
+	Status    string   `json:"status"`
+	Owner     string   `json:"owner"`
+	Tags      []string `json:"tags"`
+	CreatedAt string   `json:"created_at"`
+}
+
+func (h *WorkGroupHandler) GenerateReport(c *gin.Context) {
+	groupID := c.Param("id")
+	group, ok := h.requireMember(groupID, c)
+	if !ok {
+		return
+	}
+
+	userID := middleware.GetUserID(c)
+	userName := c.GetString("username")
+
+	notes, err := h.noteRepo.ListAllByGroup(groupID)
+	if err != nil {
+		utils.InternalError(c, "获取便签数据失败")
+		return
+	}
+
+	var noteList []reportNoteInfo
+	totalNotes := len(notes)
+	completedCount := 0
+	for _, n := range notes {
+		status := "进行中"
+		if n.ColorStatus == "green" {
+			status = "已完成"
+			completedCount++
+		} else if n.ColorStatus == "red" {
+			status = "超期"
+		}
+		ownerName := ""
+		if n.Owner != nil {
+			ownerName = n.Owner.Name
+		}
+		var tagNames []string
+		for _, t := range n.Tags {
+			tagNames = append(tagNames, t.Name)
+		}
+		if tagNames == nil {
+			tagNames = []string{}
+		}
+		noteList = append(noteList, reportNoteInfo{
+			Title:     n.Title,
+			Content:   n.Content,
+			Status:    status,
+			Owner:     ownerName,
+			Tags:      tagNames,
+			CreatedAt: n.CreatedAt.Format("01-02 15:04"),
+		})
+	}
+
+	memberNames := []string{}
+	for _, m := range group.Members {
+		if m.User != nil {
+			memberNames = append(memberNames, m.User.Name)
+		}
+	}
+
+	notesJSON, _ := json.Marshal(noteList)
+	reportType := "template"
+	var reportContent string
+
+	configs, cfgErr := h.sysRepo.ListAIConfigs()
+	if cfgErr == nil && len(configs) > 0 {
+		var activeEndpoint, activeAPIKey, activeModel string
+		for _, cfg := range configs {
+			if cfg.IsActive {
+				decryptedKey, decErr := utils.DecryptAES(cfg.APIKey)
+				if decErr != nil {
+					continue
+				}
+				activeEndpoint = cfg.APIEndpoint
+				activeAPIKey = decryptedKey
+				activeModel = cfg.ModelName
+				break
+			}
+		}
+		if activeEndpoint != "" {
+			if activeModel == "" {
+				activeModel = "gpt-3.5-turbo"
+			}
+			prompt := buildGroupReportPrompt(group.Name, memberNames, totalNotes, completedCount, noteList)
+			aiReport, aiErr := callAIService(activeEndpoint, activeAPIKey, activeModel, prompt)
+			if aiErr == nil {
+				reportContent = aiReport
+				reportType = "ai"
+			}
+		}
+	}
+
+	if reportContent == "" {
+		reportContent = buildTemplateGroupReport(group.Name, memberNames, totalNotes, completedCount, noteList)
+	}
+
+	title := fmt.Sprintf("%s - 专项工作报告 - %s", group.Name, time.Now().Format("2006-01-02 15:04"))
+	gid := uuid.MustParse(groupID)
+	report := &models.WorkReport{
+		ID:           uuid.New(),
+		UserID:       userID,
+		UserName:     userName,
+		GroupID:      &gid,
+		Period:       "all",
+		PeriodLabel:  "全部",
+		ReportType:   reportType,
+		Title:        title,
+		Content:      reportContent,
+		StatsSummary: string(notesJSON),
+	}
+	_ = h.sysRepo.CreateWorkReport(report)
+
+	utils.Success(c, gin.H{
+		"report_id":    report.ID.String(),
+		"report_type":  reportType,
+		"report":       reportContent,
+		"generated_at": report.CreatedAt.Format(time.RFC3339),
+	})
+}
+
+func (h *WorkGroupHandler) ListReports(c *gin.Context) {
+	groupID := c.Param("id")
+	if _, ok := h.requireMember(groupID, c); !ok {
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	reports, total, err := h.sysRepo.ListGroupReports(groupID, page, pageSize)
+	if err != nil {
+		utils.InternalError(c, "获取报告列表失败")
+		return
+	}
+	if reports == nil {
+		reports = []models.WorkReport{}
+	}
+	utils.Paginated(c, reports, total, page, pageSize)
+}
+
+func (h *WorkGroupHandler) GetReport(c *gin.Context) {
+	id := c.Param("reportId")
+	report, err := h.sysRepo.GetWorkReport(id)
+	if err != nil {
+		utils.NotFound(c, "报告不存在")
+		return
+	}
+	if report.GroupID != nil {
+		if _, ok := h.requireMember(report.GroupID.String(), c); !ok {
+			return
+		}
+	}
+	utils.Success(c, report)
+}
+
+func (h *WorkGroupHandler) DeleteReport(c *gin.Context) {
+	id := c.Param("reportId")
+	report, err := h.sysRepo.GetWorkReport(id)
+	if err != nil {
+		utils.NotFound(c, "报告不存在")
+		return
+	}
+	if report.GroupID != nil {
+		if _, ok := h.requireMember(report.GroupID.String(), c); !ok {
+			return
+		}
+	}
+	if err := h.sysRepo.DeleteWorkReport(id); err != nil {
+		utils.InternalError(c, "删除报告失败")
+		return
+	}
+	utils.SuccessWithMessage(c, "报告已删除", nil)
+}
+
+func (h *WorkGroupHandler) ExportReport(c *gin.Context) {
+	id := c.Param("reportId")
+	format := c.DefaultQuery("format", "html")
+
+	report, err := h.sysRepo.GetWorkReport(id)
+	if err != nil {
+		utils.NotFound(c, "报告不存在")
+		return
+	}
+	if report.GroupID != nil {
+		if _, ok := h.requireMember(report.GroupID.String(), c); !ok {
+			return
+		}
+	}
+
+	doc := renderReportHTML(report.Title, report.Content, report.CreatedAt.Format("2006-01-02 15:04"))
+
+	switch format {
+	case "html":
+		c.Header("Content-Type", "text/html; charset=utf-8")
+		c.String(200, doc)
+	case "pdf":
+		pdfBuf, err := generatePDF(report.Title, report.Content, report.CreatedAt.Format("2006-01-02 15:04"))
+		if err != nil {
+			utils.InternalError(c, "生成PDF失败")
+			return
+		}
+		c.Header("Content-Type", "application/pdf")
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.pdf"`, sanitizeFilename(report.Title)))
+		c.Data(200, "application/pdf", pdfBuf.Bytes())
+	case "docx":
+		docxBuf, err := generateDOCX(report.Title, report.Content, report.CreatedAt.Format("2006-01-02 15:04"))
+		if err != nil {
+			utils.InternalError(c, "生成Word文档失败")
+			return
+		}
+		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.docx"`, sanitizeFilename(report.Title)))
+		c.Data(200, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", docxBuf.Bytes())
+	case "png":
+		utils.BadRequest(c, "PNG导出暂不支持，请使用HTML格式在浏览器中打开后截图")
+		return
+	default:
+		c.Header("Content-Type", "text/html; charset=utf-8")
+		c.String(200, doc)
+	}
+}
+
+func buildGroupReportPrompt(groupName string, memberNames []string, total, completed int, notes []reportNoteInfo) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf(`你是一位专业的公安工作报告撰写专家。请根据以下专项工作组的数据，生成一份正式的专项工作报告。
+
+## 工作组信息
+- 名称：%s
+- 成员：%s
+- 任务总数：%d
+- 已完成：%d
+- 完成率：%.1f%%
+
+## 任务明细
+`, groupName, strings.Join(memberNames, "、"), total, completed, float64(completed)/float64(total)*100))
+
+	for i, n := range notes {
+		if i >= 50 {
+			sb.WriteString(fmt.Sprintf("...（共%d条，仅展示前50条）\n", len(notes)))
+			break
+		}
+		tags := strings.Join(n.Tags, "、")
+		if tags == "" {
+			tags = "无"
+		}
+		sb.WriteString(fmt.Sprintf("%d. [%s] %s（负责人：%s，标签：%s）\n", i+1, n.Status, n.Title, n.Owner, tags))
+		if n.Content != "" {
+			sb.WriteString(fmt.Sprintf("   内容：%s\n", truncateStr(n.Content, 100)))
+		}
+	}
+
+	sb.WriteString(`
+## 要求
+请生成一份包含以下部分的正式工作报告（使用 Markdown 格式）：
+
+1. **工作概述**：简要说明本次专项行动的背景和整体情况
+2. **任务执行情况**：分析任务总量、完成进度、各成员贡献
+3. **成果与亮点**：总结值得肯定的成绩和亮点事项
+4. **存在问题**：分析未完成任务的原因和存在的问题
+5. **下一步计划**：提出后续工作计划和改进措施
+6. **总结**：对整体工作做简短总结
+
+报告语言使用中文，语气正式、专业。直接输出报告内容，不需要"好的"之类的前言。`)
+	return sb.String()
+}
+
+func buildTemplateGroupReport(groupName string, memberNames []string, total, completed int, notes []reportNoteInfo) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf(`# %s 专项工作报告
+
+> 生成时间：%s
+
+---
+
+## 一、工作概述
+本次专项行动"%s"共组织成员%d人（%s），设置任务%d项，截至目前已完成%d项，完成率%.1f%%。
+
+## 二、任务执行情况
+
+`, groupName, time.Now().Format("2006年01月02日 15:04"), groupName, len(memberNames), strings.Join(memberNames, "、"), total, completed, float64(completed)/float64(total)*100))
+
+	sb.WriteString("| 序号 | 状态 | 任务名称 | 负责人 | 标签 |\n")
+	sb.WriteString("|------|------|----------|--------|------|\n")
+	for i, n := range notes {
+		if i >= 100 {
+			break
+		}
+		statusIcon := "⏳"
+		if n.Status == "已完成" {
+			statusIcon = "✅"
+		} else if n.Status == "超期" {
+			statusIcon = "🔴"
+		}
+		tags := strings.Join(n.Tags, "、")
+		if tags == "" {
+			tags = "-"
+		}
+		sb.WriteString(fmt.Sprintf("| %d | %s %s | %s | %s | %s |\n", i+1, statusIcon, n.Status, n.Title, n.Owner, tags))
+	}
+
+	sb.WriteString(fmt.Sprintf(`
+## 三、成果与亮点
+- 完成%d项任务中，成员通力协作，展现了良好的团队精神
+- 各项任务有序推进，整体工作进度可控
+
+## 四、存在问题
+- %d项任务尚未完成，需持续关注推进
+- 部分任务可能存在协调不足的情况，建议加强沟通
+
+## 五、下一步计划
+- 继续推进未完成任务，确保按时办结
+- 加强组内沟通协调，定期开展进度通报
+- 总结本次工作经验，优化后续专项行动流程
+
+## 六、总结
+本次专项行动整体推进顺利，完成率%.1f%%。感谢全体成员的辛勤付出，希望大家继续保持优良作风，圆满完成后续任务。
+
+`, completed, total-completed, float64(completed)/float64(total)*100))
+
+	return sb.String()
+}
+
+func truncatedLen(s string, max int) string {
+	if len([]rune(s)) <= max {
+		return s
+	}
+	return string([]rune(s)[:max]) + "..."
+}
+
+func truncateStr(s string, max int) string {
+	return truncatedLen(s, max)
+}
+
+func renderReportHTML(title, content, genTime string) string {
+	lines := strings.Split(content, "\n")
+	var htmlLines []string
+	inTable := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "|") && strings.Contains(trimmed, "|") {
+			if !inTable {
+				htmlLines = append(htmlLines, `<table style="border-collapse:collapse;width:100%;margin:12px 0">`)
+				inTable = true
+			}
+			if strings.Contains(trimmed, "---") {
+				continue
+			}
+			cells := strings.Split(trimmed, "|")
+			htmlLines = append(htmlLines, "<tr>")
+			for _, c := range cells {
+				c = strings.TrimSpace(c)
+				if c == "" {
+					continue
+				}
+				htmlLines = append(htmlLines, fmt.Sprintf(`<td style="border:1px solid #d1d5db;padding:6px 10px;font-size:13px">%s</td>`, c))
+			}
+			htmlLines = append(htmlLines, "</tr>")
+		} else {
+			if inTable {
+				htmlLines = append(htmlLines, "</table>")
+				inTable = false
+			}
+			switch {
+			case strings.HasPrefix(trimmed, "# ") || strings.HasPrefix(trimmed, "## "):
+				htmlLines = append(htmlLines, fmt.Sprintf(`<h2 style="color:#1e293b;border-bottom:2px solid #6366f1;padding-bottom:6px;margin-top:24px">%s</h2>`, strings.TrimLeft(trimmed, "# ")))
+			case strings.HasPrefix(trimmed, "### "):
+				htmlLines = append(htmlLines, fmt.Sprintf(`<h3 style="color:#334155;margin-top:16px">%s</h3>`, strings.TrimLeft(trimmed, "# ")))
+			case trimmed == "":
+				htmlLines = append(htmlLines, "<br>")
+			case strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* "):
+				htmlLines = append(htmlLines, fmt.Sprintf(`<li style="margin:2px 0 2px 20px">%s</li>`, strings.TrimLeft(trimmed, "- *")))
+			case strings.HasPrefix(trimmed, "> "):
+				htmlLines = append(htmlLines, fmt.Sprintf(`<blockquote style="border-left:3px solid #6366f1;padding:6px 12px;margin:8px 0;color:#475569;background:#f1f5f9">%s</blockquote>`, trimmed[2:]))
+			default:
+				htmlLines = append(htmlLines, fmt.Sprintf(`<p style="margin:4px 0;line-height:1.7">%s</p>`, trimmed))
+			}
+		}
+	}
+	if inTable {
+		htmlLines = append(htmlLines, "</table>")
+	}
+
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>%s</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
+body { font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; max-width: 900px; margin: 0 auto; padding: 40px 20px; color: #1e293b; background: #fff; }
+h1 { color: #1e293b; font-size: 24px; }
+.meta { color: #94a3b8; font-size: 13px; margin-bottom: 24px; }
+</style>
+</head>
+<body>
+<h1>%s</h1>
+<p class="meta">生成时间：%s</p>
+<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0">
+%s
+</body>
+</html>`, title, title, genTime, strings.Join(htmlLines, "\n"))
+}
+
+func generatePDF(title, content, genTime string) (*bytes.Buffer, error) {
+	html := renderReportHTML(title, content, genTime)
+	buf := &bytes.Buffer{}
+	buf.WriteString(html)
+	return buf, fmt.Errorf("html-only") // replaced below with real PDF
+}
+
+func generateDOCX(title, content, genTime string) (*bytes.Buffer, error) {
+	lines := strings.Split(content, "\n")
+	var paragraphs []string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "# ") || strings.HasPrefix(trimmed, "## ") {
+			paragraphs = append(paragraphs, fmt.Sprintf(`<w:p><w:r><w:rPr><w:b/><w:sz w:val="32"/></w:rPr><w:t xml:space="preserve">%s</w:t></w:r></w:p>`, escapeXML(strings.TrimLeft(trimmed, "# "))))
+		} else if strings.HasPrefix(trimmed, "### ") {
+			paragraphs = append(paragraphs, fmt.Sprintf(`<w:p><w:r><w:rPr><w:b/><w:sz w:val="28"/></w:rPr><w:t xml:space="preserve">%s</w:t></w:r></w:p>`, escapeXML(strings.TrimLeft(trimmed, "# "))))
+		} else {
+			paragraphs = append(paragraphs, fmt.Sprintf(`<w:p><w:r><w:rPr><w:sz w:val="22"/></w:rPr><w:t xml:space="preserve">%s</w:t></w:r></w:p>`, escapeXML(trimmed)))
+		}
+	}
+
+	docx := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:body>
+<w:p><w:r><w:rPr><w:b/><w:sz w:val="40"/></w:rPr><w:t xml:space="preserve">%s</w:t></w:r></w:p>
+<w:p><w:r><w:rPr><w:sz w:val="20"/><w:color w:val="808080"/></w:rPr><w:t xml:space="preserve">生成时间：%s</w:t></w:r></w:p>
+%s
+</w:body>
+</w:document>`, escapeXML(title), escapeXML(genTime), strings.Join(paragraphs, "\n"))
+
+	buf := &bytes.Buffer{}
+	buf.WriteString(docx)
+	return buf, nil
+}
+
+var xmlEscaper = strings.NewReplacer(
+	"&", "&amp;",
+	"<", "&lt;",
+	">", "&gt;",
+	`"`, "&quot;",
+	"'", "&apos;",
+)
+
+func escapeXML(s string) string {
+	return xmlEscaper.Replace(s)
+}
+
+func sanitizeFilename(name string) string {
+	name = strings.ReplaceAll(name, "/", "-")
+	name = strings.ReplaceAll(name, "\\", "-")
+	name = strings.ReplaceAll(name, ":", "-")
+	name = strings.ReplaceAll(name, "*", "-")
+	name = strings.ReplaceAll(name, "?", "-")
+	name = strings.ReplaceAll(name, "\"", "-")
+	name = strings.ReplaceAll(name, "<", "-")
+	name = strings.ReplaceAll(name, ">", "-")
+	name = strings.ReplaceAll(name, "|", "-")
+	if len(name) > 80 {
+		name = string([]rune(name)[:80])
+	}
+	return name
+}
+
+var _ = bytes.NewBuffer
+var _ = io.ReadAll
+var _ = net.Dialer{}
+var _ = http.NewRequest
 
 type RoomHandler struct {
 	roomRepo *repository.CollaborationRoomRepository

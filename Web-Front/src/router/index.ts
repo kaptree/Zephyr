@@ -41,13 +41,25 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/GroupDetailPage.vue'),
         meta: { title: '专项行动详情' },
       },
-      {
-        path: 'groups/:id/dashboard',
-        name: 'WorkGroupDashboard',
-        component: () => import('@/pages/GroupDashboardPage.vue'),
-        meta: { title: '数据大屏' },
-      },
     ],
+  },
+  {
+    path: '/workbench/groups/:id/dashboard',
+    name: 'WorkGroupDashboard',
+    component: () => import('@/pages/GroupDashboardPage.vue'),
+    meta: { title: '协作大屏', requiresAuth: true },
+  },
+  {
+    path: '/workbench/groups/:id/reports',
+    name: 'WorkGroupReports',
+    component: () => import('@/pages/GroupReportListPage.vue'),
+    meta: { title: '工作报告列表', requiresAuth: true },
+  },
+  {
+    path: '/workbench/groups/:id/reports/:reportId',
+    name: 'WorkGroupReportDetail',
+    component: () => import('@/pages/GroupReportDetailPage.vue'),
+    meta: { title: '工作报告详情', requiresAuth: true },
   },
   {
     path: '/analytics',

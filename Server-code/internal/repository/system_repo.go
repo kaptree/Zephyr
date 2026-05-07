@@ -199,6 +199,27 @@ func (r *SystemRepository) DeleteWorkReport(id string) error {
 	return r.db.Delete(&models.WorkReport{}, "id = ?", id).Error
 }
 
+func (r *SystemRepository) ListGroupReports(groupID string, page, pageSize int) ([]models.WorkReport, int64, error) {
+	var reports []models.WorkReport
+	var total int64
+	query := r.db.Model(&models.WorkReport{}).Where("group_id = ?", groupID)
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	offset := (page - 1) * pageSize
+	err := query.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&reports).Error
+	return reports, total, err
+}
+
+func (r *SystemRepository) FindLatestGroupReport(groupID string) (*models.WorkReport, error) {
+	var report models.WorkReport
+	err := r.db.Where("group_id = ?", groupID).Order("created_at DESC").First(&report).Error
+	if err != nil {
+		return nil, err
+	}
+	return &report, nil
+}
+
 func (r *SystemRepository) GetReportTemplate(id string) (*models.ReportTemplate, error) {
 	var tpl models.ReportTemplate
 	err := r.db.Where("id = ?", id).First(&tpl).Error
