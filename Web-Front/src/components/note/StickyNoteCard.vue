@@ -7,10 +7,12 @@ const props = withDefaults(
     note: Note;
     mode?: 'desktop' | 'web';
     archived?: boolean;
+    editingBy?: string | null;
   }>(),
   {
     mode: 'web',
     archived: false,
+    editingBy: null,
   }
 );
 
@@ -53,7 +55,10 @@ function toggleExpand() {
 <template>
   <div
     class="relative rounded-card p-5 transition-smooth cursor-pointer select-none"
-    :class="{ 'opacity-80': isArchived }"
+    :class="{
+      'opacity-80': isArchived,
+      'ring-2 ring-purple-400 ring-offset-2 shadow-lg shadow-purple-200/50': !!props.editingBy,
+    }"
     :style="{
       background: isUrgent ? '#FEE2E2' : '#FEF3C7',
       borderLeft: isUrgent ? '1px solid #DC2626' : '4px solid #D97706',
@@ -64,6 +69,22 @@ function toggleExpand() {
     @contextmenu="handleContextMenu"
     draggable="true"
   >
+    <div
+      v-if="props.editingBy"
+      class="absolute -top-3 left-3 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium animate-fade-in z-10"
+      style="
+        background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+      "
+    >
+      <span class="w-3.5 h-3.5 rounded-full bg-white/30 flex items-center justify-center text-[8px]"
+        >✎</span
+      >
+      <span>{{ props.editingBy }}</span>
+      <span class="inline-block w-1 h-3 bg-white/60 rounded-sm animate-pulse ml-0.5"></span>
+    </div>
+
     <!-- 盯办徽章 -->
     <span v-if="isUrgent && !isArchived" class="badge-corner bg-red-500 text-white">
       盯办{{ note.remind_count > 0 ? note.remind_count : '' }}

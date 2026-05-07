@@ -62,6 +62,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	if cfg.WebSocket.Enabled {
 		hub := ws.InitHub()
 		r.GET("/ws/:note_id", ws.HandleWebSocket(hub))
+		r.GET("/ws/group/:group_id", ws.HandleGroupWebSocket(hub))
 	}
 
 	api := r.Group("/api/v1")
@@ -136,7 +137,9 @@ func Setup(cfg *config.Config) *gin.Engine {
 			groups.GET("/:id", groupHandler.GetDetail)
 			groups.DELETE("/:id", groupHandler.Delete)
 			groups.GET("/:id/members", groupHandler.GetMembers)
+			groups.POST("/:id/members", groupHandler.AddMember)
 			groups.PUT("/:id/members/:user_id", groupHandler.UpdateMember)
+			groups.DELETE("/:id/members/:user_id", groupHandler.RemoveMember)
 			groups.GET("/:id/notes", groupHandler.GetGroupNotes)
 			groups.POST("/:id/notes", groupHandler.CreateGroupNote)
 		}

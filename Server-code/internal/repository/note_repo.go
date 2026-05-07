@@ -433,10 +433,6 @@ func (r *NoteRepository) ListByGroup(groupID string, userID string, page, pageSi
 
 	query := r.db.Model(&models.Note{}).Where("group_id = ?", groupID)
 
-	if userID != "" {
-		query = query.Where("owner_id = ? OR creator_id = ?", userID, userID)
-	}
-
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}

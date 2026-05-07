@@ -54,7 +54,7 @@ func RateLimit(cfg *config.Config) gin.HandlerFunc {
 		limiter.mu.Unlock()
 
 		if currentCount > maxPerMinute {
-			utils.TooManyRequests(c, "")
+			utils.TooManyRequests(c, "操作过于频繁，请稍后重试")
 			c.Abort()
 			return
 		}

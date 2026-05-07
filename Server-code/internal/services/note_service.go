@@ -238,7 +238,8 @@ func (s *NoteService) Complete(id, userID, role string, req CompleteNoteRequest)
 		return nil, apperrors.ErrNoteNotFound
 	}
 
-	if note.SourceType == "assigned" && note.OwnerID.String() != userID &&
+	isGroupNote := note.GroupID != nil
+	if !isGroupNote && note.SourceType == "assigned" && note.OwnerID.String() != userID &&
 		role != "super_admin" && role != "dept_admin" {
 		return nil, apperrors.ErrPermissionDenied
 	}

@@ -1,4 +1,4 @@
-import { get, post, del } from './api';
+import { get, post, put, del } from './api';
 import type { ApiResponse, PaginatedData } from '@/types/api';
 
 export interface WorkGroupData {
@@ -70,6 +70,28 @@ export function createWorkGroup(
 
 export function getWorkGroupMembers(id: string): Promise<ApiResponse<WorkGroupMemberData[]>> {
   return get(`/api/v1/groups/${id}/members`);
+}
+
+export function addWorkGroupMember(
+  id: string,
+  payload: { user_id: string; role?: string; sub_group_name?: string }
+): Promise<ApiResponse<{ success: boolean }>> {
+  return post(`/api/v1/groups/${id}/members`, payload);
+}
+
+export function updateWorkGroupMember(
+  id: string,
+  userId: string,
+  payload: { role?: string; sub_group_name?: string }
+): Promise<ApiResponse<{ success: boolean }>> {
+  return put(`/api/v1/groups/${id}/members/${userId}`, payload);
+}
+
+export function removeWorkGroupMember(
+  id: string,
+  userId: string
+): Promise<ApiResponse<{ success: boolean }>> {
+  return del(`/api/v1/groups/${id}/members/${userId}`);
 }
 
 export function deleteWorkGroup(id: string): Promise<ApiResponse<null>> {

@@ -115,12 +115,12 @@
   "rate_limit": {
     "_模块": "接口限流配置",
     "enabled": true,
-    "login_per_minute": 20,
-    "_login说明": "登录接口每分钟限制次数，正常操作不会触发",
-    "api_per_minute": 100,
+    "login_per_minute": 200,
+    "_login说明": "登录接口每分钟限制次数",
+    "api_per_minute": 1000,
     "_api说明": "普通API每分钟限制次数",
     "ban_duration_seconds": 60,
-    "_ban说明": "触发限流后封禁时长(秒)，轻度惩罚"
+    "_ban说明": "触发限流后封禁时长(秒)"
   },
 
   "security": {

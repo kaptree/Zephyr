@@ -99,7 +99,9 @@ func (h *WorkGroupHandler) Create(c *gin.Context) {
 		return
 	}
 
-	memberCount := 0
+	_ = h.groupRepo.AddMember(groupID.String(), initiatorUID.String(), "leader", "")
+
+	memberCount := 1
 	for _, m := range req.Members {
 		memberUID, err := uuid.Parse(m.UserID)
 		if err != nil {
@@ -235,6 +237,10 @@ func (h *WorkGroupHandler) UpdateMember(c *gin.Context) {
 	groupID := c.Param("id")
 	userID := c.Param("user_id")
 
+	if _, ok := h.requireAdmin(groupID, c); !ok {
+		return
+	}
+
 	var req struct {
 		Role     string `json:"role"`
 		SubGroup string `json:"sub_group_name"`
@@ -252,8 +258,59 @@ func (h *WorkGroupHandler) UpdateMember(c *gin.Context) {
 	utils.Success(c, gin.H{"success": true})
 }
 
+func (h *WorkGroupHandler) AddMember(c *gin.Context) {
+	groupID := c.Param("id")
+
+	if _, ok := h.requireAdmin(groupID, c); !ok {
+		return
+	}
+
+	var req struct {
+		UserID   string `json:"user_id" binding:"required"`
+		Role     string `json:"role"`
+		SubGroup string `json:"sub_group_name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "请选择要添加的成员")
+		return
+	}
+
+	role := req.Role
+	if role == "" {
+		role = "member"
+	}
+
+	if err := h.groupRepo.AddMember(groupID, req.UserID, role, req.SubGroup); err != nil {
+		utils.InternalError(c, "添加成员失败")
+		return
+	}
+
+	utils.Success(c, gin.H{"success": true})
+}
+
+func (h *WorkGroupHandler) RemoveMember(c *gin.Context) {
+	groupID := c.Param("id")
+	userID := c.Param("user_id")
+
+	if _, ok := h.requireAdmin(groupID, c); !ok {
+		return
+	}
+
+	if err := h.groupRepo.RemoveMember(groupID, userID); err != nil {
+		utils.InternalError(c, "移除成员失败")
+		return
+	}
+
+	utils.Success(c, gin.H{"success": true})
+}
+
 func (h *WorkGroupHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
+
+	if _, ok := h.requireAdmin(id, c); !ok {
+		return
+	}
+
 	if err := h.groupRepo.Delete(id); err != nil {
 		utils.InternalError(c, "删除工作组失败")
 		return
@@ -376,6 +433,20 @@ type GroupMemberReq struct {
 	UserID   string `json:"user_id"`
 	Role     string `json:"role"`
 	SubGroup string `json:"sub_group_name"`
+}
+
+func (h *WorkGroupHandler) requireAdmin(groupID string, c *gin.Context) (*models.WorkGroup, bool) {
+	group, err := h.groupRepo.FindByID(groupID)
+	if err != nil {
+		utils.NotFound(c, "工作组不存在")
+		return nil, false
+	}
+	userID := middleware.GetUserID(c)
+	if group.InitiatorID.String() != userID {
+		utils.Forbidden(c, "仅工作组创建人可执行此操作")
+		return nil, false
+	}
+	return group, true
 }
 
 type RoomHandler struct {

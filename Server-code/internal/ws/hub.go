@@ -32,11 +32,12 @@ type Hub struct {
 }
 
 type Client struct {
-	ID     string
-	Name   string
-	RoomID string
-	Conn   *websocket.Conn
-	Send   chan []byte
+	ID            string
+	Name          string
+	RoomID        string
+	Conn          *websocket.Conn
+	Send          chan []byte
+	EditingNoteID string
 }
 
 type Message struct {
@@ -70,6 +71,24 @@ func (h *Hub) Run() {
 
 		case client := <-h.unregister:
 			h.mu.Lock()
+			if client.EditingNoteID != "" {
+				idleData, _ := json.Marshal(map[string]interface{}{
+					"event":   "note:idle",
+					"note_id": client.EditingNoteID,
+					"user_id": client.ID,
+					"name":    client.Name,
+				})
+				if clients, ok := h.rooms[client.RoomID]; ok {
+					for c := range clients {
+						if c != client {
+							select {
+							case c.Send <- idleData:
+							default:
+							}
+						}
+					}
+				}
+			}
 			if _, ok := h.rooms[client.RoomID]; ok {
 				delete(h.rooms[client.RoomID], client)
 				if len(h.rooms[client.RoomID]) == 0 {
@@ -207,6 +226,47 @@ func (c *Client) readPump(hub *Hub) {
 				Data:    syncData,
 				Exclude: c,
 			}
+		case "note:editing":
+			c.EditingNoteID, _ = event["note_id"].(string)
+			editData, _ := json.Marshal(map[string]interface{}{
+				"event":   "note:editing",
+				"note_id": c.EditingNoteID,
+				"user_id": c.ID,
+				"name":    c.Name,
+			})
+			hub.broadcast <- &Message{
+				RoomID:  c.RoomID,
+				Data:    editData,
+				Exclude: c,
+			}
+		case "note:idle":
+			editID := c.EditingNoteID
+			c.EditingNoteID = ""
+			idleData, _ := json.Marshal(map[string]interface{}{
+				"event":   "note:idle",
+				"note_id": event["note_id"],
+				"user_id": c.ID,
+				"name":    c.Name,
+			})
+			hub.broadcast <- &Message{
+				RoomID:  c.RoomID,
+				Data:    idleData,
+				Exclude: c,
+			}
+			_ = editID
+		case "note:updated":
+			updData, _ := json.Marshal(map[string]interface{}{
+				"event":   "note:updated",
+				"note_id": event["note_id"],
+				"action":  event["action"],
+				"user_id": c.ID,
+				"name":    c.Name,
+			})
+			hub.broadcast <- &Message{
+				RoomID:  c.RoomID,
+				Data:    updData,
+				Exclude: c,
+			}
 		}
 	}
 }
@@ -243,4 +303,41 @@ func InitHub() *Hub {
 	DefaultHub = hub
 	go hub.Run()
 	return hub
+}
+
+func HandleGroupWebSocket(hub *Hub) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		groupID := c.Param("group_id")
+		token := c.Query("token")
+
+		if token == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
+			return
+		}
+
+		claims, err := utils.ParseToken(token)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
+
+		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+		if err != nil {
+			logger.Error("websocket upgrade failed", zap.Error(err))
+			return
+		}
+
+		client := &Client{
+			ID:     claims.UserID,
+			Name:   claims.Username,
+			RoomID: "group:" + groupID,
+			Conn:   conn,
+			Send:   make(chan []byte, 256),
+		}
+
+		hub.register <- client
+
+		go client.writePump()
+		go client.readPump(hub)
+	}
 }
