@@ -1,0 +1,250 @@
+<script setup lang="ts">
+import { ref, onMounted, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { getWorkGroupDetail, deleteWorkGroup } from '@/services/workgroup'
+import { getGroupNotes, createGroupNote } from '@/services/groupNotes'
+import { useNoteStore } from '@/stores/notes'
+import StickyNoteCard from '@/components/note/StickyNoteCard.vue'
+import TagSelector from '@/components/common/TagSelector.vue';
+import type { WorkGroupData, WorkGroupMemberData } from '@/services/workgroup'
+import type { Note } from '@/types'
+
+const route = useRoute()
+const router = useRouter()
+const noteStore = useNoteStore()
+const groupId = route.params.id as string
+
+const group = ref<WorkGroupData | null>(null)
+const loading = ref(true)
+const notes = ref<Note[]>([])
+const notesLoading = ref(false)
+const notesTotal = ref(0)
+const notesPage = ref(1)
+const notesPageSize = 20
+const error = ref('')
+
+const showNoteModal = ref(false)
+const noteTitle = ref('')
+const noteContent = ref('')
+const noteOwnerId = ref('')
+const noteDueDate = ref('')
+const selectedTagIds = ref<string[]>([]);
+const noteCreating = ref(false)
+const noteError = ref('')
+
+const showDetailPanel = ref(false)
+const selectedDetailNote = ref<Note | null>(null)
+const editingTitle = ref('')
+const editingContent = ref('')
+const saving = ref(false)
+const completing = ref(false)
+
+function statusLabel(s: string) {
+  const m: Record<string, string> = { active: '进行中', completed: '已完成', archived: '已归档' }
+  return m[s] || s
+}
+function templateLabel(t: string) {
+  const m: Record<string, string> = { default: '日常任务', data_analysis: '数据分析', special_project: '专项行动', emergency_canvas: '紧急协查', collaborative_writing: '协同作战' }
+  return m[t] || t
+}
+function roleLabel(r: string) { const m: Record<string, string> = { leader: '组长', sub_leader: '副组长', member: '组员' }; return m[r] || r }
+function formatTime(d: string) { return d ? new Date(d).toLocaleString('zh-CN') : '-' }
+
+const membersBySubGroup = computed(() => {
+  const map: Record<string, WorkGroupMemberData[]> = {}
+  group.value?.members?.forEach(m => {
+    const key = m.sub_group_name || '未分组'
+    if (!map[key]) map[key] = []
+    map[key].push(m)
+  })
+  return map
+})
+
+onMounted(async () => {
+  try {
+    const res = await getWorkGroupDetail(groupId)
+    group.value = res.data as unknown as WorkGroupData
+  } catch { error.value = '加载专项行动失败' } finally { loading.value = false }
+  loadNotes()
+})
+
+async function loadNotes() {
+  notesLoading.value = true
+  try {
+    const res = await getGroupNotes(groupId, { page: notesPage.value, page_size: notesPageSize })
+    const d = res.data as unknown as { data: Note[]; total: number }
+    notes.value = d.data || []; notesTotal.value = d.total || 0
+  } catch { /* ignore */ } finally { notesLoading.value = false }
+}
+
+async function handleDeleteGroup() { try { await deleteWorkGroup(groupId); router.push('/workbench') } catch { /* ignore */ } }
+
+function openNoteModal() { noteTitle.vaue = ''; noteContent.value = ''; noteOwnerId.value = ''; noteDueDate.value = ''; selectedTagIds.value = []; noteError.value = ''; showNoteModal.value = true }
+async function handleCreateNote() {
+  if (!noteTitle.value.trim()) { noteError.value = '请输入标题'; return }
+  noteCreating.value = true; noteError.value = ''
+  try {
+    await createGroupNote(groupId, { title: noteTitle.value.trim(), content: noteContent.value, owner_id: noteOwnerId.value || undefined, due_time: noteDueDate.value ? new Date(noteDueDate.value).toISOString() : undefined, tag_ids: selectedTagIds.value.length > 0 ? selectedTagIds.value : undefined })
+    showNoteModal.value = false; loadNotes()
+  } catch (e: unknown) { noteError.value = (e as { response?: { data?: { message?: string } } })?.response?.data?.message || '创建失败' } finally { noteCreating.value = false }
+}
+
+function openDetail(note: Note) { selectedDetailNote.value = note; editingTitle.value = note.title || ''; editingContent.value = note.content || ''; showDetailPanel.value = true }
+function closeDetail() { showDetailPanel.value = false; selectedDetailNote.value = null; completing.value = false }
+async function handleSaveDetail() {
+  if (!selectedDetailNote.value) return; saving.value = true
+  try { await noteStore.updateNoteLocally(selectedDetailNote.value.id, { title: editingTitle.value.trim(), content: editingContent.value }); closeDetail(); loadNotes() } catch { /* keep panel */ } finally { saving.value = false }
+}
+async function handleComplete(note: Note) { await noteStore.completeNote(note.id); loadNotes(); if (showDetailPanel.value && selectedDetailNote.value?.id === note.id) closeDetail() }
+async function handleRemind(note: Note) {
+  await noteStore.remindNote(note.id, note.owner_id, '请尽快处理')
+  const idx = notes.value.findIndex(n => n.id === note.id)
+  if (idx >= 0) notes.value[idx] = { ...notes.value[idx], color_status: 'red' }
+  if (showDetailPanel.value && selectedDetailNote.value?.id === note.id) selectedDetailNote.value = { ...selectedDetailNote.value!, color_status: 'red' as const }
+}
+</script>
+
+<template>
+  <div class="h-full flex flex-col bg-white dark:bg-slate-900">
+    <div class="shrink-0 px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+      <div class="flex items-center gap-3">
+        <button class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-smooth flex items-center gap-1 text-sm" @click="router.push('/workbench')">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+          工作台
+        </button>
+        <span class="text-slate-300 dark:text-slate-600">/</span>
+        <h1 class="text-lg font-semibold text-slate-900 dark:text-slate-100 truncate">{{ group?.name || '加载中...' }}</h1>
+      </div>
+    </div>
+
+    <div v-if="loading" class="flex-1 flex items-center justify-center">
+      <div class="animate-spin rounded-full h-8 w-8 border-2 border-purple-500 border-t-transparent"></div>
+    </div>
+    <div v-else-if="error" class="flex-1 flex items-center justify-center"><p class="text-slate-400">{{ error }}</p></div>
+
+    <template v-else-if="group">
+      <div class="shrink-0 px-6 py-4 bg-purple-50/30 dark:bg-purple-900/5 border-b border-purple-100 dark:border-purple-800">
+        <div class="flex flex-wrap items-center gap-3 mb-3">
+          <span :class="['text-[10px] px-2 py-0.5 rounded-full font-medium', group.status === 'active' ? 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500']">{{ statusLabel(group.status) }}</span>
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 font-medium">{{ templateLabel(group.template_type) }}</span>
+          <span class="text-xs text-slate-400 dark:text-slate-500">👤 {{ group.initiator?.name || '未知' }}</span>
+          <span class="text-xs text-slate-400 dark:text-slate-500">👥 {{ group.members?.length || 0 }} 人</span>
+          <span v-if="group.due_time" class="text-xs text-red-400">📅 截止 {{ group.due_time.slice(0, 10) }}</span>
+          <span class="text-xs text-slate-400 dark:text-slate-500">{{ formatTime(group.created_at) }}</span>
+          <button class="ml-auto px-3 py-1 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-smooth" @click="handleDeleteGroup()">🗑 删除</button>
+        </div>
+        <p v-if="group.description" class="text-sm text-slate-600 dark:text-slate-300">{{ group.description }}</p>
+
+        <div v-if="Object.keys(membersBySubGroup).length > 0" class="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+          <div v-for="(members, sgName) in membersBySubGroup" :key="sgName" class="p-2 rounded-lg border border-purple-100 dark:border-purple-800 bg-white dark:bg-slate-800">
+            <p class="text-[10px] font-medium text-purple-500 dark:text-purple-400 mb-1.5">{{ sgName }}</p>
+            <div class="flex flex-wrap gap-1">
+              <span v-for="m in members" :key="m.user_id" :class="['text-[10px] px-1.5 py-0.5 rounded-full', m.role === 'leader' ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400' : 'bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400']">{{ m.user?.name || m.user_id }} <span class="text-[8px] opacity-70">{{ roleLabel(m.role) }}</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-auto p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-300">📋 专项工作便签</h2>
+            <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">仅属于此专项行动的任务便签，独立于日常工作便签</p>
+          </div>
+          <button class="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 rounded-lg transition-smooth flex items-center gap-1.5" @click="openNoteModal()">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+            新建便签
+          </button>
+        </div>
+
+        <div v-if="notesLoading" class="flex items-center justify-center py-12">
+          <div class="animate-spin rounded-full h-8 w-8 border-2 border-purple-500 border-t-transparent"></div>
+        </div>
+
+        <div v-else-if="notes.length === 0" class="text-center py-16 text-slate-400 dark:text-slate-500">
+          <p class="text-2xl mb-2">📝</p>
+          <p class="text-sm">暂无专项便签</p>
+          <p class="text-xs mt-1">点击「新建便签」添加此专项行动的任务</p>
+        </div>
+
+        <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
+          <StickyNoteCard v-for="note in notes" :key="note.id" :note="note" mode="web" :archived="false" class="animate-spring-enter" @click="openDetail(note)" @complete="handleComplete" @remind="handleRemind" />
+        </div>
+
+        <div v-if="notesTotal > notesPageSize" class="flex items-center justify-between mt-6">
+          <span class="text-xs text-slate-400">共 {{ notesTotal }} 条</span>
+          <div class="flex items-center gap-2">
+            <button class="px-3 py-1 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded transition-smooth disabled:opacity-40" :disabled="notesPage <= 1" @click="notesPage--; loadNotes()">上一页</button>
+            <button class="px-3 py-1 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded transition-smooth disabled:opacity-40" :disabled="notesPage * notesPageSize >= notesTotal" @click="notesPage++; loadNotes()">下一页</button>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Create note modal -->
+    <Teleport to="body">
+      <div v-if="showNoteModal" class="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]">
+        <div class="overlay-backdrop" @click="showNoteModal = false" />
+        <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-lg mx-4 animate-fade-in">
+          <div class="p-6">
+            <div class="flex items-center justify-between mb-6">
+              <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">📝 新建专项便签</h2>
+              <button class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth" @click="showNoteModal = false"><svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+            <form class="space-y-4" @submit.prevent="handleCreateNote">
+              <input v-model="noteTitle" class="input-field" placeholder="便签标题" autofocus />
+              <textarea v-model="noteContent" class="input-field h-24 resize-none" placeholder="便签内容..." />
+              <div class="grid grid-cols-2 gap-3">
+                <div><label class="text-xs text-slate-500 mb-1 block">负责人（可选）</label><select v-model="noteOwnerId" class="input-field text-sm"><option value="">自己</option><option v-for="m in group?.members || []" :key="m.user_id" :value="m.user_id">{{ m.user?.name || m.user_id }} ({{ roleLabel(m.role) }})</option></select></div>
+                <div><label class="text-xs text-slate-500 mb-1 block">截止日期</label><input v-model="noteDueDate" type="date" class="input-field" /></div>
+              </div>
+              <div>
+                <label class="text-xs text-slate-500 mb-1 block">标签</label>
+                <TagSelector v-model="selectedTagIds" :max="5" />
+              </div>
+              <p v-if="noteError" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-btn">{{ noteError }}</p>
+              <div class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
+                <button type="button" class="px-5 py-2.5 text-sm text-slate-600 bg-slate-100 rounded-btn hover:bg-slate-200 transition-smooth" @click="showNoteModal = false" :disabled="noteCreating">取消</button>
+                <button type="submit" class="px-5 py-2.5 text-sm text-white bg-gradient-to-r from-purple-500 to-blue-500 rounded-btn hover:from-purple-600 hover:to-blue-600 transition-smooth disabled:opacity-50" :disabled="noteCreating">{{ noteCreating ? '创建中...' : '创建便签' }}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Detail slide panel -->
+    <Teleport to="body">
+      <div v-if="showDetailPanel && selectedDetailNote">
+        <div class="overlay-backdrop" @click="closeDetail" />
+        <div class="slide-panel">
+          <div class="p-6 h-full flex flex-col">
+            <div class="flex items-center justify-between mb-6">
+              <div class="flex items-center gap-2"><h2 class="text-lg font-semibold text-slate-900">便签详情</h2><span v-if="selectedDetailNote.color_status === 'red'" class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-tag">盯办中</span></div>
+              <button class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth" @click="closeDetail"><svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </div>
+            <div class="flex-1 overflow-auto space-y-5">
+              <div><span class="text-xs text-slate-400 mb-1 block">标题</span><input v-model="editingTitle" class="input-field text-base font-semibold" /></div>
+              <div><span class="text-xs text-slate-400 mb-1 block">内容</span><textarea v-model="editingContent" class="input-field min-h-[180px] resize-y text-sm" /></div>
+              <div v-if="selectedDetailNote.tags?.length"><span class="text-xs text-slate-400 mb-1 block">标签</span><div class="flex flex-wrap gap-2"><span v-for="t in selectedDetailNote.tags" :key="t.id" class="tag-capsule text-white" :style="{ backgroundColor: t.color || '#64748B' }">{{ t.name }}</span></div></div>
+              <div class="bg-slate-50 dark:bg-slate-900 rounded-card p-4 space-y-2">
+                <div class="flex justify-between text-xs"><span class="text-slate-400">创建时间</span><span class="text-slate-700 dark:text-slate-300">{{ selectedDetailNote.created_at?.slice(0, 16).replace('T', ' ') }}</span></div>
+                <div v-if="selectedDetailNote.due_time" class="flex justify-between text-xs"><span class="text-slate-400">截止时间</span><span class="text-red-500">{{ selectedDetailNote.due_time.slice(0, 16).replace('T', ' ') }}</span></div>
+                <div v-if="selectedDetailNote.assignees?.length" class="flex justify-between text-xs"><span class="text-slate-400">负责人</span><span class="text-slate-700 dark:text-slate-300">{{ selectedDetailNote.assignees.map(a => a.name).join('、') }}</span></div>
+                <div v-if="selectedDetailNote.serial_no" class="flex justify-between text-xs"><span class="text-slate-400">流水号</span><span class="text-slate-700 dark:text-slate-300 font-mono">{{ selectedDetailNote.serial_no }}</span></div>
+              </div>
+            </div>
+            <div class="pt-4 border-t border-slate-100 dark:border-slate-700 mt-4 space-y-3">
+              <div class="flex gap-2">
+                <button class="flex-1 py-2.5 btn-primary text-sm disabled:opacity-50" :disabled="saving" @click="handleSaveDetail">{{ saving ? '保存中...' : '保存' }}</button>
+                <button class="flex-1 py-2.5 text-sm bg-green-500 text-white rounded-btn hover:bg-green-600 transition-smooth disabled:opacity-50" :disabled="completing" @click="completing = true; handleComplete(selectedDetailNote!)">{{ completing ? '归档中...' : '完成并归档' }}</button>
+                <button v-if="selectedDetailNote.color_status !== 'red'" class="flex-1 py-2.5 text-sm bg-red-50 text-red-600 rounded-btn hover:bg-red-100 transition-smooth" @click="handleRemind(selectedDetailNote!)">盯办</button>
+              </div>
+              <button class="w-full py-2 btn-secondary text-sm" @click="closeDetail">关闭</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+  </div>
+</template>

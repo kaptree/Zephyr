@@ -194,6 +194,46 @@ func (r *WorkGroupRepository) Delete(id string) error {
 	return r.db.Delete(&models.WorkGroup{}, "id = ?", id).Error
 }
 
+type WorkGroupSearchFilter struct {
+	Keyword  string
+	UserID   string
+	DateFrom string
+	DateTo   string
+	Page     int
+	PageSize int
+}
+
+func (r *WorkGroupRepository) Search(f WorkGroupSearchFilter) ([]models.WorkGroup, int64, error) {
+	var groups []models.WorkGroup
+	var total int64
+
+	query := r.db.Model(&models.WorkGroup{})
+
+	if f.Keyword != "" {
+		kw := "%" + f.Keyword + "%"
+		query = query.Where("name ILIKE ? OR description ILIKE ?", kw, kw)
+	}
+	if f.UserID != "" {
+		subQuery := r.db.Model(&models.WorkGroupMember{}).Select("group_id").Where("user_id = ?", f.UserID)
+		query = query.Where("initiator_id = ? OR id IN (?)", f.UserID, subQuery)
+	}
+	if f.DateFrom != "" {
+		query = query.Where("created_at >= ?", f.DateFrom)
+	}
+	if f.DateTo != "" {
+		query = query.Where("created_at <= ?", f.DateTo+"T23:59:59")
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (f.Page - 1) * f.PageSize
+	err := query.Preload("Members.User").Preload("Initiator").
+		Order("created_at DESC").Offset(offset).Limit(f.PageSize).Find(&groups).Error
+	return groups, total, err
+}
+
 type CollaborationRoomRepository struct {
 	db *gorm.DB
 }

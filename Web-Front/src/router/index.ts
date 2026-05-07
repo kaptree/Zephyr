@@ -1,5 +1,5 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import type { RouteRecordRaw } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router';
+import type { RouteRecordRaw } from 'vue-router';
 
 const routes: RouteRecordRaw[] = [
   {
@@ -34,6 +34,12 @@ const routes: RouteRecordRaw[] = [
         name: 'Collaboration',
         component: () => import('@/pages/CollaborationPage.vue'),
         meta: { title: '协同编辑室', permissions: [] },
+      },
+      {
+        path: 'groups/:id',
+        name: 'WorkGroupDetail',
+        component: () => import('@/pages/GroupDetailPage.vue'),
+        meta: { title: '专项行动详情' },
       },
     ],
   },
@@ -124,47 +130,47 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/NotFoundPage.vue'),
     meta: { title: '页面不存在' },
   },
-]
+];
 
 const router = createRouter({
   history: createWebHistory(),
   routes,
-})
+});
 
 router.beforeEach((to, _from, next) => {
-  document.title = `${to.meta.title || '轻燕工作台'} - 轻燕`
+  document.title = `${to.meta.title || '轻燕工作台'} - 轻燕`;
 
   if (to.meta.public) {
-    const token = localStorage.getItem('auth_token')
+    const token = localStorage.getItem('auth_token');
     if (token && to.path === '/login') {
-      next('/workbench')
-      return
+      next('/workbench');
+      return;
     }
-    next()
-    return
+    next();
+    return;
   }
 
   if (to.meta.requiresAuth) {
-    const token = localStorage.getItem('auth_token')
+    const token = localStorage.getItem('auth_token');
     if (!token) {
-      next(`/login?redirect=${encodeURIComponent(to.fullPath)}`)
-      return
+      next(`/login?redirect=${encodeURIComponent(to.fullPath)}`);
+      return;
     }
 
-    const userStr = localStorage.getItem('auth_user')
+    const userStr = localStorage.getItem('auth_user');
     if (userStr && to.meta.permissions && (to.meta.permissions as string[]).length > 0) {
       try {
-        const user = JSON.parse(userStr)
+        const user = JSON.parse(userStr);
         if (user.role === 'super_admin') {
-          next()
-          return
+          next();
+          return;
         }
-        const userPerms: string[] = user.permissions || []
-        const requiredPerms = to.meta.permissions as string[]
-        const hasPermission = requiredPerms.every((p: string) => userPerms.includes(p))
+        const userPerms: string[] = user.permissions || [];
+        const requiredPerms = to.meta.permissions as string[];
+        const hasPermission = requiredPerms.every((p: string) => userPerms.includes(p));
         if (!hasPermission) {
-          next('/403')
-          return
+          next('/403');
+          return;
         }
       } catch {
         // ignore parse errors
@@ -172,12 +178,12 @@ router.beforeEach((to, _from, next) => {
     }
   }
 
-  next()
-})
+  next();
+});
 
 router.afterEach(() => {
   // 滚动到顶部
-  window.scrollTo(0, 0)
-})
+  window.scrollTo(0, 0);
+});
 
-export default router
+export default router;

@@ -1,5 +1,5 @@
 import { get, post, del } from './api';
-import type { ApiResponse } from '@/types/api';
+import type { ApiResponse, PaginatedData } from '@/types/api';
 
 export interface WorkGroupData {
   id: string;
@@ -39,8 +39,19 @@ export interface CreateWorkGroupPayload {
   tags?: string[];
 }
 
-export function listWorkGroups(): Promise<ApiResponse<WorkGroupData[]>> {
-  return get('/api/v1/groups');
+export interface GroupSearchQuery {
+  page: number;
+  page_size: number;
+  keyword?: string;
+  user_id?: string;
+  date_from?: string;
+  date_to?: string;
+}
+
+export function searchGroups(
+  query: GroupSearchQuery
+): Promise<ApiResponse<PaginatedData<WorkGroupData>>> {
+  return get('/api/v1/groups', query as Record<string, unknown>);
 }
 
 export function getMyGroups(): Promise<ApiResponse<WorkGroupData[]>> {

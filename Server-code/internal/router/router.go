@@ -130,13 +130,15 @@ func Setup(cfg *config.Config) *gin.Engine {
 
 		groups := api.Group("/groups")
 		{
-			groups.GET("", groupHandler.List)
+			groups.GET("", groupHandler.Search)
 			groups.GET("/mine", groupHandler.MyGroups)
 			groups.POST("", groupHandler.Create)
 			groups.GET("/:id", groupHandler.GetDetail)
 			groups.DELETE("/:id", groupHandler.Delete)
 			groups.GET("/:id/members", groupHandler.GetMembers)
 			groups.PUT("/:id/members/:user_id", groupHandler.UpdateMember)
+			groups.GET("/:id/notes", groupHandler.GetGroupNotes)
+			groups.POST("/:id/notes", groupHandler.CreateGroupNote)
 		}
 
 		rooms := api.Group("/rooms")

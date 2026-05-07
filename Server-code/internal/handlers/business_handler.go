@@ -136,6 +136,13 @@ func (h *WorkGroupHandler) Create(c *gin.Context) {
 			DueTime:      dueTime,
 			SerialNo:     serialNo,
 		}
+		if len(req.Tags) > 0 {
+			for _, tid := range req.Tags {
+				if parsed, err := uuid.Parse(tid); err == nil {
+					note.Tags = append(note.Tags, models.Tag{ID: parsed})
+				}
+			}
+		}
 		if err := h.noteRepo.Create(note); err == nil {
 			assignee := models.NoteAssignee{
 				NoteID:     noteID,
@@ -181,6 +188,37 @@ func (h *WorkGroupHandler) MyGroups(c *gin.Context) {
 		groups = []models.WorkGroup{}
 	}
 	utils.Success(c, groups)
+}
+
+func (h *WorkGroupHandler) Search(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	f := repository.WorkGroupSearchFilter{
+		Keyword:  c.Query("keyword"),
+		UserID:   c.Query("user_id"),
+		DateFrom: c.Query("date_from"),
+		DateTo:   c.Query("date_to"),
+		Page:     page,
+		PageSize: pageSize,
+	}
+
+	groups, total, err := h.groupRepo.Search(f)
+	if err != nil {
+		utils.InternalError(c, "搜索工作组失败")
+		return
+	}
+	if groups == nil {
+		groups = []models.WorkGroup{}
+	}
+
+	utils.Paginated(c, groups, total, page, pageSize)
 }
 
 func (h *WorkGroupHandler) GetMembers(c *gin.Context) {
@@ -231,6 +269,96 @@ func (h *WorkGroupHandler) GetDetail(c *gin.Context) {
 		return
 	}
 	utils.Success(c, group)
+}
+
+func (h *WorkGroupHandler) GetGroupNotes(c *gin.Context) {
+	groupID := c.Param("id")
+	userID := middleware.GetUserID(c)
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	notes, total, err := h.noteRepo.ListByGroup(groupID, userID, page, pageSize)
+	if err != nil {
+		utils.InternalError(c, "获取工作组便签失败")
+		return
+	}
+	if notes == nil {
+		notes = []models.Note{}
+	}
+
+	utils.Paginated(c, notes, total, page, pageSize)
+}
+
+func (h *WorkGroupHandler) CreateGroupNote(c *gin.Context) {
+	groupID := c.Param("id")
+	userID := middleware.GetUserID(c)
+	creatorUID, _ := uuid.Parse(userID)
+
+	group, err := h.groupRepo.FindByID(groupID)
+	if err != nil {
+		utils.NotFound(c, "工作组不存在")
+		return
+	}
+
+	var req struct {
+		Title   string   `json:"title" binding:"required"`
+		Content string   `json:"content"`
+		OwnerID string   `json:"owner_id"`
+		DueTime string   `json:"due_time"`
+		TagIDs  []string `json:"tag_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "请填写标题")
+		return
+	}
+
+	ownerUID := creatorUID
+	if req.OwnerID != "" {
+		if parsed, err := uuid.Parse(req.OwnerID); err == nil {
+			ownerUID = parsed
+		}
+	}
+
+	var dueTime *time.Time
+	if req.DueTime != "" {
+		parsed, _ := time.Parse(time.RFC3339, req.DueTime)
+		if !parsed.IsZero() {
+			dueTime = &parsed
+		}
+	}
+
+	note := &models.Note{
+		ID:          uuid.New(),
+		Title:       req.Title,
+		Content:     req.Content,
+		SourceType:  "assigned",
+		ColorStatus: "yellow",
+		CreatorID:   creatorUID,
+		OwnerID:     ownerUID,
+		GroupID:     &group.ID,
+		DueTime:     dueTime,
+	}
+
+	if len(req.TagIDs) > 0 {
+		for _, tid := range req.TagIDs {
+			if parsed, err := uuid.Parse(tid); err == nil {
+				note.Tags = append(note.Tags, models.Tag{ID: parsed})
+			}
+		}
+	}
+
+	if err := h.noteRepo.Create(note); err != nil {
+		utils.InternalError(c, "创建便签失败")
+		return
+	}
+
+	utils.Created(c, note)
 }
 
 func roleLabelZh(role string) string {

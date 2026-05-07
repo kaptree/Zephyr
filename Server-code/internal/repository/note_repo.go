@@ -427,4 +427,25 @@ func (r *NoteRepository) GetPersonalStats(userID string, days int) (*PersonalSta
 	return stats, nil
 }
 
+func (r *NoteRepository) ListByGroup(groupID string, userID string, page, pageSize int) ([]models.Note, int64, error) {
+	var notes []models.Note
+	var total int64
+
+	query := r.db.Model(&models.Note{}).Where("group_id = ?", groupID)
+
+	if userID != "" {
+		query = query.Where("owner_id = ? OR creator_id = ?", userID, userID)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	err := query.Preload("Tags").Preload("Assignees").Preload("Group").Preload("Attachments").
+		Preload("Reminders").Preload("Reminders.Reminder").Preload("Reminders.Target").
+		Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&notes).Error
+	return notes, total, err
+}
+
 var _ = strings.TrimSpace
