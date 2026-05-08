@@ -54,6 +54,9 @@ const editingTitle = ref('');
 const editingContent = ref('');
 const saving = ref(false);
 const completing = ref(false);
+const selectedEditingTagIds = ref<string[]>([]);
+const tagSaving = ref(false);
+const tagError = ref('');
 
 const generatingReport = ref(false);
 
@@ -207,6 +210,8 @@ function openDetail(note: Note) {
   selectedDetailNote.value = note;
   editingTitle.value = note.title || '';
   editingContent.value = note.content || '';
+  selectedEditingTagIds.value = (note.tags || []).map((t) => t.id);
+  tagError.value = '';
   showDetailPanel.value = true;
   sendEditing(note.id);
 }
@@ -221,7 +226,11 @@ async function handleSaveDetail() {
   const noteId = selectedDetailNote.value.id;
   saving.value = true;
   try {
-    await updateNote(noteId, { title: editingTitle.value.trim(), content: editingContent.value });
+    await updateNote(noteId, {
+      title: editingTitle.value.trim(),
+      content: editingContent.value,
+      tags: selectedEditingTagIds.value,
+    });
     sendNoteUpdated(noteId, 'updated');
     closeDetail();
     loadNotes();
@@ -229,6 +238,35 @@ async function handleSaveDetail() {
     /* ignore */
   } finally {
     saving.value = false;
+  }
+}
+async function handleUpdateTags(tagIds: string[]) {
+  if (!selectedDetailNote.value) return;
+  selectedEditingTagIds.value = tagIds;
+  tagSaving.value = true;
+  tagError.value = '';
+  try {
+    await noteStore.updateNoteTags(selectedDetailNote.value.id, tagIds);
+    const noteId = selectedDetailNote.value.id;
+    const idx = notes.value.findIndex((n) => n.id === noteId);
+    if (idx >= 0) {
+      notes.value[idx] = {
+        ...notes.value[idx],
+        tags: noteStore.activeNotes.find((n) => n.id === noteId)?.tags || [],
+      };
+    }
+    if (selectedDetailNote.value?.id === noteId) {
+      selectedDetailNote.value = {
+        ...selectedDetailNote.value,
+        tags: noteStore.activeNotes.find((n) => n.id === noteId)?.tags || [],
+      };
+    }
+    sendNoteUpdated(noteId, 'updated');
+  } catch {
+    tagError.value = '标签更新失败，请重试';
+    selectedEditingTagIds.value = (selectedDetailNote.value.tags || []).map((t) => t.id);
+  } finally {
+    tagSaving.value = false;
   }
 }
 async function handleComplete(note: Note) {
@@ -750,17 +788,18 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
                   class="input-field min-h-[180px] resize-y text-sm"
                 />
               </div>
-              <div v-if="selectedDetailNote.tags?.length">
-                <span class="text-xs text-slate-400 mb-1 block">标签</span>
-                <div class="flex flex-wrap gap-2">
-                  <span
-                    v-for="t in selectedDetailNote.tags"
-                    :key="t.id"
-                    class="tag-capsule text-white"
-                    :style="{ backgroundColor: t.color || '#64748B' }"
-                    >{{ t.name }}</span
-                  >
-                </div>
+              <div v-if="selectedDetailNote">
+                <span class="text-xs text-slate-400 mb-1 flex items-center gap-2">
+                  标签
+                  <span v-if="tagSaving" class="text-[10px] text-blue-400">保存中...</span>
+                  <span v-if="tagError" class="text-[10px] text-red-400">{{ tagError }}</span>
+                </span>
+                <TagSelector
+                  v-model="selectedEditingTagIds"
+                  :max="10"
+                  scope="all"
+                  @update:model-value="handleUpdateTags"
+                />
               </div>
               <div class="bg-slate-50 dark:bg-slate-900 rounded-card p-4 space-y-2">
                 <div class="flex justify-between text-xs">

@@ -1,0 +1,331 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import type { WorkGroupData } from '@/services/workgroup'
+
+const mockUser = {
+  id: 'user-me',
+  username: 'testuser',
+  name: '测试用户',
+  avatar: '',
+  email: 'test@police.gov.cn',
+  phone: '13800000000',
+  rank: '',
+  dept_id: 'dept-1',
+  dept_name: '刑警支队',
+  role: 'group_leader' as const,
+  permissions: ['create_note_self', 'create_note_assigned', 'edit_others_note', 'delete_note', 'remind', 'view_dept_archive', 'view_group_archive', 'manage_tags', 'access_screen'] as const,
+  is_active: true,
+}
+
+vi.mock('@/services/admin', () => ({
+  getDepartments: vi.fn(() =>
+    Promise.resolve({
+      data: [
+        { id: 'dept-1', name: '刑警支队', parent_id: null, member_count: 3, children: [] },
+        { id: 'dept-2', name: '交警支队', parent_id: null, member_count: 2, children: [] },
+      ],
+    })
+  ),
+  getUsers: vi.fn(() =>
+    Promise.resolve({
+      data: {
+        data: [
+          { id: 'user-1', name: '张三', avatar: '', dept_id: 'dept-1', department: { id: 'dept-1', name: '刑警支队' }, role: 'group_leader' },
+          { id: 'user-2', name: '李四', avatar: '', dept_id: 'dept-1', department: { id: 'dept-1', name: '刑警支队' }, role: 'user' },
+          { id: 'user-3', name: '王五', avatar: '', dept_id: 'dept-2', department: { id: 'dept-2', name: '交警支队' }, role: 'user' },
+        ],
+        total: 3,
+        page: 1,
+        page_size: 100,
+      },
+    })
+  ),
+}))
+
+const mockWorkGroup: WorkGroupData = {
+  id: 'wg-test-1',
+  name: '雷霆2026专项行动',
+  description: '测试描述',
+  initiator_id: 'user-me',
+  initiator: { id: 'user-me', name: '测试用户', username: 'testuser' },
+  template_type: 'default',
+  status: 'active',
+  due_time: undefined,
+  members: [],
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+}
+
+const mockCreateWorkGroup = vi.fn(() =>
+  Promise.resolve({ data: mockWorkGroup })
+)
+
+const mockSearchGroups = vi.fn(() =>
+  Promise.resolve({ data: { data: [], total: 0 } })
+)
+
+const mockDeleteWorkGroup = vi.fn(() =>
+  Promise.resolve({ data: null })
+)
+
+const mockFetchNotes = vi.fn(() => Promise.resolve())
+
+vi.mock('@/services/workgroup', () => ({
+  createWorkGroup: (payload: unknown) => mockCreateWorkGroup(payload),
+  searchGroups: (query: unknown) => mockSearchGroups(query),
+  deleteWorkGroup: (id: string) => mockDeleteWorkGroup(id),
+}))
+
+vi.mock('@/services/groupNotes', () => ({
+  getGroupNotes: vi.fn(() => Promise.resolve({ data: [] })),
+  getGroupDashboard: vi.fn(() => Promise.resolve({ data: {} })),
+}))
+
+vi.mock('@/stores/notes', () => {
+  const actual = vi.importActual('@/stores/notes')
+  return {
+    useNoteStore: () => ({
+      activeNotes: { value: [] },
+      loading: { value: false },
+      error: { value: '' },
+      fetchNotes: mockFetchNotes,
+      createNote: vi.fn(() => Promise.resolve({ id: 'note-1' })),
+      updateNoteLocally: vi.fn(),
+      completeNote: vi.fn(),
+      remindNote: vi.fn(),
+    }),
+  }
+})
+
+describe('专项工作组创建流程 - 集成测试', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.setItem('auth_token', 'test-token')
+    localStorage.setItem('auth_user', JSON.stringify(mockUser))
+    mockCreateWorkGroup.mockClear()
+    mockSearchGroups.mockClear()
+  })
+
+  describe('表单验证', () => {
+    it('工作组名称为空时应显示错误提示', async () => {
+      const { default: WorkbenchPage } = await import('@/pages/WorkbenchPage.vue')
+      const wrapper = mount(WorkbenchPage, {
+        global: {
+          stubs: {
+            'router-link': { template: '<a><slot /></a>' },
+            StickyNoteCard: { template: '<div class="note-card" />' },
+          },
+        },
+      })
+
+      wrapper.vm.showWorkGroupModal = true
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.wgName = ''
+      await wrapper.vm.handleCreateWorkGroup()
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.wgError).toBe('请输入工作组名称')
+      expect(mockCreateWorkGroup).not.toHaveBeenCalled()
+    })
+
+    it('未选择成员时应显示错误提示', async () => {
+      const { default: WorkbenchPage } = await import('@/pages/WorkbenchPage.vue')
+      const wrapper = mount(WorkbenchPage, {
+        global: {
+          stubs: {
+            'router-link': { template: '<a><slot /></a>' },
+            StickyNoteCard: { template: '<div class="note-card" />' },
+          },
+        },
+      })
+
+      wrapper.vm.showWorkGroupModal = true
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.wgName = '测试工作组'
+      wrapper.vm.selectedWGUserIds = [[]]
+      await wrapper.vm.handleCreateWorkGroup()
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.wgError).toBe('请至少选择一个成员')
+      expect(mockCreateWorkGroup).not.toHaveBeenCalled()
+    })
+
+    it('填写完整信息后应成功提交', async () => {
+      const { default: WorkbenchPage } = await import('@/pages/WorkbenchPage.vue')
+      const wrapper = mount(WorkbenchPage, {
+        global: {
+          stubs: {
+            'router-link': { template: '<a><slot /></a>' },
+            StickyNoteCard: { template: '<div class="note-card" />' },
+          },
+        },
+      })
+
+      wrapper.vm.showWorkGroupModal = true
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.wgName = '雷霆2026专项行动'
+      wrapper.vm.wgDescription = '专项行动测试'
+      wrapper.vm.wgTemplate = 'default'
+      wrapper.vm.wgDueDate = '2026-12-31'
+      wrapper.vm.selectedWGUserIds = [['user-1', 'user-2']]
+      wrapper.vm.wgSubGroups = [
+        { name: '组长组', members: [] },
+      ]
+      wrapper.vm.onWGUserSelect(0, ['user-1', 'user-2'])
+
+      await wrapper.vm.handleCreateWorkGroup()
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.wgError).toBe('')
+      expect(mockCreateWorkGroup).toHaveBeenCalledTimes(1)
+      expect(mockCreateWorkGroup).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: '雷霆2026专项行动',
+          description: '专项行动测试',
+          template_type: 'default',
+          due_time: expect.stringContaining('2026-12-31'),
+          members: expect.arrayContaining([
+            expect.objectContaining({ user_id: 'user-1', role: 'leader' }),
+            expect.objectContaining({ user_id: 'user-2', role: 'leader' }),
+          ]),
+        })
+      )
+    })
+  })
+
+  describe('双重提交防护', () => {
+    it('wgCreating=true 时应阻止重复提交', async () => {
+      const { default: WorkbenchPage } = await import('@/pages/WorkbenchPage.vue')
+      const wrapper = mount(WorkbenchPage, {
+        global: {
+          stubs: {
+            'router-link': { template: '<a><slot /></a>' },
+            StickyNoteCard: { template: '<div class="note-card" />' },
+          },
+        },
+      })
+
+      wrapper.vm.showWorkGroupModal = true
+      wrapper.vm.wgName = '测试工作组'
+      wrapper.vm.wgCreating = true
+      await wrapper.vm.$nextTick()
+
+      await wrapper.vm.handleCreateWorkGroup()
+      await wrapper.vm.$nextTick()
+
+      expect(mockCreateWorkGroup).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('打开/关闭模态框', () => {
+    it('openWGModal 应重置表单状态', async () => {
+      const { default: WorkbenchPage } = await import('@/pages/WorkbenchPage.vue')
+      const wrapper = mount(WorkbenchPage, {
+        global: {
+          stubs: {
+            'router-link': { template: '<a><slot /></a>' },
+            StickyNoteCard: { template: '<div class="note-card" />' },
+          },
+        },
+      })
+
+      wrapper.vm.wgName = '旧名称'
+      wrapper.vm.wgError = '旧错误'
+      wrapper.vm.selectedWGUserIds = [['user-1']]
+
+      wrapper.vm.openWGModal()
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.wgName).toBe('')
+      expect(wrapper.vm.wgError).toBe('')
+      expect(wrapper.vm.selectedWGUserIds).toEqual([[]])
+    })
+  })
+
+  describe('人员选择不回传提交', () => {
+    it('onWGUserSelect 仅更新成员数据,不应调用 API', async () => {
+      const { default: WorkbenchPage } = await import('@/pages/WorkbenchPage.vue')
+      const wrapper = mount(WorkbenchPage, {
+        global: {
+          stubs: {
+            'router-link': { template: '<a><slot /></a>' },
+            StickyNoteCard: { template: '<div class="note-card" />' },
+          },
+        },
+      })
+
+      wrapper.vm.showWorkGroupModal = true
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.onWGUserSelect(0, ['user-1'])
+      await wrapper.vm.$nextTick()
+
+      expect(mockCreateWorkGroup).not.toHaveBeenCalled()
+      expect(wrapper.vm.selectedWGUserIds[0]).toEqual(['user-1'])
+    })
+
+    it('添加/删除小组不应触发提交', async () => {
+      const { default: WorkbenchPage } = await import('@/pages/WorkbenchPage.vue')
+      const wrapper = mount(WorkbenchPage, {
+        global: {
+          stubs: {
+            'router-link': { template: '<a><slot /></a>' },
+            StickyNoteCard: { template: '<div class="note-card" />' },
+          },
+        },
+      })
+
+      wrapper.vm.showWorkGroupModal = true
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.addSubGroup()
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.wgSubGroups.length).toBe(2)
+
+      wrapper.vm.removeSubGroup(1)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.wgSubGroups.length).toBe(1)
+
+      expect(mockCreateWorkGroup).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('成员角色分配', () => {
+    it('第一组(组长组)成员角色应为 leader', async () => {
+      const { default: WorkbenchPage } = await import('@/pages/WorkbenchPage.vue')
+      const wrapper = mount(WorkbenchPage, {
+        global: {
+          stubs: {
+            'router-link': { template: '<a><slot /></a>' },
+            StickyNoteCard: { template: '<div class="note-card" />' },
+          },
+        },
+      })
+
+      wrapper.vm.showWorkGroupModal = true
+      wrapper.vm.wgName = '测试工作组'
+      await wrapper.vm.$nextTick()
+
+      wrapper.vm.addSubGroup()
+      wrapper.vm.onWGUserSelect(0, ['user-1'])
+      wrapper.vm.onWGUserSelect(1, ['user-2'])
+      await wrapper.vm.$nextTick()
+
+      await wrapper.vm.handleCreateWorkGroup()
+      await wrapper.vm.$nextTick()
+
+      expect(mockCreateWorkGroup).toHaveBeenCalledWith(
+        expect.objectContaining({
+          members: expect.arrayContaining([
+            expect.objectContaining({ user_id: 'user-1', role: 'leader' }),
+            expect.objectContaining({ user_id: 'user-2', role: 'member' }),
+          ]),
+        })
+      )
+    })
+  })
+})

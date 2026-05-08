@@ -55,7 +55,7 @@ type CanvasConfigRequest struct {
 type UpdateNoteRequest struct {
 	Title       *string    `json:"title"`
 	Content     *string    `json:"content"`
-	TagIDs      []string   `json:"tags"`
+	TagIDs      *[]string  `json:"tags"`
 	DueTime     *time.Time `json:"due_time"`
 	ColorStatus *string    `json:"color_status"`
 	OwnerID     *string    `json:"owner_id"`
@@ -212,9 +212,9 @@ func (s *NoteService) Update(id, userID string, req UpdateNoteRequest) (*models.
 		}
 	}
 
-	if len(req.TagIDs) > 0 {
+	if req.TagIDs != nil {
 		note.Tags = nil
-		for _, tid := range req.TagIDs {
+		for _, tid := range *req.TagIDs {
 			id, err := uuid.Parse(tid)
 			if err != nil {
 				continue

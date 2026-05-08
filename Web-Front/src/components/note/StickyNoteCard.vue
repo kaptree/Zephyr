@@ -32,7 +32,10 @@ const isArchived = computed(() => props.archived || props.note.is_archived);
 
 const displayTags = computed(() => {
   const max = 2;
-  const tags = props.note.tags || [];
+  const tags = (props.note.tags || []).map((t: any) => {
+    if (typeof t === 'string') return { id: t, name: t, color: '#64748B' };
+    return t;
+  });
   const visible = tags.slice(0, max);
   const remaining = tags.length - max;
   return { visible, remaining };

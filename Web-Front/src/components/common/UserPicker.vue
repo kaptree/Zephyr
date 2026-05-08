@@ -141,6 +141,7 @@ const DeptTreeItem = defineComponent({
             h(
               'button',
               {
+                type: 'button',
                 class:
                   'w-full flex items-center gap-2 px-3 py-2.5 rounded-btn text-sm text-left transition-smooth hover:bg-slate-50',
                 onClick: () => onToggleDept(dept.id),
@@ -189,6 +190,7 @@ const DeptTreeItem = defineComponent({
                     h(
                       'button',
                       {
+                        type: 'button',
                         class: `w-full flex items-center gap-3 px-3 py-2 rounded-btn text-sm text-left transition-smooth ${isSel(user.id) ? 'bg-blue-50' : 'hover:bg-slate-50'}`,
                         onClick: () => onToggleUser(user.id),
                       },
@@ -294,6 +296,7 @@ const DeptTreeItem = defineComponent({
           <button
             v-for="user in filteredUsers"
             :key="user.id"
+            type="button"
             :class="[
               'w-full flex items-center gap-3 px-3 py-2.5 rounded-btn text-sm text-left transition-smooth',
               isSelected(user.id) ? 'bg-blue-50' : 'hover:bg-slate-50',

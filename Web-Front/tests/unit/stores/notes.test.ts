@@ -92,4 +92,63 @@ describe('useNoteStore', () => {
       expect(store.activeNotes).toHaveLength(1)
     })
   })
+
+  describe('updateNoteTags', () => {
+    const mockTag = { id: 'tag-1', name: '紧急', color: '#DC2626', scope: 'system' as const, category: '优先级', usage_count: 15 }
+
+    it('应成功更新便签标签', async () => {
+      const { updateNote } = await import('@/services/notes')
+      const store = useNoteStore()
+      store.$patch({
+        activeNotes: [
+          { id: 'note-1', title: '便签1', content: '内容1', color_status: 'yellow', source_type: 'self', owner_id: 'user-1', creator_id: 'user-1', is_archived: false, tags: [], assignees: [], remind_count: 0, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' } as any,
+        ],
+      })
+
+      await store.updateNoteTags('note-1', ['tag-1'])
+      expect(updateNote).toHaveBeenCalledWith('note-1', { tags: ['tag-1'] })
+    })
+
+    it('乐观更新应反映在 tags 中', async () => {
+      const store = useNoteStore()
+      store.$patch({
+        activeNotes: [
+          { id: 'note-1', title: '便签1', content: '内容1', color_status: 'yellow', source_type: 'self', owner_id: 'user-1', creator_id: 'user-1', is_archived: false, tags: [mockTag], assignees: [], remind_count: 0, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' } as any,
+        ],
+      })
+
+      const promise = store.updateNoteTags('note-1', ['tag-1'])
+      expect(store.activeNotes[0].tags).toHaveLength(1)
+      expect((store.activeNotes[0].tags as any)[0].id).toBe('tag-1')
+      await promise
+    })
+
+    it('空数组应清空所有标签', async () => {
+      const { updateNote } = await import('@/services/notes')
+      const store = useNoteStore()
+      store.$patch({
+        activeNotes: [
+          { id: 'note-1', title: '便签1', content: '内容1', color_status: 'yellow', source_type: 'self', owner_id: 'user-1', creator_id: 'user-1', is_archived: false, tags: [mockTag], assignees: [], remind_count: 0, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' } as any,
+        ],
+      })
+
+      await store.updateNoteTags('note-1', [])
+      expect(updateNote).toHaveBeenCalledWith('note-1', { tags: [] })
+    })
+
+    it('更新失败时应回滚标签', async () => {
+      const { updateNote } = await import('@/services/notes')
+      vi.mocked(updateNote).mockRejectedValueOnce(new Error('网络错误'))
+      const store = useNoteStore()
+      store.$patch({
+        activeNotes: [
+          { id: 'note-1', title: '便签1', content: '内容1', color_status: 'yellow', source_type: 'self', owner_id: 'user-1', creator_id: 'user-1', is_archived: false, tags: [mockTag], assignees: [], remind_count: 0, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' } as any,
+        ],
+      })
+
+      await expect(store.updateNoteTags('note-1', ['tag-2'])).rejects.toThrow('标签更新失败')
+      expect(store.activeNotes[0].tags).toHaveLength(1)
+      expect((store.activeNotes[0].tags as any)[0].id).toBe('tag-1')
+    })
+  })
 })

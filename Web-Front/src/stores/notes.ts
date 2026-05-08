@@ -103,13 +103,45 @@ export const useNoteStore = defineStore('notes', () => {
       return;
     }
     const original = { ...activeNotes.value[index] };
-    activeNotes.value[index] = { ...activeNotes.value[index], ...payload };
+    const optimistic: Record<string, unknown> = { ...payload };
+    activeNotes.value[index] = { ...activeNotes.value[index], ...optimistic } as Note;
     try {
       const res = await noteService.updateNote(id, payload);
       activeNotes.value[index] = normalizeNote(res.data as unknown as BackendNote);
     } catch {
       activeNotes.value[index] = original;
       throw new Error('更新失败');
+    }
+  }
+
+  async function updateNoteTags(id: string, tagIds: string[]) {
+    const index = activeNotes.value.findIndex((n) => n.id === id);
+    if (index === -1) {
+      await noteService.updateNote(id, { tags: tagIds });
+      return;
+    }
+    const originalTags = activeNotes.value[index].tags;
+    const syntheticTags = tagIds.map((tid) => {
+      const existing = (originalTags || []).find((t) => t.id === tid);
+      return (
+        existing || {
+          id: tid,
+          name: '',
+          color: '#64748B',
+          scope: 'personal' as const,
+          category: '',
+          usage_count: 0,
+        }
+      );
+    });
+    activeNotes.value[index] = { ...activeNotes.value[index], tags: syntheticTags };
+    try {
+      const res = await noteService.updateNote(id, { tags: tagIds });
+      const updated = normalizeNote(res.data as unknown as BackendNote);
+      activeNotes.value[index] = { ...activeNotes.value[index], tags: updated.tags };
+    } catch {
+      activeNotes.value[index] = { ...activeNotes.value[index], tags: originalTags };
+      throw new Error('标签更新失败');
     }
   }
 
@@ -178,6 +210,7 @@ export const useNoteStore = defineStore('notes', () => {
     loadMore,
     createNote,
     updateNoteLocally,
+    updateNoteTags,
     completeNote,
     remindNote,
     archiveNote,

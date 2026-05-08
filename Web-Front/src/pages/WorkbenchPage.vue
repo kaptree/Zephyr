@@ -27,8 +27,11 @@ const createError = ref('');
 
 const editingTitle = ref('');
 const editingContent = ref('');
+const selectedEditingTagIds = ref<string[]>([]);
 const saving = ref(false);
 const completing = ref(false);
+const tagSaving = ref(false);
+const tagError = ref('');
 
 const activeTab = ref('all');
 
@@ -98,6 +101,8 @@ function openDetail(note: Note) {
   selectedNote.value = note;
   editingTitle.value = note.title || '';
   editingContent.value = note.content || '';
+  selectedEditingTagIds.value = (note.tags || []).map((t) => t.id);
+  tagError.value = '';
   showDetailPanel.value = true;
 }
 function closeDetail() {
@@ -107,6 +112,7 @@ function closeDetail() {
 }
 
 async function handleSubmit() {
+  if (creating.value) return;
   if (!newTitle.value.trim()) {
     createError.value = '请输入便签标题';
     return;
@@ -157,12 +163,33 @@ async function handleSaveDetail() {
     await noteStore.updateNoteLocally(selectedNote.value.id, {
       title: editingTitle.value.trim(),
       content: editingContent.value,
-    });
+      tags: selectedEditingTagIds.value,
+    } as any);
     closeDetail();
   } catch {
     /* ignore */
   } finally {
     saving.value = false;
+  }
+}
+async function handleUpdateTags(tagIds: string[]) {
+  if (!selectedNote.value) return;
+  selectedEditingTagIds.value = tagIds;
+  tagSaving.value = true;
+  tagError.value = '';
+  try {
+    await noteStore.updateNoteTags(selectedNote.value.id, tagIds);
+    selectedNote.value = {
+      ...selectedNote.value,
+      tags:
+        noteStore.activeNotes.find((n) => n.id === selectedNote.value!.id)?.tags ||
+        selectedNote.value.tags,
+    };
+  } catch {
+    tagError.value = '标签更新失败，请重试';
+    selectedEditingTagIds.value = (selectedNote.value.tags || []).map((t) => t.id);
+  } finally {
+    tagSaving.value = false;
   }
 }
 async function handleComplete(note: Note) {
@@ -234,6 +261,7 @@ function onWGUserSelect(idx: number, userIds: string[]) {
   }));
 }
 async function handleCreateWorkGroup() {
+  if (wgCreating.value) return;
   if (!wgName.value.trim()) {
     wgError.value = '请输入工作组名称';
     return;
@@ -731,17 +759,17 @@ const templateLabels: Record<string, string> = {
                 />
               </div>
               <div>
-                <span class="text-xs text-slate-400 mb-1 block">标签</span>
-                <div v-if="(selectedNote.tags || []).length" class="flex flex-wrap gap-2">
-                  <span
-                    v-for="tag in selectedNote.tags"
-                    :key="tag.id"
-                    class="tag-capsule text-white"
-                    :style="{ backgroundColor: tag.color || '#64748B' }"
-                    >{{ tag.name }}</span
-                  >
-                </div>
-                <span v-else class="text-xs text-slate-300">无标签</span>
+                <span class="text-xs text-slate-400 mb-1 flex items-center gap-2">
+                  标签
+                  <span v-if="tagSaving" class="text-[10px] text-blue-400">保存中...</span>
+                  <span v-if="tagError" class="text-[10px] text-red-400">{{ tagError }}</span>
+                </span>
+                <TagSelector
+                  v-model="selectedEditingTagIds"
+                  :max="10"
+                  scope="all"
+                  @update:model-value="handleUpdateTags"
+                />
               </div>
               <div class="bg-slate-50 dark:bg-slate-900 rounded-card p-4 space-y-2">
                 <div class="flex justify-between text-xs">
