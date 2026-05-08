@@ -1,0 +1,1 @@
+import{f as e,p as t}from"./index-GyIZGKFW.js";function n(t){return e(`/api/v1/tags`,{scope:t})}function r(e){return t(`/api/v1/tags`,e)}export{n,r as t};
