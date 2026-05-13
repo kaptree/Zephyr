@@ -190,23 +190,59 @@ func seedTags() int {
 		return 0
 	}
 
-	tags := []models.Tag{
+	total := 0
+
+	priorityTags := []models.Tag{
 		{Name: "紧急", Color: "#EF4444", Category: "优先级", Scope: "system", SortOrder: 1},
 		{Name: "重要", Color: "#F59E0B", Category: "优先级", Scope: "system", SortOrder: 2},
 		{Name: "普通", Color: "#3B82F6", Category: "优先级", Scope: "system", SortOrder: 3},
-		{Name: "情报研判", Color: "#8B5CF6", Category: "工作类型", Scope: "system", SortOrder: 4},
-		{Name: "案件协查", Color: "#EC4899", Category: "工作类型", Scope: "system", SortOrder: 5},
-		{Name: "数据采集", Color: "#10B981", Category: "工作类型", Scope: "system", SortOrder: 6},
-		{Name: "巡控布防", Color: "#F97316", Category: "工作类型", Scope: "system", SortOrder: 7},
-		{Name: "专项行动", Color: "#DC2626", Category: "工作类型", Scope: "system", SortOrder: 8},
-		{Name: "技术支援", Color: "#06B6D4", Category: "工作类型", Scope: "system", SortOrder: 9},
-		{Name: "会议纪要", Color: "#6366F1", Category: "自定义", Scope: "system", SortOrder: 10},
-		{Name: "人员协查", Color: "#14B8A6", Category: "自定义", Scope: "system", SortOrder: 11},
-		{Name: "车辆轨迹", Color: "#EAB308", Category: "自定义", Scope: "system", SortOrder: 12},
 	}
-	database.DB.Create(&tags)
-	fmt.Printf("  ✓ 标签: %d 个\n", len(tags))
-	return len(tags)
+	database.DB.Create(&priorityTags)
+	total += len(priorityTags)
+
+	categories := []struct {
+		Name     string
+		Color    string
+		Children []string
+	}{
+		{"治安管控", "#2563EB", []string{"行业检查", "场所巡查", "隐患排查", "治安巡逻", "重点人员管控"}},
+		{"巡逻防控", "#059669", []string{"街面巡逻", "卡点盘查", "视频巡查", "便衣巡逻", "武装联勤"}},
+		{"矛盾调解", "#7C3AED", []string{"邻里纠纷", "家庭矛盾", "物业纠纷", "劳资纠纷", "征地拆迁"}},
+		{"线索核查", "#EA580C", []string{"刑事线索", "治安线索", "网安线索", "禁毒线索", "经侦线索"}},
+		{"专案办理", "#DC2626", []string{"刑事专案", "治安专案", "毒品专案", "经侦专案", "网安专案"}},
+		{"安保勤务", "#CA8A04", []string{"大型活动安保", "警卫任务", "安全检查", "应急处置", "维稳处突"}},
+		{"舆情处置", "#0891B2", []string{"舆情监测", "舆论引导", "信息核查", "辟谣发布", "网络巡查"}},
+		{"内勤事务", "#4B5563", []string{"档案管理", "装备管理", "会议保障", "报表统计", "材料报送"}},
+		{"其他工作", "#6B7280", []string{"培训学习", "社区走访", "协助外单位", "临时勤务", "其他"}},
+	}
+
+	for i, cat := range categories {
+		parent := models.Tag{
+			Name:     cat.Name,
+			Color:    cat.Color,
+			Category: "一级分类",
+			Scope:    "system",
+			SortOrder: i + 10,
+		}
+		database.DB.Create(&parent)
+		total++
+
+		for j, childName := range cat.Children {
+			child := models.Tag{
+				Name:     childName,
+				Color:    cat.Color,
+				Category: "二级分类",
+				Scope:    "system",
+				ParentID: &parent.ID,
+				SortOrder: j + 1,
+			}
+			database.DB.Create(&child)
+			total++
+		}
+	}
+
+	fmt.Printf("  ✓ 标签: %d 个 (含 %d 个一级分类, 各含 5 个子标签)\n", total, len(categories))
+	return total
 }
 
 func seedTemplates() int {
@@ -276,14 +312,14 @@ func seedNotes() int {
 	noteCount := 0
 
 	due24h := time.Now().Add(24 * time.Hour)
-	n1 := createNote(userMap["zhang"], deptMap["技术侦查中队"], []models.Tag{tagMap["重要"], tagMap["情报研判"]},
+	n1 := createNote(userMap["zhang"], deptMap["技术侦查中队"], []models.Tag{tagMap["重要"], tagMap["刑事线索"]},
 		"嫌疑人活动轨迹分析", "<p>针对近期连环盗窃案嫌疑人张某的活动轨迹进行分析研判，需梳理其近14天的活动规律、落脚点和同案人员关系网。</p>",
 		"yellow", "self", &due24h)
 	_ = n1
 	noteCount++
 
 	due6h := time.Now().Add(6 * time.Hour)
-	n2 := createNote(userMap["li"], deptMap["技术侦查中队"], []models.Tag{tagMap["紧急"], tagMap["案件协查"]},
+	n2 := createNote(userMap["li"], deptMap["技术侦查中队"], []models.Tag{tagMap["紧急"], tagMap["刑事线索"]},
 		"紧急协查：涉黑团伙骨干在逃", "<p>上级通报涉黑团伙骨干成员李某可能已潜入我市，需立即组织警力开展摸排布控，务必将嫌疑人尽快抓捕归案。</p>",
 		"red", "assigned", &due6h)
 	addAssignee(n2.ID, userMap["li"].ID, userMap["zhang"].ID)
@@ -291,7 +327,7 @@ func seedNotes() int {
 	noteCount++
 
 	due48h := time.Now().Add(48 * time.Hour)
-	n3 := createNote(userMap["admin"], deptMap["市公司局"], []models.Tag{tagMap["紧急"], tagMap["专项行动"]},
+	n3 := createNote(userMap["admin"], deptMap["市公司局"], []models.Tag{tagMap["紧急"], tagMap["刑事专案"]},
 		"「雷霆2026」夏季治安打击专项行动", "<p>根据公司部和省厅统一部署，在全市范围内开展「雷霆2026」夏季治安打击专项行动。主要目标：严厉打击涉黑涉恶、黄赌毒、电信诈骗等突出违法犯罪。</p>",
 		"red", "assigned", &due48h)
 	addAssignee(n3.ID, userMap["admin"].ID, userMap["wang"].ID)
@@ -301,19 +337,19 @@ func seedNotes() int {
 	noteCount++
 
 	due72h := time.Now().Add(72 * time.Hour)
-	createNote(userMap["zhao"], deptMap["情报研判中队"], []models.Tag{tagMap["普通"], tagMap["数据采集"]},
+	createNote(userMap["zhao"], deptMap["情报研判中队"], []models.Tag{tagMap["普通"], tagMap["场所巡查"]},
 		"重点场所人员信息采集任务", "<p>完成辖区内旅馆、网吧、KTV等重点场所的外来人员信息采集，确保信息准确率达100%，本周五前完成汇总上报。</p>",
 		"yellow", "self", &due72h)
 	noteCount++
 
 	due120h := time.Now().Add(120 * time.Hour)
-	createNote(userMap["sun"], deptMap["治安支队"], []models.Tag{tagMap["重要"], tagMap["巡控布防"]},
+	createNote(userMap["sun"], deptMap["治安支队"], []models.Tag{tagMap["重要"], tagMap["治安巡逻"]},
 		"端午节期间重点区域巡控布防方案", "<p>制定端午节期间火车站、商业圈、旅游景点等重点区域巡控布防方案，合理调配警力资源。</p>",
 		"yellow", "self", &due120h)
 	noteCount++
 
 	now := time.Now()
-	n6 := createNote(userMap["zhou"], deptMap["应急管理大队"], []models.Tag{tagMap["普通"], tagMap["技术支援"]},
+	n6 := createNote(userMap["zhou"], deptMap["应急管理大队"], []models.Tag{tagMap["普通"], tagMap["应急处置"]},
 		"应急指挥系统链路调试", "<p>配合技术部门完成应急指挥系统的链路调试，确保会议中心、各分局、车载终端的音视频正常联通。</p>",
 		"green", "self", nil)
 	n6.ColorStatus = "green"
@@ -325,20 +361,20 @@ func seedNotes() int {
 	noteCount++
 
 	due36h := time.Now().Add(36 * time.Hour)
-	createNote(userMap["wu"], deptMap["网安支队"], []models.Tag{tagMap["重要"], tagMap["技术支援"]},
+	createNote(userMap["wu"], deptMap["网安支队"], []models.Tag{tagMap["重要"], tagMap["应急处置"]},
 		"涉网案件电子取证分析", "<p>对近期侦办的网络诈骗案件进行电子数据取证分析，包括服务器日志分析、电子支付记录追踪和通讯记录恢复。</p>",
 		"yellow", "self", &due36h)
 	noteCount++
 
 	due2h := time.Now().Add(2 * time.Hour)
-	n8 := createNote(userMap["chen"], deptMap["作战指挥中队"], []models.Tag{tagMap["紧急"], tagMap["案件协查"]},
+	n8 := createNote(userMap["chen"], deptMap["作战指挥中队"], []models.Tag{tagMap["紧急"], tagMap["刑事线索"]},
 		"重大警情：网络攻击溯源", "<p>市政务云平台遭受DDoS攻击，需立即开展溯源分析，封堵攻击IP，评估数据泄露风险，并形成技术通报。</p>",
 		"red", "assigned", &due2h)
 	addAssignee(n8.ID, userMap["chen"].ID, userMap["wu"].ID)
 	_ = n8
 	noteCount++
 
-	n9 := createNote(userMap["wang"], deptMap["刑警支队"], []models.Tag{tagMap["重要"], tagMap["会议纪要"]},
+	n9 := createNote(userMap["wang"], deptMap["刑警支队"], []models.Tag{tagMap["重要"], tagMap["会议保障"]},
 		"全市刑侦工作月度分析会议纪要", "<p>总结上月刑侦工作成效，分析当前刑事犯罪形势，部署本月重点工作。重点议题：电诈打防、命案积案攻坚、追逃工作。</p>",
 		"green", "self", nil)
 	n9.ColorStatus = "green"
@@ -350,12 +386,24 @@ func seedNotes() int {
 	noteCount++
 
 	due8h := time.Now().Add(8 * time.Hour)
-	createNote(userMap["liu"], deptMap["技术侦查中队"], []models.Tag{tagMap["普通"], tagMap["车辆轨迹"]},
+	createNote(userMap["liu"], deptMap["技术侦查中队"], []models.Tag{tagMap["普通"], tagMap["其他"]},
 		"嫌疑车辆轨迹查询", "<p>查询车牌号京A·XXXXX在2026年4月20日至25日期间的行驶轨迹，包括ETC记录、卡口抓拍、停车场进出记录。</p>",
 		"yellow", "self", &due8h)
 	noteCount++
 
-	fmt.Printf("  ✓ 任务: %d 条 (2条已归档, 3条紧急盯办)\n", noteCount)
+	dueCollab := time.Now().Add(24 * time.Hour)
+	c1 := createNote(userMap["wang"], deptMap["刑警支队"], []models.Tag{tagMap["重要"], tagMap["刑事线索"]},
+		"协同研判：跨区域系列盗窃案件串并分析", "<p>联合治安支队、网安支队共同研判近期城区系列盗窃案件，分析案件特征、作案手法，进行案件串并，制定协同作战方案。</p>",
+		"blue", "collaboration", &dueCollab)
+	_ = c1
+	noteCount++
+
+	createNote(userMap["sun"], deptMap["治安支队"], []models.Tag{tagMap["重要"], tagMap["隐患排查"]},
+		"协同排查：重点场所联合安全检查行动", "<p>联合消防、市场监管等部门，对辖区内重点场所开展联合安全检查，各成员单位分工协作，汇总检查结果并制定整改方案。</p>",
+		"blue", "collaboration", &dueCollab)
+	noteCount++
+
+	fmt.Printf("  ✓ 任务: %d 条 (2条已归档, 3条紧急盯办, 2条协同协作)\n", noteCount)
 	return noteCount
 }
 

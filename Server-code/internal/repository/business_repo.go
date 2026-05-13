@@ -16,11 +16,22 @@ func NewTagRepository(db *gorm.DB) *TagRepository {
 	return &TagRepository{db: db}
 }
 
-func (r *TagRepository) FindAll(scope string) ([]models.Tag, error) {
+func (r *TagRepository) FindAll(scope string, parentID *uuid.UUID, category string) ([]models.Tag, error) {
 	var tags []models.Tag
 	query := r.db.Order("sort_order ASC, name ASC")
 	if scope != "" && scope != "all" {
 		query = query.Where("scope = ?", scope)
+	}
+	if parentID != nil {
+		query = query.Where("parent_id = ?", parentID)
+	}
+	if category != "" {
+		query = query.Where("category = ?", category)
+	}
+	if category == "一级分类" {
+		query = query.Preload("Children", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC, name ASC")
+		})
 	}
 	if err := query.Find(&tags).Error; err != nil {
 		return nil, err

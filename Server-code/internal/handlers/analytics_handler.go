@@ -354,6 +354,162 @@ func (h *AnalyticsHandler) SaveReportTemplate(c *gin.Context) {
 	utils.SuccessWithMessage(c, "模板保存成功", tpl)
 }
 
+func (h *AnalyticsHandler) GenerateDailyReport(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	userName := c.GetString("username")
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	h.generatePeriodReport(c, userID, userName, "day", "今日", todayStart, now)
+}
+
+func (h *AnalyticsHandler) GenerateWeeklyReport(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	userName := c.GetString("username")
+	now := time.Now()
+	weekday := now.Weekday()
+	if weekday == time.Sunday {
+		weekday = 7
+	}
+	daysFromMonday := int(weekday) - int(time.Monday)
+	weekStart := time.Date(now.Year(), now.Month(), now.Day()-daysFromMonday, 0, 0, 0, 0, now.Location())
+	h.generatePeriodReport(c, userID, userName, "week", "本周", weekStart, now)
+}
+
+func (h *AnalyticsHandler) GenerateMonthlyReport(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	userName := c.GetString("username")
+	now := time.Now()
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	h.generatePeriodReport(c, userID, userName, "month", "本月", monthStart, now)
+}
+
+func (h *AnalyticsHandler) generatePeriodReport(c *gin.Context, userID, userName, period, periodLabel string, since, now time.Time) {
+	days := int(now.Sub(since).Hours()/24) + 1
+	stats, err := h.noteRepo.GetPersonalStats(userID, days)
+	if err != nil {
+		utils.InternalError(c, "查询统计数据失败")
+		return
+	}
+
+	sourceStats := h.getSourceTypeDistribution(userID, since)
+	tagSummary := buildTagSummary(stats.TagBreakdown)
+	sourceSummary := buildSourceSummary(sourceStats)
+
+	completionDesc := "工作完成情况良好"
+	if stats.CompletionRate < 30 {
+		completionDesc = "工作任务完成率较低，建议加强任务推进力度"
+	} else if stats.CompletionRate < 60 {
+		completionDesc = "工作完成率有待提升，建议合理规划任务优先级"
+	} else if stats.CompletionRate < 80 {
+		completionDesc = "工作推进较为稳健，完成率处于中等水平"
+	}
+
+	template := getDefaultReportTemplateForPeriod()
+	tpl, err := h.sysRepo.GetReportTemplate("default")
+	if err == nil && tpl.Content != "" {
+		template = tpl.Content
+	}
+
+	report := template
+	report = strings.ReplaceAll(report, "{{userName}}", userName)
+	report = strings.ReplaceAll(report, "{{periodLabel}}", periodLabel)
+	report = strings.ReplaceAll(report, "{{totalCreated}}", strconv.FormatInt(stats.TotalCreated, 10))
+	report = strings.ReplaceAll(report, "{{totalCompleted}}", strconv.FormatInt(stats.TotalCompleted, 10))
+	report = strings.ReplaceAll(report, "{{completionRate}}", fmt.Sprintf("%.1f", stats.CompletionRate))
+	report = strings.ReplaceAll(report, "{{completionDesc}}", completionDesc)
+	report = strings.ReplaceAll(report, "{{tagSummary}}", tagSummary)
+	report = strings.ReplaceAll(report, "{{sourceSummary}}", sourceSummary)
+	report = strings.ReplaceAll(report, "{{dateRange}}", fmt.Sprintf("%s ~ %s", since.Format("01-02"), now.Format("01-02")))
+
+	statsJSON, _ := json.Marshal(map[string]interface{}{
+		"stats":        stats,
+		"source_stats": sourceStats,
+	})
+
+	title := fmt.Sprintf("%s工作报告 - %s", periodLabel, now.Format("2006-01-02 15:04"))
+
+	workReport := &models.WorkReport{
+		ID:           uuid.New(),
+		UserID:       userID,
+		UserName:     userName,
+		Period:       period,
+		PeriodLabel:  periodLabel,
+		ReportType:   "template",
+		Title:        title,
+		Content:      report,
+		StatsSummary: string(statsJSON),
+	}
+	_ = h.sysRepo.CreateWorkReport(workReport)
+
+	utils.Success(c, gin.H{
+		"report_id":     workReport.ID.String(),
+		"period":        period,
+		"period_label":  periodLabel,
+		"report_type":   "template",
+		"stats":         stats,
+		"source_stats":  sourceStats,
+		"report":        report,
+		"generated_at":  workReport.CreatedAt.Format(time.RFC3339),
+	})
+}
+
+func (h *AnalyticsHandler) getSourceTypeDistribution(userID string, since time.Time) []repository.SourceTypeStat {
+	results, _ := h.noteRepo.SourceTypeDistribution(userID, since)
+	return results
+}
+
+func buildTagSummary(breakdown []repository.TagBreakdown) string {
+	if len(breakdown) == 0 {
+		return "- 暂无标签数据"
+	}
+	var lines []string
+	for _, t := range breakdown {
+		lines = append(lines, fmt.Sprintf("- **%s**：%d 条", t.TagName, t.Count))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func buildSourceSummary(stats []repository.SourceTypeStat) string {
+	if len(stats) == 0 {
+		return "- 暂无来源类型数据"
+	}
+	var lines []string
+	for _, s := range stats {
+		label := s.SourceType
+		switch s.SourceType {
+		case "self":
+			label = "自主创建"
+		case "assigned":
+			label = "上级交办"
+		default:
+			label = s.SourceType
+		}
+		lines = append(lines, fmt.Sprintf("- **%s**：%d 条", label, s.Count))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func getDefaultReportTemplateForPeriod() string {
+	return `## 工作概览
+
+{{userName}}（{{periodLabel}}，{{dateRange}}）共创建任务 **{{totalCreated}}** 条，完成 **{{totalCompleted}}** 条，完成率为 **{{completionRate}}%**。{{completionDesc}}。
+
+## 任务分类统计
+
+{{tagSummary}}
+
+## 来源类型分布
+
+{{sourceSummary}}
+
+## 总结
+
+{{periodLabel}}期间共创建 {{totalCreated}} 条任务，其中自主创建和上级交办任务分布如上所示。需要在后续工作中继续保持任务推进的节奏，关注高优先级事项的处理。
+
+---
+*本报告由系统自动生成，基于实际工作数据统计分析*`
+}
+
 func buildReportPrompt(userName, periodLabel string, stats *repository.PersonalStats, period string) string {
 	tagList := ""
 	for i, t := range stats.TagBreakdown {

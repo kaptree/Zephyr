@@ -181,6 +181,19 @@ Web-Front/src/
 - 报告历史 Tab：AI 生成的报告列表
 - 「📝 编辑模板」按钮：Markdown 模板编辑器，支持变量占位符（如 `{{userName}}`、`{{completionRate}}`），变量高亮显示
 
+### 5.6 TemplatesPage — 模板库管理（★ 用户自定义模板）
+
+- **网格展示**：每个模板卡片展示名称、类型徽章（颜色编码）、字段数量、系统/用户标识
+- **「+ 添加模版」按钮**：右上角主操作入口，打开创建/编辑模态框
+- **模态表单**：
+  - 模板名称（必填）
+  - 模板类型下拉选择：通用任务 / 数据分析 / 专项行动 / 紧急协查 / 协同作战 / 自定义
+  - 布局样式下拉选择：单栏 / 双栏 / 四宫格 / 六宫格
+  - 字段定义 JSON 编辑区（textarea，带示例提示）
+- **编辑功能**：所有模板均可编辑，点击「编辑」按钮打开相同模态框回填数据
+- **删除保护**：系统内置模板（`is_system: true`）不显示删除按钮；用户自定义模板点击「删除」弹出二次确认
+- **任务创建联动**：WorkbenchPage 创建任务时，可选择已有模板自动预填字段占位符到内容区
+
 ---
 
 ## 六、核心组件设计
@@ -230,8 +243,9 @@ Web-Front/src/
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
 | `api.ts`        | `get / post / put / del`                                                                                                     | Axios 封装，统一拦截器 |
 | `admin.ts`      | `login / getDepartments / getUsers / createUser / updateUser / deleteUser / getVisibleUsers / getUserProfile / getUsersWithStats / recommendUsers / getWorkTypeOptions` | 认证+组织+人员+推荐   |
-| `notes.ts`      | `fetchNotes / createNote / updateNote / completeNote / remindNote / deleteNote / restoreNote / fetchNoteStats / exportNotes` | 任务 CRUD + 统计       |
+| `notes.ts`      | `fetchNotes / createNote / updateNote / completeNote / remindNote / deleteNote / restoreNote / fetchNoteStats / exportNotes / fetchHeatmap` | 任务 CRUD + 统计 + 热力图 |
 | `tags.ts`       | `fetchTags / createTag / updateTag / deleteTag`                                                                              | 标签管理               |
+| `templates.ts`  | `fetchTemplates / fetchTemplateById / createTemplate / updateTemplate / deleteTemplate`                                      | ★ 模板管理 CRUD        |
 | `workgroup.ts`  | `searchGroups / getMyGroups / getWorkGroupDetail / createWorkGroup / deleteWorkGroup / getWorkGroupMembers`                  | 工作组 CRUD + 搜索     |
 | `groupNotes.ts` | `getGroupNotes / createGroupNote`                                                                                            | 专属任务               |
 | `analytics.ts`  | `fetchPersonalStats / generateAIReport / fetchReports / fetchReportTemplate / saveReportTemplate`                            | 分析+报告模板          |

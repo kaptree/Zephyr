@@ -48,6 +48,113 @@ func (h *TemplateHandler) Get(c *gin.Context) {
 	utils.Success(c, tmpl)
 }
 
+type CreateTemplateRequest struct {
+	Name   string `json:"name" binding:"required,max=100"`
+	Type   string `json:"type"`
+	Fields string `json:"fields"`
+	Layout string `json:"layout"`
+}
+
+func (h *TemplateHandler) Create(c *gin.Context) {
+	var req CreateTemplateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "请输入模板名称")
+		return
+	}
+
+	userID := middleware.GetUserID(c)
+	tmpl := &models.Template{
+		Name:      req.Name,
+		Type:      req.Type,
+		Fields:    req.Fields,
+		Layout:    req.Layout,
+		IsSystem:  false,
+		CreatorID: uuidPtr(userID),
+	}
+	if tmpl.Type == "" {
+		tmpl.Type = "default"
+	}
+	if tmpl.Layout == "" {
+		tmpl.Layout = "1"
+	}
+	if tmpl.Fields == "" {
+		tmpl.Fields = `[{"name":"任务描述","type":"textarea","required":true,"order":1}]`
+	}
+
+	if err := h.tmplRepo.Create(tmpl); err != nil {
+		utils.InternalError(c, "创建模板失败")
+		return
+	}
+	utils.Created(c, tmpl)
+}
+
+type UpdateTemplateRequest struct {
+	Name   *string `json:"name"`
+	Type   *string `json:"type"`
+	Fields *string `json:"fields"`
+	Layout *string `json:"layout"`
+}
+
+func (h *TemplateHandler) Update(c *gin.Context) {
+	id := c.Param("id")
+	tmpl, err := h.tmplRepo.FindByID(id)
+	if err != nil {
+		utils.NotFound(c, "模板不存在")
+		return
+	}
+
+	var req UpdateTemplateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "请求参数错误")
+		return
+	}
+
+	if req.Name != nil {
+		tmpl.Name = *req.Name
+	}
+	if req.Type != nil {
+		tmpl.Type = *req.Type
+	}
+	if req.Fields != nil {
+		tmpl.Fields = *req.Fields
+	}
+	if req.Layout != nil {
+		tmpl.Layout = *req.Layout
+	}
+
+	if err := h.tmplRepo.Update(tmpl); err != nil {
+		utils.InternalError(c, "更新模板失败")
+		return
+	}
+	utils.Success(c, tmpl)
+}
+
+func (h *TemplateHandler) Delete(c *gin.Context) {
+	id := c.Param("id")
+	tmpl, err := h.tmplRepo.FindByID(id)
+	if err != nil {
+		utils.NotFound(c, "模板不存在")
+		return
+	}
+	if tmpl.IsSystem {
+		utils.Forbidden(c, "系统内置模板不可删除")
+		return
+	}
+	if err := h.tmplRepo.Delete(id); err != nil {
+		utils.InternalError(c, "删除模板失败")
+		return
+	}
+	utils.Success(c, nil)
+}
+
+func uuidPtr(userID string) *uuid.UUID {
+	parsed, err := uuid.Parse(userID)
+	if err != nil {
+		return nil
+	}
+	return &parsed
+}
+
 type WorkGroupHandler struct {
 	groupRepo  *repository.WorkGroupRepository
 	noteRepo   *repository.NoteRepository
@@ -153,7 +260,7 @@ func (h *WorkGroupHandler) Create(c *gin.Context) {
 			Content:      req.Description,
 			SourceType:   "assigned",
 			TemplateType: templateType,
-			ColorStatus:  "yellow",
+			ColorStatus:  "red",
 			CreatorID:    initiatorUID,
 			OwnerID:      memberUID,
 			AssignerID:   &initiatorUID,
@@ -431,7 +538,7 @@ func (h *WorkGroupHandler) CreateGroupNote(c *gin.Context) {
 		Title:       req.Title,
 		Content:     req.Content,
 		SourceType:  "assigned",
-		ColorStatus: "yellow",
+		ColorStatus: "red",
 		CreatorID:   creatorUID,
 		OwnerID:     ownerUID,
 		GroupID:     &group.ID,

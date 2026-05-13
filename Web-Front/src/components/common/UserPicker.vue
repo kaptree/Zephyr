@@ -8,10 +8,12 @@ const props = withDefaults(
     modelValue: string[];
     multiple?: boolean;
     max?: number;
+    dropUp?: boolean;
   }>(),
   {
     multiple: true,
     max: 20,
+    dropUp: false,
   }
 );
 
@@ -269,7 +271,8 @@ const DeptTreeItem = defineComponent({
 
     <div
       v-if="open"
-      class="absolute top-full left-0 mt-1 w-80 bg-white rounded-card shadow-modal border border-slate-100 z-50 overflow-hidden"
+      class="absolute left-0 w-80 bg-white rounded-card shadow-modal border border-slate-100 z-50 overflow-hidden"
+      :class="dropUp ? 'bottom-full mb-1' : 'top-full mt-1'"
     >
       <div class="p-3 border-b border-slate-100">
         <input

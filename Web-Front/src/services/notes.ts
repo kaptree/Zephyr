@@ -51,3 +51,7 @@ export function exportNote(id: string, templateId?: string) {
 export function fetchNoteStats(params?: { days?: number; dept_id?: string; status?: string }) {
   return get<{ total_notes: number; active_notes: number; trend: { date: string; count: number }[] }>('/api/v1/notes/stats', params as Record<string, unknown>)
 }
+
+export function fetchHeatmap(year: number) {
+  return get<{ total_archived: number; year: number; daily: { date: string; count: number }[] }>('/api/v1/notes/heatmap', { year } as Record<string, unknown>)
+}

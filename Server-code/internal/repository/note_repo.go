@@ -467,4 +467,58 @@ func (r *NoteRepository) ListAllByGroup(groupID string) ([]models.Note, error) {
 	return notes, err
 }
 
+type SourceTypeStat struct {
+	SourceType string `json:"source_type"`
+	Count      int64  `json:"count"`
+}
+
+func (r *NoteRepository) SourceTypeDistribution(userID string, since time.Time) ([]SourceTypeStat, error) {
+	var results []SourceTypeStat
+	err := r.db.Model(&models.Note{}).
+		Select("source_type, COUNT(*) as count").
+		Where("creator_id = ? AND created_at >= ?", userID, since).
+		Group("source_type").
+		Order("count DESC").
+		Find(&results).Error
+	return results, err
+}
+
+func (r *NoteRepository) CountArchivedByUser(userID string) (int64, error) {
+	var count int64
+	err := r.db.Model(&models.Note{}).
+		Where("owner_id = ? AND is_archived = ?", userID, true).
+		Count(&count).Error
+	return count, err
+}
+
+func (r *NoteRepository) HeatmapByYear(userID string, year int) ([]NoteDayStat, error) {
+	var stats []NoteDayStat
+	startDate := time.Date(year, 1, 1, 0, 0, 0, 0, time.Local)
+	endDate := time.Date(year, 12, 31, 0, 0, 0, 0, time.Local)
+	err := r.db.Model(&models.Note{}).
+		Select("DATE(completed_at) as date, COUNT(*) as count").
+		Where("owner_id = ?", userID).
+		Where("is_archived = ?", true).
+		Where("completed_at >= ? AND completed_at <= ?", startDate, endDate).
+		Group("DATE(completed_at)").Order("date ASC").
+		Find(&stats).Error
+	return stats, err
+}
+
+func (r *NoteRepository) HeatmapByYearAndDept(year int, deptID string) ([]NoteDayStat, error) {
+	var stats []NoteDayStat
+	startDate := time.Date(year, 1, 1, 0, 0, 0, 0, time.Local)
+	endDate := time.Date(year, 12, 31, 0, 0, 0, 0, time.Local)
+	query := r.db.Model(&models.Note{}).
+		Select("DATE(notes.completed_at) as date, COUNT(*) as count").
+		Joins("LEFT JOIN users ON users.id = notes.owner_id").
+		Where("notes.is_archived = ?", true).
+		Where("notes.completed_at >= ? AND notes.completed_at <= ?", startDate, endDate)
+	if deptID != "" {
+		query = query.Where("users.department_id = ?", deptID)
+	}
+	err := query.Group("DATE(notes.completed_at)").Order("date ASC").Find(&stats).Error
+	return stats, err
+}
+
 var _ = strings.TrimSpace

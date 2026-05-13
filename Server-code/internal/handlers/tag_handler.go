@@ -6,6 +6,7 @@ import (
 	"labelpro-server/internal/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type TagHandler struct {
@@ -18,7 +19,17 @@ func NewTagHandler(tagRepo *repository.TagRepository) *TagHandler {
 
 func (h *TagHandler) List(c *gin.Context) {
 	scope := c.DefaultQuery("scope", "all")
-	tags, err := h.tagRepo.FindAll(scope)
+	category := c.Query("category")
+	parentIDStr := c.Query("parent_id")
+
+	var parentID *uuid.UUID
+	if parentIDStr != "" {
+		if parsed, err := uuid.Parse(parentIDStr); err == nil {
+			parentID = &parsed
+		}
+	}
+
+	tags, err := h.tagRepo.FindAll(scope, parentID, category)
 	if err != nil {
 		utils.InternalError(c, "查询标签失败")
 		return

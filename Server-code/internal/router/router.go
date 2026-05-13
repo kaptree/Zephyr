@@ -60,12 +60,15 @@ func Setup(cfg *config.Config) *gin.Engine {
 	sysHandler := handlers.NewSystemHandler(sysRepo)
 	analyticsHandler := handlers.NewAnalyticsHandler(noteRepo, sysRepo)
 	presetHandler := handlers.NewPresetGroupHandler(presetRepo)
+	uploadHandler := handlers.NewUploadHandler()
 
 	if cfg.WebSocket.Enabled {
 		hub := ws.InitHub()
 		r.GET("/ws/:note_id", ws.HandleWebSocket(hub))
 		r.GET("/ws/group/:group_id", ws.HandleGroupWebSocket(hub))
 	}
+
+	r.Static("/uploads", "./uploads")
 
 	api := r.Group("/api/v1")
 	{
@@ -112,6 +115,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 		{
 			notes.GET("", noteHandler.ListNotes)
 			notes.POST("", noteHandler.CreateNote)
+			notes.GET("/export", noteHandler.ExportNotes)
 			notes.GET("/:id", noteHandler.GetNote)
 			notes.PUT("/:id", noteHandler.UpdateNote)
 			notes.POST("/:id/complete", noteHandler.CompleteNote)
@@ -119,6 +123,11 @@ func Setup(cfg *config.Config) *gin.Engine {
 			notes.DELETE("/:id", noteHandler.DeleteNote)
 			notes.POST("/:id/restore", noteHandler.RestoreNote)
 			notes.GET("/stats", noteHandler.Stats)
+			notes.GET("/heatmap", noteHandler.Heatmap)
+			notes.GET("/:id/export", noteHandler.ExportNote)
+			notes.POST("/:id/attachments", uploadHandler.Upload)
+			notes.GET("/:id/attachments", uploadHandler.ListAttachments)
+			notes.DELETE("/:id/attachments/:attachmentId", uploadHandler.DeleteAttachment)
 		}
 
 		tags := api.Group("/tags")
@@ -133,6 +142,9 @@ func Setup(cfg *config.Config) *gin.Engine {
 		{
 			templates.GET("", tmplHandler.List)
 			templates.GET("/:id", tmplHandler.Get)
+			templates.POST("", tmplHandler.Create)
+			templates.PUT("/:id", tmplHandler.Update)
+			templates.DELETE("/:id", tmplHandler.Delete)
 		}
 
 		groups := api.Group("/groups")
@@ -185,6 +197,9 @@ func Setup(cfg *config.Config) *gin.Engine {
 			analytics.DELETE("/reports/:id", analyticsHandler.DeleteReport)
 			analytics.GET("/report-template", analyticsHandler.GetReportTemplate)
 			analytics.PUT("/report-template", analyticsHandler.SaveReportTemplate)
+			analytics.POST("/daily-report", analyticsHandler.GenerateDailyReport)
+			analytics.POST("/weekly-report", analyticsHandler.GenerateWeeklyReport)
+			analytics.POST("/monthly-report", analyticsHandler.GenerateMonthlyReport)
 		}
 
 		system := api.Group("/system")

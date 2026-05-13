@@ -2,9 +2,12 @@ export interface Template {
   id: string
   name: string
   type: string
-  fields: TemplateField[]
+  fields: string
   layout: string
+  is_system: boolean
+  creator_id?: string
   created_at: string
+  updated_at: string
 }
 
 export interface TemplateField {

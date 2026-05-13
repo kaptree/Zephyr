@@ -17,6 +17,9 @@ type Tag struct {
 	Creator    *User      `gorm:"foreignKey:CreatorID" json:"creator,omitempty"`
 	SortOrder  int        `gorm:"default:0" json:"sort_order"`
 	UsageCount int64      `gorm:"-" json:"usage_count"`
+	ParentID   *uuid.UUID `gorm:"type:uuid;index" json:"parent_id"`
+	Parent     *Tag       `gorm:"foreignKey:ParentID" json:"parent,omitempty"`
+	Children   []Tag      `gorm:"foreignKey:ParentID" json:"children,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`
 	UpdatedAt  time.Time  `json:"updated_at"`
 }

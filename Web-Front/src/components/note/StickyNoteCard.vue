@@ -27,7 +27,9 @@ const emit = defineEmits<{
 
 const expanded = ref(false);
 
-const isUrgent = computed(() => props.note.color_status === 'red');
+const isRed = computed(() => props.note.color_status === 'red');
+const isBlue = computed(() => props.note.color_status === 'blue');
+const isGreen = computed(() => props.note.color_status === 'green');
 const isArchived = computed(() => props.archived || props.note.is_archived);
 
 const displayTags = computed(() => {
@@ -67,10 +69,16 @@ function toggleExpand() {
       'ring-2 ring-purple-400 ring-offset-2 shadow-lg shadow-purple-200/50': !!props.editingBy,
     }"
     :style="{
-      background: isUrgent ? '#FEE2E2' : '#FEF3C7',
-      borderLeft: isUrgent ? '1px solid #DC2626' : '4px solid #D97706',
-      border: isUrgent ? '1px solid #DC2626' : '',
-      animation: isUrgent ? 'pulse-alert 2s ease-in-out infinite' : 'none',
+      background: isRed ? '#FEE2E2' : isBlue ? '#DBEAFE' : isGreen ? '#DCFCE7' : '#FEF3C7',
+      borderLeft: isRed
+        ? '1px solid #DC2626'
+        : isBlue
+          ? '1px solid #2563EB'
+          : isGreen
+            ? '1px solid #16A34A'
+            : '4px solid #D97706',
+      border: isRed ? '1px solid #DC2626' : isBlue ? '1px solid #2563EB' : '',
+      animation: isRed ? 'pulse-alert 2s ease-in-out infinite' : 'none',
     }"
     @click="handleClick"
     @contextmenu="handleContextMenu"
@@ -93,9 +101,11 @@ function toggleExpand() {
     </div>
 
     <!-- 盯办徽章 -->
-    <span v-if="isUrgent && !isArchived" class="badge-corner bg-red-500 text-white">
+    <span v-if="isRed && !isArchived" class="badge-corner bg-red-500 text-white">
       盯办{{ note.remind_count > 0 ? note.remind_count : '' }}
     </span>
+    <!-- 协作标识 -->
+    <span v-if="isBlue && !isArchived" class="badge-corner bg-blue-500 text-white"> 协作 </span>
     <!-- 已归档水印 -->
     <span v-if="isArchived" class="watermark-archived">已归档</span>
 
@@ -156,7 +166,7 @@ function toggleExpand() {
         完成并归档
       </button>
       <button
-        v-if="!isUrgent"
+        v-if="!isRed"
         class="text-xs px-2.5 py-1 rounded-btn bg-red-100 text-red-700 hover:bg-red-200 transition-smooth"
         @click.stop="$emit('remind', note)"
       >

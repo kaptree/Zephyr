@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
-import { fetchNoteStats } from '@/services/notes';
+import { fetchNoteStats, fetchHeatmap } from '@/services/notes';
 import { fetchNotes } from '@/services/notes';
 import { updateUser } from '@/services/admin';
 import type { NoteFilters } from '@/types';
@@ -117,16 +117,14 @@ async function loadData() {
   loading.value = true;
   loadError.value = '';
   try {
-    const isCurrentYear = selectedYear.value === thisYear;
-    const start = new Date(selectedYear.value, 0, 1);
-    const end = isCurrentYear ? new Date() : new Date(selectedYear.value, 11, 31);
-    const days = Math.max(Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1, 30);
-
-    const [statsRes] = await Promise.all([fetchNoteStats({ days, status: 'archived' })]);
+    const [statsRes, heatmapRes] = await Promise.all([
+      fetchNoteStats({ days: 30 }),
+      fetchHeatmap(selectedYear.value),
+    ]);
     totalNotes.value = statsRes.data.total_notes || 0;
     activeNotes.value = statsRes.data.active_notes || 0;
-    trendData.value = statsRes.data.trend || [];
-    archivedNotes.value = totalNotes.value - activeNotes.value;
+    trendData.value = heatmapRes.data.daily || [];
+    archivedNotes.value = heatmapRes.data.total_archived || 0;
 
     try {
       const completedRes = await fetchNotes({

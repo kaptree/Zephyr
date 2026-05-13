@@ -1,8 +1,11 @@
 package services
 
 import (
+	"encoding/json"
+	"strings"
 	"time"
 
+	"labelpro-server/internal/database"
 	"labelpro-server/internal/models"
 	"labelpro-server/internal/repository"
 	apperrors "labelpro-server/pkg/errors"
@@ -24,6 +27,7 @@ type CreateNoteRequest struct {
 	TagIDs       []string             `json:"tags"`
 	SourceType   string               `json:"source_type"`
 	TemplateType string               `json:"template_type"`
+	TemplateID   string               `json:"template_id"`
 	OwnerID      string               `json:"owner_id"`
 	DueTime      *time.Time           `json:"due_time"`
 	Assignees    []AssigneeRequest    `json:"assignees"`
@@ -107,10 +111,32 @@ func (s *NoteService) Create(userID, role, deptID string, req CreateNoteRequest)
 		deptUUID = &d
 	}
 
+	if req.TemplateID != "" {
+		var tmpl models.Template
+		if err := database.DB.First(&tmpl, "id = ?", req.TemplateID).Error; err == nil {
+			var templateFields []map[string]interface{}
+			if json.Unmarshal([]byte(tmpl.Fields), &templateFields) == nil {
+				var fieldLines []string
+				for _, f := range templateFields {
+					if name, ok := f["name"].(string); ok {
+						fieldLines = append(fieldLines, "【"+name+"】")
+					}
+				}
+				if len(fieldLines) > 0 {
+					templatePrefix := "📋 模板：" + tmpl.Name + "\n" + strings.Join(fieldLines, "\n") + "\n\n"
+					req.Content = templatePrefix + req.Content
+				}
+			}
+		}
+	}
+
 	now := time.Now()
 	initialColorStatus := "yellow"
 	if sourceType == "assigned" {
 		initialColorStatus = "red"
+	}
+	if sourceType == "collaboration" {
+		initialColorStatus = "blue"
 	}
 
 	note := &models.Note{
@@ -330,6 +356,28 @@ type NoteStats struct {
 	TotalNotes  int64                    `json:"total_notes"`
 	ActiveNotes int64                    `json:"active_notes"`
 	Trend       []repository.NoteDayStat `json:"trend"`
+}
+
+type NoteHeatmap struct {
+	TotalArchived int64                    `json:"total_archived"`
+	Year          int                      `json:"year"`
+	Daily         []repository.NoteDayStat `json:"daily"`
+}
+
+func (s *NoteService) GetHeatmap(userID string, year int) (*NoteHeatmap, error) {
+	total, err := s.noteRepo.CountArchivedByUser(userID)
+	if err != nil {
+		return nil, err
+	}
+	daily, err := s.noteRepo.HeatmapByYear(userID, year)
+	if err != nil {
+		return nil, err
+	}
+	return &NoteHeatmap{
+		TotalArchived: total,
+		Year:          year,
+		Daily:         daily,
+	}, nil
 }
 
 func (s *NoteService) GetStats(days int, deptID string, status string) (*NoteStats, error) {

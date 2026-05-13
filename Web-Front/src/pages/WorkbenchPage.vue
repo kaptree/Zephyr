@@ -13,6 +13,8 @@ import { recommendUsers, getWorkTypeOptions } from '@/services/admin';
 import type { WorkTypeOption } from '@/types';
 import { getPresets } from '@/services/presets';
 import type { PresetGroup } from '@/types/preset';
+import { fetchTemplates } from '@/services/templates';
+import type { Template } from '@/types';
 
 const router = useRouter();
 const noteStore = useNoteStore();
@@ -73,9 +75,14 @@ const selectedWGUserIds = ref<string[][]>([[]]);
 const availablePresets = ref<PresetGroup[]>([]);
 const selectedPresetId = ref('');
 
+const userTemplates = ref<Template[]>([]);
+const selectedTemplateId = ref('');
+
 const displayedNotes = computed(() => {
   if (activeTab.value === 'red')
     return noteStore.activeNotes.filter((n) => n.color_status === 'red');
+  if (activeTab.value === 'blue')
+    return noteStore.activeNotes.filter((n) => n.color_status === 'blue');
   return noteStore.activeNotes;
 });
 
@@ -84,6 +91,7 @@ onMounted(() => {
   loadWorkGroups();
   loadWorkTypeOptions();
   loadPresets();
+  loadUserTemplates();
 });
 
 function handleTabClick(tab: string) {
@@ -345,6 +353,31 @@ async function loadPresets() {
     availablePresets.value = (res.data as unknown as PresetGroup[]) || [];
   } catch {
     availablePresets.value = [];
+  }
+}
+
+async function loadUserTemplates() {
+  try {
+    const res = await fetchTemplates();
+    userTemplates.value = res.data || [];
+  } catch {
+    userTemplates.value = [];
+  }
+}
+
+function onTemplateSelect() {
+  if (!selectedTemplateId.value) return;
+  const tpl = userTemplates.value.find((t) => t.id === selectedTemplateId.value);
+  if (!tpl) return;
+  let fields: any[] = [];
+  try {
+    fields = JSON.parse(
+      typeof tpl.fields === 'string' ? tpl.fields : JSON.stringify(tpl.fields ?? [])
+    );
+  } catch {}
+  if (fields.length > 0) {
+    const lines = fields.map((f: any) => `【${f.name}】`);
+    newContent.value = `📋 模板：${tpl.name}\n${lines.join('\n')}\n\n${newContent.value || ''}`;
   }
 }
 
@@ -722,6 +755,21 @@ const templateLabels: Record<string, string> = {
                 placeholder="任务内容..."
               />
               <div>
+                <label class="block text-xs font-medium text-slate-500 mb-1"
+                  >使用模板（可选）</label
+                >
+                <select
+                  v-model="selectedTemplateId"
+                  class="w-full text-sm border rounded p-2"
+                  @change="onTemplateSelect"
+                >
+                  <option value="">不使用模板</option>
+                  <option v-for="t in userTemplates" :key="t.id" :value="t.id">
+                    {{ t.name }}{{ t.is_system ? ' (系统)' : '' }}
+                  </option>
+                </select>
+              </div>
+              <div>
                 <span class="text-xs text-slate-500 mb-1.5 block">标签</span
                 ><TagSelector v-model="selectedTagIds" :max="5" />
               </div>
@@ -764,6 +812,7 @@ const templateLabels: Record<string, string> = {
                   v-model="selectedAssigneeIds"
                   :multiple="sourceType === 'collaboration'"
                   :max="sourceType === 'assigned' ? 1 : 20"
+                  :drop-up="true"
                 />
                 <div
                   class="mt-3 p-3 rounded-lg border border-dashed border-blue-200 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10"

@@ -8,7 +8,7 @@ export interface Note {
   id: string
   title: string
   content: string
-  color_status: 'yellow' | 'red' | 'green'
+  color_status: 'yellow' | 'red' | 'green' | 'blue'
   source_type: NoteSourceType
   owner_id: string
   creator_id: string
@@ -37,12 +37,14 @@ export const NOTE_COLOR_STATUS: Record<string, string> = {
   yellow: '#FEF3C7',
   red: '#FEE2E2',
   green: '#DCFCE7',
+  blue: '#DBEAFE',
 }
 
 export const NOTE_COLOR_BORDER: Record<string, string> = {
   yellow: '#D97706',
   red: '#DC2626',
   green: '#16A34A',
+  blue: '#2563EB',
 }
 
 export interface CreateNotePayload {
