@@ -121,7 +121,7 @@
 1. **克隆项目**
 
 ```bash
-git clone https://github.com/MangataTS/Zephyr.git
+git clone https://github.com/kaptree/Zephyr.git
 cd Zephyr/Server-code
 ```
 
@@ -332,9 +332,9 @@ docker run -d -p 8090:8090 --name Zephyr Zephyr-server
 
 ## 联系方式
 
-- **项目主页**: [https://github.com/MangataTS/Zephyr](https://github.com/MangataTS/Zephyr)
+- **项目主页**: [https://github.com/ka p t re e/Zephyr](https://github.com/kaptree/Zephyr)
 - **文档地址**: [完整开发文档](./docs/)
-- **问题反馈**: [GitHub Issues](https://github.com/MangataTS/Zephyr/issues)
+- **问题反馈**: [GitHub Issues](https://github.com/kaptree/Zephyr/issues)
 
 ---
 
