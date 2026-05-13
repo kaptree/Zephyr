@@ -27,7 +27,7 @@ export interface DashboardItem {
   note_id: string;
   note_title: string;
   note_content: string;
-  tags: { id: string; name: string; color: string }[];
+  tags: { id: string; name: string; sub_tag?: string; color: string }[];
   completed_at: string;
 }
 

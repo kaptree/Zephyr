@@ -33,13 +33,17 @@ const isArchived = computed(() => props.archived || props.note.is_archived);
 const displayTags = computed(() => {
   const max = 2;
   const tags = (props.note.tags || []).map((t: any) => {
-    if (typeof t === 'string') return { id: t, name: t, color: '#64748B' };
+    if (typeof t === 'string') return { id: t, name: t, sub_tag: '', color: '#64748B' };
     return t;
   });
   const visible = tags.slice(0, max);
   const remaining = tags.length - max;
   return { visible, remaining };
 });
+
+function tagLabel(tag: any): string {
+  return tag.sub_tag ? `${tag.name} › ${tag.sub_tag}` : tag.name;
+}
 
 function handleClick() {
   emit('click', props.note);
@@ -125,7 +129,7 @@ function toggleExpand() {
         class="tag-capsule text-white text-[11px]"
         :style="{ backgroundColor: tag.color || '#64748B' }"
       >
-        {{ tag.name }}
+        {{ tagLabel(tag) }}
       </span>
       <span v-if="displayTags.remaining > 0" class="text-xs text-slate-400">
         +{{ displayTags.remaining }}

@@ -187,7 +187,7 @@ function groupNotesByMonth(notes: Note[]) {
                   :key="tag.id"
                   class="tag-capsule text-white text-[10px]"
                   :style="{ backgroundColor: tag.color || '#94A3B8' }"
-                  >{{ tag.name }}</span
+                  >{{ tag.sub_tag ? tag.name + ' › ' + tag.sub_tag : tag.name }}</span
                 >
               </div>
               <span class="watermark-archived">已归档</span>
@@ -269,7 +269,7 @@ function groupNotesByMonth(notes: Note[]) {
                   :key="tag.id"
                   class="tag-capsule text-white"
                   :style="{ backgroundColor: tag.color || '#64748B' }"
-                  >{{ tag.name }}</span
+                  >{{ tag.sub_tag ? tag.name + ' › ' + tag.sub_tag : tag.name }}</span
                 >
               </div>
               <div

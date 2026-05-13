@@ -318,6 +318,78 @@ func (r *WorkGroupRepository) Search(f WorkGroupSearchFilter) ([]models.WorkGrou
 	return groups, total, err
 }
 
+type PresetGroupRepository struct {
+	db *gorm.DB
+}
+
+func NewPresetGroupRepository(db *gorm.DB) *PresetGroupRepository {
+	return &PresetGroupRepository{db: db}
+}
+
+func (r *PresetGroupRepository) Create(preset *models.PresetGroup) error {
+	return r.db.Create(preset).Error
+}
+
+func (r *PresetGroupRepository) FindAll(templateType string) ([]models.PresetGroup, error) {
+	var presets []models.PresetGroup
+	query := r.db.Preload("Members.User").Preload("Creator")
+	if templateType != "" {
+		query = query.Where("template_type = ?", templateType)
+	}
+	err := query.Order("created_at DESC").Find(&presets).Error
+	return presets, err
+}
+
+func (r *PresetGroupRepository) FindByID(id string) (*models.PresetGroup, error) {
+	var preset models.PresetGroup
+	err := r.db.Preload("Members.User").Preload("Creator").First(&preset, "id = ?", id).Error
+	return &preset, err
+}
+
+func (r *PresetGroupRepository) Update(id string, preset *models.PresetGroup) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.PresetGroup{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"name":          preset.Name,
+			"description":   preset.Description,
+			"template_type": preset.TemplateType,
+		}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("preset_id = ?", id).Delete(&models.PresetGroupMember{}).Error; err != nil {
+			return err
+		}
+		for _, m := range preset.Members {
+			m.PresetID = preset.ID
+			if err := tx.Create(&m).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (r *PresetGroupRepository) Delete(id string) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("preset_id = ?", id).Delete(&models.PresetGroupMember{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("id = ?", id).Delete(&models.PresetGroup{}).Error
+	})
+}
+
+func (r *PresetGroupRepository) RecommendByWorkType(workType string, limit int) ([]models.PresetGroup, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	var presets []models.PresetGroup
+	query := r.db.Preload("Members.User").Preload("Creator")
+	if workType != "" {
+		query = query.Where("template_type = ?", workType)
+	}
+	err := query.Order("created_at DESC").Limit(limit).Find(&presets).Error
+	return presets, err
+}
+
 type CollaborationRoomRepository struct {
 	db *gorm.DB
 }

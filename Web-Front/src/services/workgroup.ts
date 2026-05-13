@@ -35,6 +35,7 @@ export interface CreateWorkGroupPayload {
   description: string;
   template_type: string;
   due_time?: string;
+  preset_id?: string;
   members: { user_id: string; role: string; sub_group_name: string }[];
   tags?: string[];
 }

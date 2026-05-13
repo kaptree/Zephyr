@@ -29,6 +29,7 @@ func (h *TagHandler) List(c *gin.Context) {
 func (h *TagHandler) Create(c *gin.Context) {
 	var req struct {
 		Name     string `json:"name" binding:"required"`
+		SubTag   string `json:"sub_tag"`
 		Color    string `json:"color"`
 		Category string `json:"category"`
 		Scope    string `json:"scope"`
@@ -40,6 +41,7 @@ func (h *TagHandler) Create(c *gin.Context) {
 
 	tag := &models.Tag{
 		Name:     req.Name,
+		SubTag:   req.SubTag,
 		Color:    req.Color,
 		Category: req.Category,
 		Scope:    req.Scope,
@@ -68,6 +70,7 @@ func (h *TagHandler) Update(c *gin.Context) {
 
 	var req struct {
 		Name     *string `json:"name"`
+		SubTag   *string `json:"sub_tag"`
 		Color    *string `json:"color"`
 		Category *string `json:"category"`
 		Scope    *string `json:"scope"`
@@ -79,6 +82,9 @@ func (h *TagHandler) Update(c *gin.Context) {
 
 	if req.Name != nil {
 		tag.Name = *req.Name
+	}
+	if req.SubTag != nil {
+		tag.SubTag = *req.SubTag
 	}
 	if req.Color != nil {
 		tag.Color = *req.Color

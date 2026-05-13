@@ -1,6 +1,7 @@
 export interface Tag {
   id: string
   name: string
+  sub_tag: string
   color: string
   scope: 'personal' | 'system'
   category: string
@@ -9,6 +10,7 @@ export interface Tag {
 
 export interface CreateTagPayload {
   name: string
+  sub_tag?: string
   color: string
   category: string
   scope: 'personal' | 'system'

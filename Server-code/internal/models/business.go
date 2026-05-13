@@ -9,6 +9,7 @@ import (
 type Tag struct {
 	ID         uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	Name       string     `gorm:"type:varchar(50);not null" json:"name"`
+	SubTag     string     `gorm:"type:varchar(100)" json:"sub_tag"`
 	Color      string     `gorm:"type:varchar(7);default:'#3B82F6'" json:"color"`
 	Category   string     `gorm:"type:varchar(30)" json:"category"`
 	Scope      string     `gorm:"type:varchar(20);default:'personal'" json:"scope"`
@@ -103,6 +104,34 @@ type Reminder struct {
 
 func (Reminder) TableName() string {
 	return "reminders"
+}
+
+type PresetGroup struct {
+	ID           uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	Name         string     `gorm:"type:varchar(200);not null" json:"name"`
+	Description  string     `gorm:"type:text" json:"description"`
+	TemplateType string     `gorm:"type:varchar(30);default:'default'" json:"template_type"`
+	CreatorID    uuid.UUID  `gorm:"type:uuid;not null" json:"creator_id"`
+	Creator      *User      `gorm:"foreignKey:CreatorID" json:"creator,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	Members      []PresetGroupMember `gorm:"foreignKey:PresetID" json:"members,omitempty"`
+}
+
+func (PresetGroup) TableName() string {
+	return "preset_groups"
+}
+
+type PresetGroupMember struct {
+	PresetID     uuid.UUID `gorm:"type:uuid;primaryKey" json:"preset_id"`
+	UserID       uuid.UUID `gorm:"type:uuid;primaryKey" json:"user_id"`
+	User         *User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Role         string    `gorm:"type:varchar(20);default:'member'" json:"role"`
+	SubGroupName string    `gorm:"type:varchar(100)" json:"sub_group_name"`
+}
+
+func (PresetGroupMember) TableName() string {
+	return "preset_group_members"
 }
 
 type LedgerEntry struct {

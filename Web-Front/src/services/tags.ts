@@ -5,7 +5,7 @@ export function fetchTags(scope?: 'personal' | 'system' | 'all') {
   return get<PaginatedData<Tag>>('/api/v1/tags', { scope })
 }
 
-export function createTag(payload: CreateTagPayload) {
+export function createTag(payload: { name: string; sub_tag?: string; color?: string; category?: string; scope?: string }) {
   return post<Tag>('/api/v1/tags', payload)
 }
 

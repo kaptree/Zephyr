@@ -226,7 +226,7 @@ function tagColorHex(color: string) {
                   :key="tag.id"
                   class="text-[9px] px-1.5 py-0.5 rounded-full text-white font-medium"
                   :style="{ backgroundColor: tagColorHex(tag.color) }"
-                  >{{ tag.name }}</span
+                  >{{ tag.sub_tag ? tag.name + ' › ' + tag.sub_tag : tag.name }}</span
                 >
               </div>
             </div>

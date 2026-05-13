@@ -8,6 +8,7 @@ const loading = ref(false)
 const loadError = ref('')
 const showNewModal = ref(false)
 const newTagName = ref('')
+const newTagSubTag = ref('')
 const newTagColor = ref('#3B82F6')
 
 const colorOptions = ['#EF4444', '#F97316', '#EAB308', '#22C55E', '#14B8A6', '#3B82F6', '#8B5CF6', '#EC4899', '#78716C', '#64748B', '#94A3B8', '#475569']
@@ -29,12 +30,14 @@ function addTag() {
   tags.value.unshift({
     id: 'tag-new-' + Date.now(),
     name: newTagName.value.trim(),
+    sub_tag: newTagSubTag.value.trim(),
     color: newTagColor.value,
     scope: 'system',
     category: '自定义',
     usage_count: 0,
   })
   newTagName.value = ''
+  newTagSubTag.value = ''
   showNewModal.value = false
 }
 </script>
@@ -60,7 +63,10 @@ function addTag() {
       >
         <span class="w-4 h-4 rounded-full shrink-0" :style="{ backgroundColor: tag.color }" />
         <div class="flex-1 min-w-0">
-          <div class="text-sm font-medium text-slate-900 truncate">{{ tag.name }}</div>
+          <div class="text-sm font-medium text-slate-900 truncate">
+            {{ tag.name }}
+            <span v-if="tag.sub_tag" class="text-xs text-slate-400 ml-1">› {{ tag.sub_tag }}</span>
+          </div>
           <div class="text-xs text-slate-400">{{ tag.category }} · {{ tag.scope === 'system' ? '系统' : '个人' }}</div>
         </div>
         <span :class="['text-xs shrink-0 font-medium', tag.usage_count > 5 ? 'text-blue-600' : 'text-slate-400']">
@@ -76,7 +82,8 @@ function addTag() {
         <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-sm mx-4 p-6 animate-fade-in">
           <h3 class="text-base font-semibold text-slate-900 mb-4">新建标签</h3>
           <form @submit.prevent="addTag" class="space-y-4">
-            <input v-model="newTagName" class="input-field" placeholder="标签名称" autofocus />
+            <input v-model="newTagName" class="input-field" placeholder="一级标签名称" autofocus />
+            <input v-model="newTagSubTag" class="input-field" placeholder="二级标签（可选）" />
             <div>
               <span class="text-xs text-slate-500 mb-2 block">颜色</span>
               <div class="flex flex-wrap gap-2">

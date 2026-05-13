@@ -49,14 +49,15 @@ func (h *TemplateHandler) Get(c *gin.Context) {
 }
 
 type WorkGroupHandler struct {
-	groupRepo *repository.WorkGroupRepository
-	noteRepo  *repository.NoteRepository
-	userRepo  *repository.UserRepository
-	sysRepo   *repository.SystemRepository
+	groupRepo  *repository.WorkGroupRepository
+	noteRepo   *repository.NoteRepository
+	userRepo   *repository.UserRepository
+	sysRepo    *repository.SystemRepository
+	presetRepo *repository.PresetGroupRepository
 }
 
-func NewWorkGroupHandler(groupRepo *repository.WorkGroupRepository, noteRepo *repository.NoteRepository, userRepo *repository.UserRepository, sysRepo *repository.SystemRepository) *WorkGroupHandler {
-	return &WorkGroupHandler{groupRepo: groupRepo, noteRepo: noteRepo, userRepo: userRepo, sysRepo: sysRepo}
+func NewWorkGroupHandler(groupRepo *repository.WorkGroupRepository, noteRepo *repository.NoteRepository, userRepo *repository.UserRepository, sysRepo *repository.SystemRepository, presetRepo *repository.PresetGroupRepository) *WorkGroupHandler {
+	return &WorkGroupHandler{groupRepo: groupRepo, noteRepo: noteRepo, userRepo: userRepo, sysRepo: sysRepo, presetRepo: presetRepo}
 }
 
 type CreateWorkGroupReq struct {
@@ -64,6 +65,7 @@ type CreateWorkGroupReq struct {
 	Description  string           `json:"description"`
 	TemplateType string           `json:"template_type"`
 	DueTime      string           `json:"due_time"`
+	PresetID     string           `json:"preset_id"`
 	Members      []GroupMemberReq `json:"members"`
 	Tags         []string         `json:"tags"`
 }
@@ -108,6 +110,19 @@ func (h *WorkGroupHandler) Create(c *gin.Context) {
 	}
 
 	_ = h.groupRepo.AddMember(groupID.String(), initiatorUID.String(), "leader", "")
+
+	if req.PresetID != "" {
+		preset, err := h.presetRepo.FindByID(req.PresetID)
+		if err == nil {
+			for _, pm := range preset.Members {
+				req.Members = append(req.Members, GroupMemberReq{
+					UserID:  pm.UserID.String(),
+					Role:    pm.Role,
+					SubGroup: pm.SubGroupName,
+				})
+			}
+		}
+	}
 
 	memberCount := 1
 	for _, m := range req.Members {

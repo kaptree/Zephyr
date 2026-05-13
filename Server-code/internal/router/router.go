@@ -41,6 +41,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	roomRepo := repository.NewCollaborationRoomRepository(database.DB)
 	ledgerRepo := repository.NewLedgerRepository(database.DB)
 	sysRepo := repository.NewSystemRepository(database.DB)
+	presetRepo := repository.NewPresetGroupRepository(database.DB)
 	middleware.SetOperationLogRepo(sysRepo)
 
 	authService := services.NewAuthService(userRepo, cfg)
@@ -53,11 +54,12 @@ func Setup(cfg *config.Config) *gin.Engine {
 	noteHandler := handlers.NewNoteHandler(noteService)
 	tagHandler := handlers.NewTagHandler(tagRepo)
 	tmplHandler := handlers.NewTemplateHandler(tmplRepo)
-	groupHandler := handlers.NewWorkGroupHandler(groupRepo, noteRepo, userRepo, sysRepo)
+	groupHandler := handlers.NewWorkGroupHandler(groupRepo, noteRepo, userRepo, sysRepo, presetRepo)
 	roomHandler := handlers.NewRoomHandler(roomRepo)
 	ledgerHandler := handlers.NewLedgerHandler(ledgerRepo)
 	sysHandler := handlers.NewSystemHandler(sysRepo)
 	analyticsHandler := handlers.NewAnalyticsHandler(noteRepo, sysRepo)
+	presetHandler := handlers.NewPresetGroupHandler(presetRepo)
 
 	if cfg.WebSocket.Enabled {
 		hub := ws.InitHub()
@@ -158,6 +160,14 @@ func Setup(cfg *config.Config) *gin.Engine {
 		{
 			rooms.GET("/:note_id/canvas", roomHandler.GetCanvas)
 			rooms.POST("/:note_id/command", middleware.RequireRoles("super_admin", "dept_admin", "group_leader"), roomHandler.SendCommand)
+		}
+
+		presets := api.Group("/presets")
+		{
+			presets.GET("", presetHandler.List)
+			presets.POST("", middleware.RequireRoles("super_admin", "dept_admin"), presetHandler.Create)
+			presets.PUT("/:id", middleware.RequireRoles("super_admin", "dept_admin"), presetHandler.Update)
+			presets.DELETE("/:id", middleware.RequireRoles("super_admin"), presetHandler.Delete)
 		}
 
 		ledger := api.Group("/ledger")

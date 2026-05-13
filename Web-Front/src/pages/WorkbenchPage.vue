@@ -11,6 +11,8 @@ import { createWorkGroup, searchGroups, deleteWorkGroup } from '@/services/workg
 import type { WorkGroupData } from '@/services/workgroup';
 import { recommendUsers, getWorkTypeOptions } from '@/services/admin';
 import type { WorkTypeOption } from '@/types';
+import { getPresets } from '@/services/presets';
+import type { PresetGroup } from '@/types/preset';
 
 const router = useRouter();
 const noteStore = useNoteStore();
@@ -68,6 +70,9 @@ const recommendResult = ref<
 >([]);
 const selectedWGUserIds = ref<string[][]>([[]]);
 
+const availablePresets = ref<PresetGroup[]>([]);
+const selectedPresetId = ref('');
+
 const displayedNotes = computed(() => {
   if (activeTab.value === 'red')
     return noteStore.activeNotes.filter((n) => n.color_status === 'red');
@@ -78,6 +83,7 @@ onMounted(() => {
   noteStore.fetchNotes();
   loadWorkGroups();
   loadWorkTypeOptions();
+  loadPresets();
 });
 
 function handleTabClick(tab: string) {
@@ -302,6 +308,7 @@ async function handleCreateWorkGroup() {
       description: wgDescription.value,
       template_type: wgTemplate.value,
       due_time: wgDueDate.value ? new Date(wgDueDate.value).toISOString() : undefined,
+      preset_id: selectedPresetId.value || undefined,
       members: allMembers,
     });
     showWorkGroupModal.value = false;
@@ -330,6 +337,22 @@ async function loadWorkTypeOptions() {
   } catch {
     workTypeOptions.value = [];
   }
+}
+
+async function loadPresets() {
+  try {
+    const res = await getPresets();
+    availablePresets.value = (res.data as unknown as PresetGroup[]) || [];
+  } catch {
+    availablePresets.value = [];
+  }
+}
+
+function handlePresetSelect() {
+  if (!selectedPresetId.value) return;
+  const preset = availablePresets.value.find((p) => p.id === selectedPresetId.value);
+  if (!preset || !preset.members) return;
+  selectedAssigneeIds.value = preset.members.map((m) => m.user_id);
 }
 
 async function handleRecommend() {
@@ -1017,6 +1040,25 @@ const templateLabels: Record<string, string> = {
               <div>
                 <label class="text-xs text-slate-500 mb-1 block">截止日期</label
                 ><input v-model="wgDueDate" type="date" class="input-field" />
+              </div>
+              <div
+                v-if="availablePresets.length > 0"
+                class="p-3 rounded-lg border border-dashed border-orange-200 bg-orange-50/50"
+              >
+                <label class="text-xs text-slate-500 mb-1.5 flex items-center gap-1">
+                  📋 选择人员预设组
+                  <span class="text-[10px] text-orange-500">（自动填充成员）</span>
+                </label>
+                <select
+                  v-model="selectedPresetId"
+                  class="input-field !py-1.5 !text-sm"
+                  @change="handlePresetSelect"
+                >
+                  <option value="">不使用预设</option>
+                  <option v-for="preset in availablePresets" :key="preset.id" :value="preset.id">
+                    {{ preset.name }} ({{ preset.members?.length || 0 }}人)
+                  </option>
+                </select>
               </div>
               <div>
                 <div class="flex items-center justify-between mb-2">

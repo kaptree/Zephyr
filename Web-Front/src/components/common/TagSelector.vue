@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
-import type { Tag, CreateTagPayload } from '@/types';
+import type { Tag } from '@/types';
 import { fetchTags, createTag } from '@/services/tags';
 
 const props = withDefaults(
@@ -17,7 +17,6 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'update:modelValue': [value: string[]];
-  'create-tag': [name: string];
 }>();
 
 const open = ref(false);
@@ -32,6 +31,8 @@ const panelStyle = ref({ top: '0px', left: '0px', minWidth: '288px' });
 
 const selectedTags = computed(() => allTags.value.filter((t) => props.modelValue.includes(t.id)));
 
+const tagDisplayLabel = (tag: Tag) => (tag.sub_tag ? `${tag.name} › ${tag.sub_tag}` : tag.name);
+
 const recentTags = computed(() => {
   const recent = JSON.parse(localStorage.getItem('recent_tags') || '[]') as string[];
   return recent
@@ -39,10 +40,30 @@ const recentTags = computed(() => {
     .filter(Boolean) as Tag[];
 });
 
-const filteredTags = computed(() => {
-  if (!searchText.value) return allTags.value;
-  const q = searchText.value.toLowerCase();
-  return allTags.value.filter((t) => t.name.toLowerCase().includes(q));
+const tagGroups = computed(() => {
+  const groups: Record<string, Tag[]> = {};
+  for (const t of allTags.value) {
+    if (!groups[t.name]) groups[t.name] = [];
+    groups[t.name].push(t);
+  }
+  return Object.entries(groups).map(([name, tags]) => ({
+    name,
+    tags,
+    hasSubTags: tags.some((t) => !!t.sub_tag),
+  }));
+});
+
+const filteredTagGroups = computed(() => {
+  const q = searchText.value.toLowerCase().trim();
+  if (!q) return tagGroups.value;
+  return tagGroups.value
+    .map((g) => ({
+      ...g,
+      tags: g.tags.filter(
+        (t) => t.name.toLowerCase().includes(q) || (t.sub_tag || '').toLowerCase().includes(q)
+      ),
+    }))
+    .filter((g) => g.tags.length > 0);
 });
 
 onMounted(async () => {
@@ -135,12 +156,25 @@ function isSelected(tagId: string): boolean {
   return props.modelValue.includes(tagId);
 }
 
-async function handleCreateTag() {
+async function handleCreateTag(subTag?: string) {
   const name = searchText.value.trim();
   if (!name) return;
 
   try {
-    const res = await createTag({ name, color: '#3B82F6', category: '自定义', scope: 'personal' });
+    const payload: {
+      name: string;
+      sub_tag?: string;
+      color: string;
+      category: string;
+      scope: string;
+    } = {
+      name,
+      sub_tag: subTag || '',
+      color: '#3B82F6',
+      category: '自定义',
+      scope: 'personal',
+    };
+    const res = await createTag(payload);
     const newTag = res.data as unknown as Tag;
     allTags.value.push(newTag);
     toggleTag(newTag.id);
@@ -160,7 +194,7 @@ async function handleCreateTag() {
         class="tag-capsule text-white"
         :style="{ backgroundColor: tag.color || '#64748B' }"
       >
-        {{ tag.name }}
+        {{ tagDisplayLabel(tag) }}
         <button type="button" class="ml-1 hover:opacity-70" @click="removeTag(tag.id)">
           &times;
         </button>
@@ -187,8 +221,8 @@ async function handleCreateTag() {
           <input
             v-model="searchText"
             class="input-field !text-xs"
-            placeholder="搜索标签...（Enter 创建）"
-            @keyup.enter.prevent="handleCreateTag"
+            placeholder="搜索标签...（Enter 创建一级标签）"
+            @keyup.enter.prevent="handleCreateTag()"
           />
         </div>
 
@@ -208,44 +242,60 @@ async function handleCreateTag() {
               }"
               @click.stop="toggleTag(tag.id)"
             >
-              {{ tag.name }}
+              {{ tagDisplayLabel(tag) }}
             </span>
           </div>
         </div>
 
-        <div class="max-h-48 overflow-y-auto scrollbar-thin px-3 py-2">
+        <div class="max-h-56 overflow-y-auto scrollbar-thin px-3 py-2">
           <div v-if="loading" class="text-center py-4 text-xs text-slate-400">加载中...</div>
           <div v-else-if="loadError" class="text-center py-4 text-xs text-red-400">
             {{ loadError }}
           </div>
-          <div v-else-if="filteredTags.length === 0" class="text-center py-4">
+          <div v-else-if="filteredTagGroups.length === 0" class="text-center py-4">
             <p class="text-xs text-slate-400">暂无匹配标签</p>
             <button
               type="button"
               v-if="searchText.trim()"
               class="text-xs text-[#3B82F6] hover:underline mt-1"
-              @click.stop="handleCreateTag"
+              @click.stop="handleCreateTag()"
             >
-              创建 "{{ searchText }}"
+              创建一级标签 "{{ searchText }}"
             </button>
           </div>
-          <div v-else class="space-y-1">
-            <button
-              v-for="tag in filteredTags"
-              :key="tag.id"
-              :class="[
-                'w-full flex items-center gap-2 px-3 py-2 rounded-btn text-sm text-left transition-smooth',
-                isSelected(tag.id) ? 'bg-blue-50' : 'hover:bg-slate-50',
-              ]"
-              @click.stop="toggleTag(tag.id)"
+          <div v-else class="space-y-2">
+            <div
+              v-for="group in filteredTagGroups"
+              :key="group.name"
+              class="border-b border-slate-50 last:border-0 pb-1"
             >
-              <span
-                class="w-3 h-3 rounded-full shrink-0"
-                :style="{ backgroundColor: tag.color || '#64748B' }"
-              />
-              <span class="flex-1 truncate">{{ tag.name }}</span>
-              <span v-if="isSelected(tag.id)" class="text-xs text-[#3B82F6]">✓</span>
-            </button>
+              <div class="text-[10px] text-slate-400 uppercase font-medium px-1 pt-0.5">
+                {{ group.name }}
+              </div>
+              <div class="ml-2 space-y-0.5">
+                <button
+                  v-for="tag in group.tags"
+                  :key="tag.id"
+                  :class="[
+                    'w-full flex items-center gap-2 px-3 py-1.5 rounded-btn text-sm text-left transition-smooth',
+                    isSelected(tag.id) ? 'bg-blue-50' : 'hover:bg-slate-50',
+                  ]"
+                  @click.stop="toggleTag(tag.id)"
+                >
+                  <span
+                    class="w-3 h-3 rounded-full shrink-0"
+                    :style="{ backgroundColor: tag.color || '#64748B' }"
+                  />
+                  <span class="flex-1 truncate">
+                    <template v-if="tag.sub_tag">{{ tag.sub_tag }}</template>
+                    <template v-else>
+                      <span class="text-slate-400 text-xs">（通用）</span>
+                    </template>
+                  </span>
+                  <span v-if="isSelected(tag.id)" class="text-xs text-[#3B82F6]">✓</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 

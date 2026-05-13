@@ -63,6 +63,8 @@ func main() {
 		&models.NoteAttachment{},
 		&models.WorkGroup{},
 		&models.WorkGroupMember{},
+		&models.PresetGroup{},
+		&models.PresetGroupMember{},
 		&models.CollaborationRoom{},
 		&models.Reminder{},
 		&models.LedgerEntry{},

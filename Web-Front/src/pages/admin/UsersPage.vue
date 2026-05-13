@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { getUsers, getUsersWithStats, createUser, updateUser, deleteUser, getDepartments } from '@/services/admin'
 import type { User, Department, WorkTypeStat } from '@/types'
 import { WORK_TYPE_LABELS } from '@/types'
+import { getPresets, createPreset, deletePreset } from '@/services/presets'
+import type { PresetGroup } from '@/types/preset'
 
 interface UserRow {
   id: string
@@ -100,8 +102,6 @@ async function loadData() {
     loading.value = false
   }
 }
-
-onMounted(loadData)
 
 function openCreate() {
   editingUserId.value = null
@@ -222,6 +222,89 @@ function getRoleClass(role: string) {
 function getStatusClass(active: boolean) {
   return active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
 }
+
+const presets = ref<PresetGroup[]>([])
+const presetLoading = ref(false)
+const showPresetModal = ref(false)
+const presetName = ref('')
+const presetDesc = ref('')
+const presetType = ref('default')
+const presetMemberIds = ref<string[]>([])
+const presetSubmitting = ref(false)
+const presetError = ref('')
+
+const presetTypeLabels: Record<string, string> = {
+  default: '日常任务',
+  data_analysis: '数据分析',
+  special_project: '专项行动',
+  emergency_canvas: '紧急协查',
+  collaborative_writing: '协同作战',
+}
+
+async function loadPresets() {
+  presetLoading.value = true
+  try {
+    const res = await getPresets()
+    presets.value = (res.data as unknown as PresetGroup[]) || []
+  } catch {
+    /* ignore */
+  } finally {
+    presetLoading.value = false
+  }
+}
+
+function openPresetCreate() {
+  presetName.value = ''
+  presetDesc.value = ''
+  presetType.value = 'default'
+  presetMemberIds.value = []
+  presetError.value = ''
+  showPresetModal.value = true
+}
+
+async function handleCreatePreset() {
+  if (!presetName.value.trim()) {
+    presetError.value = '请输入预设组名称'
+    return
+  }
+  if (presetMemberIds.value.length === 0) {
+    presetError.value = '请选择至少一个成员'
+    return
+  }
+  presetSubmitting.value = true
+  presetError.value = ''
+  try {
+    await createPreset({
+      name: presetName.value.trim(),
+      description: presetDesc.value.trim(),
+      template_type: presetType.value,
+      members: presetMemberIds.value.map((uid) => ({ user_id: uid, role: 'member' })),
+    })
+    showPresetModal.value = false
+    await loadPresets()
+  } catch {
+    presetError.value = '创建预设组失败'
+  } finally {
+    presetSubmitting.value = false
+  }
+}
+
+async function handleDeletePreset(id: string) {
+  if (!confirm('确定要删除这个预设组吗？')) return
+  try {
+    await deletePreset(id)
+    await loadPresets()
+  } catch {
+    /* ignore */
+  }
+}
+
+const visibleUsers = computed(() => users.value)
+
+onMounted(async () => {
+  await loadData()
+  loadPresets()
+})
 </script>
 
 <template>
@@ -313,6 +396,50 @@ function getStatusClass(active: boolean) {
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- 组预设管理 -->
+    <div class="mt-6">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-semibold text-slate-900">📋 组预设管理</h3>
+        <button class="btn-primary text-xs !py-1.5 !px-3" @click="openPresetCreate">新建预设组</button>
+      </div>
+      <div v-if="presetLoading" class="text-xs text-slate-400 py-2">加载中...</div>
+      <div v-else-if="presets.length === 0" class="text-xs text-slate-400 py-4 bg-slate-50 rounded-card text-center">
+        暂无预设组，点击「新建预设组」创建常用人员组合，新建专项工作组时可直接选用
+      </div>
+      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div
+          v-for="preset in presets"
+          :key="preset.id"
+          class="bg-white border border-slate-100 rounded-card p-4 hover:border-blue-200 transition-smooth"
+        >
+          <div class="flex items-start justify-between mb-2">
+            <div>
+              <h4 class="text-sm font-medium text-slate-900">{{ preset.name }}</h4>
+              <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 font-medium mt-0.5 inline-block">
+                {{ presetTypeLabels[preset.template_type] || preset.template_type }}
+              </span>
+            </div>
+            <button
+              class="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-500 rounded hover:bg-red-100"
+              @click="handleDeletePreset(preset.id)"
+            >
+              删除
+            </button>
+          </div>
+          <p v-if="preset.description" class="text-xs text-slate-400 mb-2 line-clamp-1">{{ preset.description }}</p>
+          <div class="flex flex-wrap gap-1">
+            <span
+              v-for="m in (preset.members || [])"
+              :key="m.user_id"
+              class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600"
+            >
+              {{ m.user?.name || m.user_id }}
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 人员档案弹窗 -->
@@ -489,6 +616,62 @@ function getStatusClass(active: boolean) {
               <button type="button" class="btn-secondary text-xs !py-1.5 !px-4" @click="showModal = false">取消</button>
               <button type="submit" class="btn-primary text-xs !py-1.5 !px-4" :disabled="submitting">
                 {{ submitting ? '提交中...' : editingUserId ? '保存修改' : '创建人员' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 新建预设组弹窗 -->
+    <Teleport to="body">
+      <div v-if="showPresetModal" class="fixed inset-0 z-50 flex items-start justify-center pt-[8vh]">
+        <div class="overlay-backdrop" @click="showPresetModal = false" />
+        <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-md mx-4 p-6 animate-fade-in">
+          <h3 class="text-base font-semibold text-slate-900 mb-4">📋 新建预设组</h3>
+          <form @submit.prevent="handleCreatePreset" class="space-y-3">
+            <div>
+              <span class="text-xs text-slate-500 mb-1 block">预设组名称</span>
+              <input v-model="presetName" class="input-field !py-1.5 !text-sm" placeholder="如：研判专班A组" autofocus />
+            </div>
+            <div>
+              <span class="text-xs text-slate-500 mb-1 block">描述（可选）</span>
+              <input v-model="presetDesc" class="input-field !py-1.5 !text-sm" placeholder="简要说明此预设组的用途" />
+            </div>
+            <div>
+              <span class="text-xs text-slate-500 mb-1 block">适用工作类型</span>
+              <select v-model="presetType" class="input-field !py-1.5 !text-sm">
+                <option value="default">日常任务</option>
+                <option value="data_analysis">数据分析</option>
+                <option value="special_project">专项行动</option>
+                <option value="emergency_canvas">紧急协查</option>
+                <option value="collaborative_writing">协同作战</option>
+              </select>
+            </div>
+            <div>
+              <span class="text-xs text-slate-500 mb-1 block">选择成员（{{ presetMemberIds.length }}人选）</span>
+              <div class="max-h-40 overflow-y-auto border border-slate-200 rounded-btn p-2 space-y-0.5">
+                <label
+                  v-for="user in visibleUsers"
+                  :key="user.id"
+                  class="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 cursor-pointer"
+                >
+                  <input
+                    v-model="presetMemberIds"
+                    type="checkbox"
+                    :value="user.id"
+                    class="w-4 h-4 text-blue-500 rounded"
+                  />
+                  <span class="text-sm text-slate-700">{{ user.name }}</span>
+                  <span class="text-xs text-slate-400">{{ user.dept_name }}</span>
+                </label>
+              </div>
+            </div>
+            <p v-if="presetError" class="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-btn">{{ presetError }}</p>
+            <div class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
+              <button type="button" class="btn-secondary text-xs !py-1.5 !px-4" @click="showPresetModal = false">取消</button>
+              <button type="submit" class="btn-primary text-xs !py-1.5 !px-4" :disabled="presetSubmitting">
+                {{ presetSubmitting ? '创建中...' : '创建预设组' }}
               </button>
             </div>
           </form>
