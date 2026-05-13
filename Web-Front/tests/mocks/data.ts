@@ -1,17 +1,45 @@
-import type { Note, Tag, UserBrief, User } from '@/types'
+import type { Note, Tag, UserBrief, User } from '@/types';
 
 export const mockTags: Tag[] = [
-  { id: 'tag-1', name: '紧急', color: '#DC2626', scope: 'system', category: '优先级', usage_count: 15 },
-  { id: 'tag-2', name: '情报研判', color: '#3B82F6', scope: 'system', category: '业务类型', usage_count: 8 },
-  { id: 'tag-3', name: '会议纪要', color: '#22C55E', scope: 'system', category: '文档类型', usage_count: 5 },
-  { id: 'tag-4', name: '个人备忘', color: '#8B5CF6', scope: 'personal', category: '其他', usage_count: 3 },
-]
+  {
+    id: 'tag-1',
+    name: '紧急',
+    color: '#DC2626',
+    scope: 'system',
+    category: '优先级',
+    usage_count: 15,
+  },
+  {
+    id: 'tag-2',
+    name: '情报研判',
+    color: '#3B82F6',
+    scope: 'system',
+    category: '业务类型',
+    usage_count: 8,
+  },
+  {
+    id: 'tag-3',
+    name: '会议纪要',
+    color: '#22C55E',
+    scope: 'system',
+    category: '文档类型',
+    usage_count: 5,
+  },
+  {
+    id: 'tag-4',
+    name: '个人备忘',
+    color: '#8B5CF6',
+    scope: 'personal',
+    category: '其他',
+    usage_count: 3,
+  },
+];
 
 export const mockUserBriefs: UserBrief[] = [
   { id: 'user-1', name: '张三', avatar: '', dept_name: '刑警支队', role: 'group_leader' },
   { id: 'user-2', name: '李四', avatar: '', dept_name: '刑警支队', role: 'user' },
   { id: 'user-3', name: '王五', avatar: '', dept_name: '治安支队', role: 'user' },
-]
+];
 
 export const mockUser: User = {
   id: 'user-1',
@@ -36,7 +64,7 @@ export const mockUser: User = {
     'manage_tags',
     'access_screen',
   ],
-}
+};
 
 export const mockAdminUser: User = {
   ...mockUser,
@@ -59,13 +87,13 @@ export const mockAdminUser: User = {
     'access_screen',
     'send_command',
   ],
-}
+};
 
 export function createMockNote(overrides: Partial<Note> = {}): Note {
   return {
     id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    title: '测试便签',
-    content: '这是测试便签的内容，用于单元测试。',
+    title: '测试任务',
+    content: '这是测试任务的内容，用于单元测试。',
     color_status: 'yellow',
     source_type: 'self',
     owner_id: 'user-1',
@@ -77,13 +105,15 @@ export function createMockNote(overrides: Partial<Note> = {}): Note {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     ...overrides,
-  } as Note
+  } as Note;
 }
 
 export function createMockNotes(count: number): Note[] {
-  return Array.from({ length: count }, (_, i) => createMockNote({
-    id: `note-${i + 1}`,
-    title: `便签 ${i + 1}`,
-    content: `第${i + 1}条便签内容`,
-  }))
+  return Array.from({ length: count }, (_, i) =>
+    createMockNote({
+      id: `note-${i + 1}`,
+      title: `任务 ${i + 1}`,
+      content: `第${i + 1}条任务内容`,
+    })
+  );
 }

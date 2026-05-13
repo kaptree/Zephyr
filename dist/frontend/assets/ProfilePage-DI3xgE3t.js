@@ -1,1 +1,612 @@
-import{D as e,F as t,J as n,S as r,T as i,U as a,f as o,h as s,ht as c,l,mt as u,o as d,p as ee,r as f,s as p,u as m}from"./runtime-core.esm-bundler-C_JmZCwE.js";import{O as te,T as h,t as ne,u as re,w as ie}from"./index-GyIZGKFW.js";import{a as ae,i as oe}from"./notes-DjpCALdK.js";var se={class:`w-full`},ce={key:0,class:`space-y-4`},le={key:1,class:`text-center py-16 text-sm text-red-400`},ue={class:`grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6`},de={class:`bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300 flex items-center gap-4`},fe={class:`w-14 h-14 rounded-full bg-blue-500 flex items-center justify-center text-lg font-semibold text-white shrink-0`},pe={class:`min-w-0`},me={class:`text-base font-semibold text-slate-900 dark:text-slate-100 truncate`},he={class:`text-xs text-slate-500 dark:text-slate-400`},ge={class:`text-xs text-slate-400 dark:text-slate-500 mt-0.5`},_e={class:`col-span-2 grid grid-cols-4 gap-3`},ve={class:`rounded-card p-4 text-center bg-amber-50 dark:bg-amber-900/20 transition-colors duration-300`},ye={class:`text-2xl font-bold text-amber-700 dark:text-amber-400 tabular-nums`},be={class:`rounded-card p-4 text-center bg-green-50 dark:bg-green-900/20 transition-colors duration-300`},xe={class:`text-2xl font-bold text-green-700 dark:text-green-400 tabular-nums`},Se={class:`rounded-card p-4 text-center bg-red-50 dark:bg-red-900/20 transition-colors duration-300`},Ce={class:`text-2xl font-bold text-red-700 dark:text-red-400 tabular-nums`},we={class:`rounded-card p-4 text-center bg-slate-50 dark:bg-slate-800 transition-colors duration-300`},g={class:`text-2xl font-bold text-slate-700 dark:text-slate-300 tabular-nums`},_={class:`mb-5`},v={class:`bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300`},y={class:`flex items-center justify-between mb-4`},b={key:0,class:`text-xs text-slate-500 dark:text-slate-400 ml-2`},x={class:`flex items-center gap-3`},S=[`value`],C={class:`flex gap-1`},w={class:`flex-1 overflow-x-auto scrollbar-thin`},T={class:`flex gap-1 mb-1`,style:{paddingLeft:`0px`}},E={key:0,class:`flex-1`},D={key:0,style:{width:`0px`,flexShrink:0}},O={class:`text-[9px] text-slate-400 dark:text-slate-600 whitespace-nowrap shrink-0`},k={class:`flex gap-[2px]`},A=[`title`,`onMouseenter`],Te={class:`mb-6`},Ee={class:`bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300 max-w-lg`},De=[`value`],Oe=[`value`],ke={key:0,class:`text-xs text-red-500`},Ae={key:1,class:`text-xs text-green-500`},je=[`disabled`],j=s({__name:`ProfilePage`,setup(s){let j=ne(),M=a(!0),N=a(``),P=a(0),F=a(0),I=a(0),L=a(0),R=a([]),z=a(!1),B=a(!1),V=a(``),H=a(``),U=a(``),W=a(``),G=a(``),K=new Date().getFullYear(),Me=d(()=>{let e=[];for(let t=K;t>=K-3;t--)e.push(t);return e}),q=a(K),J=a(null);function Ne(){let e=[],t=q.value,n=new Date(t,0,1),r=new Date(t,11,31),i=0,a=-1;for(let t=new Date(n);t<=r;t.setDate(t.getDate()+1)){let n=t.getDay();n<=a&&i++,a=n;let r=t.toISOString().slice(0,10),o=R.value.find(e=>e.date===r)?.count||0,s=0;o>0&&(s=1),o>2&&(s=2),o>5&&(s=3),o>10&&(s=4),e.push({date:r,dayOfWeek:n,week:i,count:o,level:s})}return e}let Pe=d(()=>Ne()),Y=d(()=>{let e=[],t=Pe.value,n=[],r=-1;for(let i of t)i.week!==r&&(n.length&&e.push(n),n=[],r=i.week),n.push(i);return n.length&&e.push(n),e}),X=d(()=>{let e=[],t=Y.value;if(t.length===0)return e;let n=-1;return t.forEach((t,r)=>{let i=new Date(t[0]?.date||``).getMonth();i!==n&&(e.push({col:r,label:`${i+1}月`}),n=i)}),e});function Fe(e){let t=[`#F1F5F9`,`#93C5FD`,`#60A5FA`,`#3B82F6`,`#1D4ED8`];return t[e]||t[0]}function Ie(e){return e.count===0?`${e.date} · 无活动`:`${e.date} · ${e.count} 条便签`}r(Z);async function Z(){M.value=!0,N.value=``;try{let e=q.value===K,t=new Date(q.value,0,1),n=e?new Date:new Date(q.value,11,31),r=Math.max(Math.ceil((n.getTime()-t.getTime())/864e5)+1,30),[i]=await Promise.all([oe({days:r,status:`archived`})]);P.value=i.data.total_notes||0,F.value=i.data.active_notes||0,R.value=i.data.trend||[],I.value=P.value-F.value;try{L.value=(await ae({status:`completed`,page:1,page_size:1})).data.total||0}catch{L.value=0}j.user&&(H.value=j.user.name||``,U.value=j.user.phone||``,W.value=j.user.email||``,G.value=j.user.rank||``)}catch{N.value=`加载数据失败`}finally{M.value=!1}}function Q(e){return e>=1e4?(e/1e4).toFixed(1)+`w`:e>=1e3?(e/1e3).toFixed(1)+`k`:String(e)}let $=d(()=>({super_admin:`系统管理员`,dept_admin:`部门管理员`,group_leader:`组长`,user:`普通员工`,screen_role:`大屏角色`})[j.user?.role||``]||`—`);async function Le(){if(j.user){z.value=!0,B.value=!1,V.value=``;try{await re(j.user.id,{name:H.value.trim(),phone:U.value.trim()||``,email:W.value.trim()||``,rank:G.value.trim()||``}),j.user.name=H.value.trim(),j.user.phone=U.value.trim(),j.user.email=W.value.trim(),j.user.rank=G.value.trim(),localStorage.setItem(`auth_user`,JSON.stringify(j.user)),B.value=!0,setTimeout(()=>{B.value=!1},2e3)}catch(e){V.value=e?.response?.data?.message||`保存失败`}finally{z.value=!1}}}return(r,a)=>(i(),m(`div`,se,[a[21]||=p(`h2`,{class:`text-lg font-semibold text-slate-900 dark:text-slate-100 mb-6`},`个人中心`,-1),M.value?(i(),m(`div`,ce,[...a[6]||=[p(`div`,{class:`skeleton h-24 rounded-card`},null,-1),p(`div`,{class:`skeleton h-16 rounded-card`},null,-1),p(`div`,{class:`skeleton h-64 rounded-card`},null,-1)]])):N.value?(i(),m(`div`,le,[ee(c(N.value)+` `,1),p(`button`,{class:`block mx-auto mt-2 text-blue-500 hover:underline`,onClick:Z},`重试`)])):(i(),m(f,{key:2},[p(`div`,ue,[p(`div`,de,[p(`div`,fe,c(n(j).user?.name?.charAt(0)||`用`),1),p(`div`,pe,[p(`h3`,me,c(n(j).user?.name||`未登录`),1),p(`p`,he,c(n(j).user?.dept_name||``),1),p(`p`,ge,c($.value),1)])]),p(`div`,_e,[p(`div`,ve,[p(`div`,ye,c(Q(F.value)),1),a[7]||=p(`div`,{class:`text-xs text-amber-600 dark:text-amber-500 mt-1`},`活跃便签`,-1)]),p(`div`,be,[p(`div`,xe,c(Q(L.value)),1),a[8]||=p(`div`,{class:`text-xs text-green-600 dark:text-green-500 mt-1`},`已完成`,-1)]),p(`div`,Se,[p(`div`,Ce,c(Q(I.value)),1),a[9]||=p(`div`,{class:`text-xs text-red-600 dark:text-red-500 mt-1`},`已归档`,-1)]),p(`div`,we,[p(`div`,g,c(Q(P.value)),1),a[10]||=p(`div`,{class:`text-xs text-slate-500 dark:text-slate-400 mt-1`},`便签总数`,-1)])])]),p(`div`,_,[p(`div`,v,[p(`div`,y,[p(`div`,null,[a[11]||=p(`h4`,{class:`text-sm font-semibold text-slate-900 dark:text-slate-100`},`归档活动热力图`,-1),J.value?(i(),m(`span`,b,c(J.value.date)+` · `+c(J.value.count)+`条归档 `,1)):l(``,!0)]),p(`div`,x,[t(p(`select`,{"onUpdate:modelValue":a[0]||=e=>q.value=e,class:`input-field !w-auto !py-1 !text-xs`,onChange:Z},[(i(!0),m(f,null,e(Me.value,e=>(i(),m(`option`,{key:e,value:e},c(e)+`年`,9,S))),128))],544),[[ie,q.value]]),a[12]||=o(`<div class="hidden sm:flex items-center gap-1"><div class="w-3 h-3 rounded-[2px]" style="background-color:#F1F5F9;" title="0"></div><div class="w-3 h-3 rounded-[2px]" style="background-color:#93C5FD;" title="1-2"></div><div class="w-3 h-3 rounded-[2px]" style="background-color:#60A5FA;" title="3-5"></div><div class="w-3 h-3 rounded-[2px]" style="background-color:#3B82F6;" title="6-10"></div><div class="w-3 h-3 rounded-[2px]" style="background-color:#1D4ED8;" title="10+"></div></div>`,1)])]),p(`div`,C,[a[13]||=o(`<div class="flex flex-col gap-1 pt-3 mr-1"><span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">一</span><span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3"></span><span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">三</span><span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3"></span><span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">五</span><span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3"></span><span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">日</span></div>`,1),p(`div`,w,[p(`div`,T,[X.value.length===0?(i(),m(`div`,E)):l(``,!0),(i(!0),m(f,null,e(X.value,(e,t)=>(i(),m(f,{key:t},[t===0?(i(),m(`div`,D)):(i(),m(`div`,{key:1,style:u({width:`${(e.col-X.value[t-1].col)*14}px`,flexShrink:0})},null,4)),p(`span`,O,c(e.label),1)],64))),128))]),p(`div`,k,[(i(!0),m(f,null,e(Y.value,(t,n)=>(i(),m(`div`,{key:n,class:`flex flex-col gap-[2px]`},[(i(!0),m(f,null,e(t,(e,t)=>(i(),m(`div`,{key:t,class:`w-3 h-3 rounded-[2px] transition-colors duration-150 cursor-pointer hover:ring-1 hover:ring-slate-400`,style:u({backgroundColor:Fe(e.level)}),title:Ie(e),onMouseenter:t=>J.value=e,onMouseleave:a[1]||=e=>J.value=null},null,44,A))),128))]))),128))])])])])]),p(`div`,Te,[p(`div`,Ee,[a[20]||=p(`h4`,{class:`text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4`},`个人信息`,-1),p(`form`,{onSubmit:te(Le,[`prevent`]),class:`space-y-3`},[p(`div`,null,[a[14]||=p(`span`,{class:`text-xs text-slate-400 dark:text-slate-500 mb-1 block`},`姓名`,-1),t(p(`input`,{"onUpdate:modelValue":a[2]||=e=>H.value=e,class:`input-field !py-1.5 !text-sm`,placeholder:`姓名`},null,512),[[h,H.value]])]),p(`div`,null,[a[15]||=p(`span`,{class:`text-xs text-slate-400 dark:text-slate-500 mb-1 block`},`部门`,-1),p(`input`,{value:n(j).user?.dept_name||``,class:`input-field !py-1.5 !text-sm bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500`,disabled:``},null,8,De)]),p(`div`,null,[a[16]||=p(`span`,{class:`text-xs text-slate-400 dark:text-slate-500 mb-1 block`},`警衔/职级`,-1),t(p(`input`,{"onUpdate:modelValue":a[3]||=e=>G.value=e,class:`input-field !py-1.5 !text-sm`,placeholder:`如：二级警督`},null,512),[[h,G.value]])]),p(`div`,null,[a[17]||=p(`span`,{class:`text-xs text-slate-400 dark:text-slate-500 mb-1 block`},`手机号`,-1),t(p(`input`,{"onUpdate:modelValue":a[4]||=e=>U.value=e,class:`input-field !py-1.5 !text-sm`,placeholder:`手机号`},null,512),[[h,U.value]])]),p(`div`,null,[a[18]||=p(`span`,{class:`text-xs text-slate-400 dark:text-slate-500 mb-1 block`},`邮箱`,-1),t(p(`input`,{"onUpdate:modelValue":a[5]||=e=>W.value=e,class:`input-field !py-1.5 !text-sm`,placeholder:`邮箱`},null,512),[[h,W.value]])]),p(`div`,null,[a[19]||=p(`span`,{class:`text-xs text-slate-400 dark:text-slate-500 mb-1 block`},`角色`,-1),p(`input`,{value:$.value,class:`input-field !py-1.5 !text-sm bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500`,disabled:``},null,8,Oe)]),V.value?(i(),m(`p`,ke,c(V.value),1)):l(``,!0),B.value?(i(),m(`p`,Ae,`✓ 已保存`)):l(``,!0),p(`button`,{type:`submit`,class:`w-full btn-primary text-sm !py-2 disabled:opacity-50`,disabled:z.value},c(z.value?`保存中...`:`保存修改`),9,je)],32)])])],64))]))}});export{j as default};
+import {
+  D as e,
+  F as t,
+  J as n,
+  S as r,
+  T as i,
+  U as a,
+  f as o,
+  h as s,
+  ht as c,
+  l,
+  mt as u,
+  o as d,
+  p as ee,
+  r as f,
+  s as p,
+  u as m,
+} from './runtime-core.esm-bundler-C_JmZCwE.js';
+import { O as te, T as h, t as ne, u as re, w as ie } from './index-GyIZGKFW.js';
+import { a as ae, i as oe } from './notes-DjpCALdK.js';
+var se = { class: `w-full` },
+  ce = { key: 0, class: `space-y-4` },
+  le = { key: 1, class: `text-center py-16 text-sm text-red-400` },
+  ue = { class: `grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6` },
+  de = {
+    class: `bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300 flex items-center gap-4`,
+  },
+  fe = {
+    class: `w-14 h-14 rounded-full bg-blue-500 flex items-center justify-center text-lg font-semibold text-white shrink-0`,
+  },
+  pe = { class: `min-w-0` },
+  me = { class: `text-base font-semibold text-slate-900 dark:text-slate-100 truncate` },
+  he = { class: `text-xs text-slate-500 dark:text-slate-400` },
+  ge = { class: `text-xs text-slate-400 dark:text-slate-500 mt-0.5` },
+  _e = { class: `col-span-2 grid grid-cols-4 gap-3` },
+  ve = {
+    class: `rounded-card p-4 text-center bg-amber-50 dark:bg-amber-900/20 transition-colors duration-300`,
+  },
+  ye = { class: `text-2xl font-bold text-amber-700 dark:text-amber-400 tabular-nums` },
+  be = {
+    class: `rounded-card p-4 text-center bg-green-50 dark:bg-green-900/20 transition-colors duration-300`,
+  },
+  xe = { class: `text-2xl font-bold text-green-700 dark:text-green-400 tabular-nums` },
+  Se = {
+    class: `rounded-card p-4 text-center bg-red-50 dark:bg-red-900/20 transition-colors duration-300`,
+  },
+  Ce = { class: `text-2xl font-bold text-red-700 dark:text-red-400 tabular-nums` },
+  we = {
+    class: `rounded-card p-4 text-center bg-slate-50 dark:bg-slate-800 transition-colors duration-300`,
+  },
+  g = { class: `text-2xl font-bold text-slate-700 dark:text-slate-300 tabular-nums` },
+  _ = { class: `mb-5` },
+  v = {
+    class: `bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300`,
+  },
+  y = { class: `flex items-center justify-between mb-4` },
+  b = { key: 0, class: `text-xs text-slate-500 dark:text-slate-400 ml-2` },
+  x = { class: `flex items-center gap-3` },
+  S = [`value`],
+  C = { class: `flex gap-1` },
+  w = { class: `flex-1 overflow-x-auto scrollbar-thin` },
+  T = { class: `flex gap-1 mb-1`, style: { paddingLeft: `0px` } },
+  E = { key: 0, class: `flex-1` },
+  D = { key: 0, style: { width: `0px`, flexShrink: 0 } },
+  O = { class: `text-[9px] text-slate-400 dark:text-slate-600 whitespace-nowrap shrink-0` },
+  k = { class: `flex gap-[2px]` },
+  A = [`title`, `onMouseenter`],
+  Te = { class: `mb-6` },
+  Ee = {
+    class: `bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300 max-w-lg`,
+  },
+  De = [`value`],
+  Oe = [`value`],
+  ke = { key: 0, class: `text-xs text-red-500` },
+  Ae = { key: 1, class: `text-xs text-green-500` },
+  je = [`disabled`],
+  j = s({
+    __name: `ProfilePage`,
+    setup(s) {
+      let j = ne(),
+        M = a(!0),
+        N = a(``),
+        P = a(0),
+        F = a(0),
+        I = a(0),
+        L = a(0),
+        R = a([]),
+        z = a(!1),
+        B = a(!1),
+        V = a(``),
+        H = a(``),
+        U = a(``),
+        W = a(``),
+        G = a(``),
+        K = new Date().getFullYear(),
+        Me = d(() => {
+          let e = [];
+          for (let t = K; t >= K - 3; t--) e.push(t);
+          return e;
+        }),
+        q = a(K),
+        J = a(null);
+      function Ne() {
+        let e = [],
+          t = q.value,
+          n = new Date(t, 0, 1),
+          r = new Date(t, 11, 31),
+          i = 0,
+          a = -1;
+        for (let t = new Date(n); t <= r; t.setDate(t.getDate() + 1)) {
+          let n = t.getDay();
+          (n <= a && i++, (a = n));
+          let r = t.toISOString().slice(0, 10),
+            o = R.value.find((e) => e.date === r)?.count || 0,
+            s = 0;
+          (o > 0 && (s = 1),
+            o > 2 && (s = 2),
+            o > 5 && (s = 3),
+            o > 10 && (s = 4),
+            e.push({ date: r, dayOfWeek: n, week: i, count: o, level: s }));
+        }
+        return e;
+      }
+      let Pe = d(() => Ne()),
+        Y = d(() => {
+          let e = [],
+            t = Pe.value,
+            n = [],
+            r = -1;
+          for (let i of t)
+            (i.week !== r && (n.length && e.push(n), (n = []), (r = i.week)), n.push(i));
+          return (n.length && e.push(n), e);
+        }),
+        X = d(() => {
+          let e = [],
+            t = Y.value;
+          if (t.length === 0) return e;
+          let n = -1;
+          return (
+            t.forEach((t, r) => {
+              let i = new Date(t[0]?.date || ``).getMonth();
+              i !== n && (e.push({ col: r, label: `${i + 1}月` }), (n = i));
+            }),
+            e
+          );
+        });
+      function Fe(e) {
+        let t = [`#F1F5F9`, `#93C5FD`, `#60A5FA`, `#3B82F6`, `#1D4ED8`];
+        return t[e] || t[0];
+      }
+      function Ie(e) {
+        return e.count === 0 ? `${e.date} · 无活动` : `${e.date} · ${e.count} 条任务`;
+      }
+      r(Z);
+      async function Z() {
+        ((M.value = !0), (N.value = ``));
+        try {
+          let e = q.value === K,
+            t = new Date(q.value, 0, 1),
+            n = e ? new Date() : new Date(q.value, 11, 31),
+            r = Math.max(Math.ceil((n.getTime() - t.getTime()) / 864e5) + 1, 30),
+            [i] = await Promise.all([oe({ days: r, status: `archived` })]);
+          ((P.value = i.data.total_notes || 0),
+            (F.value = i.data.active_notes || 0),
+            (R.value = i.data.trend || []),
+            (I.value = P.value - F.value));
+          try {
+            L.value = (await ae({ status: `completed`, page: 1, page_size: 1 })).data.total || 0;
+          } catch {
+            L.value = 0;
+          }
+          j.user &&
+            ((H.value = j.user.name || ``),
+            (U.value = j.user.phone || ``),
+            (W.value = j.user.email || ``),
+            (G.value = j.user.rank || ``));
+        } catch {
+          N.value = `加载数据失败`;
+        } finally {
+          M.value = !1;
+        }
+      }
+      function Q(e) {
+        return e >= 1e4
+          ? (e / 1e4).toFixed(1) + `w`
+          : e >= 1e3
+            ? (e / 1e3).toFixed(1) + `k`
+            : String(e);
+      }
+      let $ = d(
+        () =>
+          ({
+            super_admin: `系统管理员`,
+            dept_admin: `部门管理员`,
+            group_leader: `组长`,
+            user: `普通员工`,
+            screen_role: `大屏角色`,
+          })[j.user?.role || ``] || `—`
+      );
+      async function Le() {
+        if (j.user) {
+          ((z.value = !0), (B.value = !1), (V.value = ``));
+          try {
+            (await re(j.user.id, {
+              name: H.value.trim(),
+              phone: U.value.trim() || ``,
+              email: W.value.trim() || ``,
+              rank: G.value.trim() || ``,
+            }),
+              (j.user.name = H.value.trim()),
+              (j.user.phone = U.value.trim()),
+              (j.user.email = W.value.trim()),
+              (j.user.rank = G.value.trim()),
+              localStorage.setItem(`auth_user`, JSON.stringify(j.user)),
+              (B.value = !0),
+              setTimeout(() => {
+                B.value = !1;
+              }, 2e3));
+          } catch (e) {
+            V.value = e?.response?.data?.message || `保存失败`;
+          } finally {
+            z.value = !1;
+          }
+        }
+      }
+      return (r, a) => (
+        i(),
+        m(`div`, se, [
+          (a[21] ||= p(
+            `h2`,
+            { class: `text-lg font-semibold text-slate-900 dark:text-slate-100 mb-6` },
+            `个人中心`,
+            -1
+          )),
+          M.value
+            ? (i(),
+              m(`div`, ce, [
+                ...(a[6] ||= [
+                  p(`div`, { class: `skeleton h-24 rounded-card` }, null, -1),
+                  p(`div`, { class: `skeleton h-16 rounded-card` }, null, -1),
+                  p(`div`, { class: `skeleton h-64 rounded-card` }, null, -1),
+                ]),
+              ]))
+            : N.value
+              ? (i(),
+                m(`div`, le, [
+                  ee(c(N.value) + ` `, 1),
+                  p(
+                    `button`,
+                    { class: `block mx-auto mt-2 text-blue-500 hover:underline`, onClick: Z },
+                    `重试`
+                  ),
+                ]))
+              : (i(),
+                m(
+                  f,
+                  { key: 2 },
+                  [
+                    p(`div`, ue, [
+                      p(`div`, de, [
+                        p(`div`, fe, c(n(j).user?.name?.charAt(0) || `用`), 1),
+                        p(`div`, pe, [
+                          p(`h3`, me, c(n(j).user?.name || `未登录`), 1),
+                          p(`p`, he, c(n(j).user?.dept_name || ``), 1),
+                          p(`p`, ge, c($.value), 1),
+                        ]),
+                      ]),
+                      p(`div`, _e, [
+                        p(`div`, ve, [
+                          p(`div`, ye, c(Q(F.value)), 1),
+                          (a[7] ||= p(
+                            `div`,
+                            { class: `text-xs text-amber-600 dark:text-amber-500 mt-1` },
+                            `活跃任务`,
+                            -1
+                          )),
+                        ]),
+                        p(`div`, be, [
+                          p(`div`, xe, c(Q(L.value)), 1),
+                          (a[8] ||= p(
+                            `div`,
+                            { class: `text-xs text-green-600 dark:text-green-500 mt-1` },
+                            `已完成`,
+                            -1
+                          )),
+                        ]),
+                        p(`div`, Se, [
+                          p(`div`, Ce, c(Q(I.value)), 1),
+                          (a[9] ||= p(
+                            `div`,
+                            { class: `text-xs text-red-600 dark:text-red-500 mt-1` },
+                            `已归档`,
+                            -1
+                          )),
+                        ]),
+                        p(`div`, we, [
+                          p(`div`, g, c(Q(P.value)), 1),
+                          (a[10] ||= p(
+                            `div`,
+                            { class: `text-xs text-slate-500 dark:text-slate-400 mt-1` },
+                            `任务总数`,
+                            -1
+                          )),
+                        ]),
+                      ]),
+                    ]),
+                    p(`div`, _, [
+                      p(`div`, v, [
+                        p(`div`, y, [
+                          p(`div`, null, [
+                            (a[11] ||= p(
+                              `h4`,
+                              { class: `text-sm font-semibold text-slate-900 dark:text-slate-100` },
+                              `归档活动热力图`,
+                              -1
+                            )),
+                            J.value
+                              ? (i(),
+                                m(
+                                  `span`,
+                                  b,
+                                  c(J.value.date) + ` · ` + c(J.value.count) + `条归档 `,
+                                  1
+                                ))
+                              : l(``, !0),
+                          ]),
+                          p(`div`, x, [
+                            t(
+                              p(
+                                `select`,
+                                {
+                                  'onUpdate:modelValue': (a[0] ||= (e) => (q.value = e)),
+                                  class: `input-field !w-auto !py-1 !text-xs`,
+                                  onChange: Z,
+                                },
+                                [
+                                  (i(!0),
+                                  m(
+                                    f,
+                                    null,
+                                    e(
+                                      Me.value,
+                                      (e) => (
+                                        i(),
+                                        m(`option`, { key: e, value: e }, c(e) + `年`, 9, S)
+                                      )
+                                    ),
+                                    128
+                                  )),
+                                ],
+                                544
+                              ),
+                              [[ie, q.value]]
+                            ),
+                            (a[12] ||= o(
+                              `<div class="hidden sm:flex items-center gap-1"><div class="w-3 h-3 rounded-[2px]" style="background-color:#F1F5F9;" title="0"></div><div class="w-3 h-3 rounded-[2px]" style="background-color:#93C5FD;" title="1-2"></div><div class="w-3 h-3 rounded-[2px]" style="background-color:#60A5FA;" title="3-5"></div><div class="w-3 h-3 rounded-[2px]" style="background-color:#3B82F6;" title="6-10"></div><div class="w-3 h-3 rounded-[2px]" style="background-color:#1D4ED8;" title="10+"></div></div>`,
+                              1
+                            )),
+                          ]),
+                        ]),
+                        p(`div`, C, [
+                          (a[13] ||= o(
+                            `<div class="flex flex-col gap-1 pt-3 mr-1"><span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">一</span><span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3"></span><span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">三</span><span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3"></span><span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">五</span><span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3"></span><span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">日</span></div>`,
+                            1
+                          )),
+                          p(`div`, w, [
+                            p(`div`, T, [
+                              X.value.length === 0 ? (i(), m(`div`, E)) : l(``, !0),
+                              (i(!0),
+                              m(
+                                f,
+                                null,
+                                e(
+                                  X.value,
+                                  (e, t) => (
+                                    i(),
+                                    m(
+                                      f,
+                                      { key: t },
+                                      [
+                                        t === 0
+                                          ? (i(), m(`div`, D))
+                                          : (i(),
+                                            m(
+                                              `div`,
+                                              {
+                                                key: 1,
+                                                style: u({
+                                                  width: `${(e.col - X.value[t - 1].col) * 14}px`,
+                                                  flexShrink: 0,
+                                                }),
+                                              },
+                                              null,
+                                              4
+                                            )),
+                                        p(`span`, O, c(e.label), 1),
+                                      ],
+                                      64
+                                    )
+                                  )
+                                ),
+                                128
+                              )),
+                            ]),
+                            p(`div`, k, [
+                              (i(!0),
+                              m(
+                                f,
+                                null,
+                                e(
+                                  Y.value,
+                                  (t, n) => (
+                                    i(),
+                                    m(`div`, { key: n, class: `flex flex-col gap-[2px]` }, [
+                                      (i(!0),
+                                      m(
+                                        f,
+                                        null,
+                                        e(
+                                          t,
+                                          (e, t) => (
+                                            i(),
+                                            m(
+                                              `div`,
+                                              {
+                                                key: t,
+                                                class: `w-3 h-3 rounded-[2px] transition-colors duration-150 cursor-pointer hover:ring-1 hover:ring-slate-400`,
+                                                style: u({ backgroundColor: Fe(e.level) }),
+                                                title: Ie(e),
+                                                onMouseenter: (t) => (J.value = e),
+                                                onMouseleave: (a[1] ||= (e) => (J.value = null)),
+                                              },
+                                              null,
+                                              44,
+                                              A
+                                            )
+                                          )
+                                        ),
+                                        128
+                                      )),
+                                    ])
+                                  )
+                                ),
+                                128
+                              )),
+                            ]),
+                          ]),
+                        ]),
+                      ]),
+                    ]),
+                    p(`div`, Te, [
+                      p(`div`, Ee, [
+                        (a[20] ||= p(
+                          `h4`,
+                          {
+                            class: `text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4`,
+                          },
+                          `个人信息`,
+                          -1
+                        )),
+                        p(
+                          `form`,
+                          { onSubmit: te(Le, [`prevent`]), class: `space-y-3` },
+                          [
+                            p(`div`, null, [
+                              (a[14] ||= p(
+                                `span`,
+                                { class: `text-xs text-slate-400 dark:text-slate-500 mb-1 block` },
+                                `姓名`,
+                                -1
+                              )),
+                              t(
+                                p(
+                                  `input`,
+                                  {
+                                    'onUpdate:modelValue': (a[2] ||= (e) => (H.value = e)),
+                                    class: `input-field !py-1.5 !text-sm`,
+                                    placeholder: `姓名`,
+                                  },
+                                  null,
+                                  512
+                                ),
+                                [[h, H.value]]
+                              ),
+                            ]),
+                            p(`div`, null, [
+                              (a[15] ||= p(
+                                `span`,
+                                { class: `text-xs text-slate-400 dark:text-slate-500 mb-1 block` },
+                                `部门`,
+                                -1
+                              )),
+                              p(
+                                `input`,
+                                {
+                                  value: n(j).user?.dept_name || ``,
+                                  class: `input-field !py-1.5 !text-sm bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500`,
+                                  disabled: ``,
+                                },
+                                null,
+                                8,
+                                De
+                              ),
+                            ]),
+                            p(`div`, null, [
+                              (a[16] ||= p(
+                                `span`,
+                                { class: `text-xs text-slate-400 dark:text-slate-500 mb-1 block` },
+                                `警衔/职级`,
+                                -1
+                              )),
+                              t(
+                                p(
+                                  `input`,
+                                  {
+                                    'onUpdate:modelValue': (a[3] ||= (e) => (G.value = e)),
+                                    class: `input-field !py-1.5 !text-sm`,
+                                    placeholder: `如：二级警督`,
+                                  },
+                                  null,
+                                  512
+                                ),
+                                [[h, G.value]]
+                              ),
+                            ]),
+                            p(`div`, null, [
+                              (a[17] ||= p(
+                                `span`,
+                                { class: `text-xs text-slate-400 dark:text-slate-500 mb-1 block` },
+                                `手机号`,
+                                -1
+                              )),
+                              t(
+                                p(
+                                  `input`,
+                                  {
+                                    'onUpdate:modelValue': (a[4] ||= (e) => (U.value = e)),
+                                    class: `input-field !py-1.5 !text-sm`,
+                                    placeholder: `手机号`,
+                                  },
+                                  null,
+                                  512
+                                ),
+                                [[h, U.value]]
+                              ),
+                            ]),
+                            p(`div`, null, [
+                              (a[18] ||= p(
+                                `span`,
+                                { class: `text-xs text-slate-400 dark:text-slate-500 mb-1 block` },
+                                `邮箱`,
+                                -1
+                              )),
+                              t(
+                                p(
+                                  `input`,
+                                  {
+                                    'onUpdate:modelValue': (a[5] ||= (e) => (W.value = e)),
+                                    class: `input-field !py-1.5 !text-sm`,
+                                    placeholder: `邮箱`,
+                                  },
+                                  null,
+                                  512
+                                ),
+                                [[h, W.value]]
+                              ),
+                            ]),
+                            p(`div`, null, [
+                              (a[19] ||= p(
+                                `span`,
+                                { class: `text-xs text-slate-400 dark:text-slate-500 mb-1 block` },
+                                `角色`,
+                                -1
+                              )),
+                              p(
+                                `input`,
+                                {
+                                  value: $.value,
+                                  class: `input-field !py-1.5 !text-sm bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500`,
+                                  disabled: ``,
+                                },
+                                null,
+                                8,
+                                Oe
+                              ),
+                            ]),
+                            V.value ? (i(), m(`p`, ke, c(V.value), 1)) : l(``, !0),
+                            B.value ? (i(), m(`p`, Ae, `✓ 已保存`)) : l(``, !0),
+                            p(
+                              `button`,
+                              {
+                                type: `submit`,
+                                class: `w-full btn-primary text-sm !py-2 disabled:opacity-50`,
+                                disabled: z.value,
+                              },
+                              c(z.value ? `保存中...` : `保存修改`),
+                              9,
+                              je
+                            ),
+                          ],
+                          32
+                        ),
+                      ]),
+                    ]),
+                  ],
+                  64
+                )),
+        ])
+      );
+    },
+  });
+export { j as default };

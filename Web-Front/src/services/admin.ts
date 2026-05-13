@@ -1,5 +1,5 @@
 import { get, post, put, del } from './api'
-import type { User, Department, LoginCredentials, LoginResponse, TreeNode } from '@/types'
+import type { User, Department, LoginCredentials, LoginResponse, TreeNode, UserProfile, WorkTypeOption } from '@/types'
 
 export function login(credentials: LoginCredentials) {
   return post<LoginResponse>('/api/v1/auth/login', credentials)
@@ -35,16 +35,32 @@ export function getVisibleUsers() {
   return get<User[]>('/api/v1/users/visible')
 }
 
-export function createUser(payload: { username: string; name: string; password: string; role?: string; rank?: string; phone?: string; email?: string; avatar?: string; dept_id?: string }) {
+export function createUser(payload: { username: string; name: string; password: string; role?: string; rank?: string; position?: string; skills?: string; phone?: string; email?: string; avatar?: string; dept_id?: string }) {
   return post<User>('/api/v1/users', payload)
 }
 
-export function updateUser(id: string, payload: { name?: string; role?: string; rank?: string; phone?: string; email?: string; avatar?: string; dept_id?: string; is_active?: boolean }) {
+export function updateUser(id: string, payload: { name?: string; role?: string; rank?: string; position?: string; skills?: string; phone?: string; email?: string; avatar?: string; dept_id?: string; is_active?: boolean }) {
   return put<User>(`/api/v1/users/${id}`, payload)
 }
 
 export function deleteUser(id: string) {
   return del<{ success: boolean }>(`/api/v1/users/${id}`)
+}
+
+export function getUserProfile(id: string) {
+  return get<UserProfile>(`/api/v1/users/${id}/profile`)
+}
+
+export function getUsersWithStats(params: { dept_id?: string; role?: string; keyword?: string; page?: number; page_size?: number }) {
+  return get<{ data: (User & { work_type_stats?: { work_type: string; group_count: number }[] })[]; total: number; page: number; page_size: number }>('/api/v1/users/with-stats', params as Record<string, unknown>)
+}
+
+export function recommendUsers(params: { work_type: string; exclude_user_id?: string; limit?: number }) {
+  return get<User[]>('/api/v1/users/recommend', params as Record<string, unknown>)
+}
+
+export function getWorkTypeOptions() {
+  return get<WorkTypeOption[]>('/api/v1/users/work-type-options')
 }
 
 // ---- Ledger ----

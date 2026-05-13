@@ -131,13 +131,13 @@ func parseOperation(path, method string) (action, resource, resourceID, detail s
 		} else if method == "POST" && len(parts) >= 2 && lastPart == "remind" {
 			return "remind_note", "note", parts[0], "盯办提醒"
 		} else if method == "POST" && len(parts) >= 2 && lastPart == "restore" {
-			return "restore_note", "note", parts[0], "恢复便签"
+			return "restore_note", "note", parts[0], "恢复任务"
 		} else if method == "POST" {
-			return "create_note", "note", "", "创建便签"
+			return "create_note", "note", "", "创建任务"
 		} else if method == "PUT" {
-			return "update_note", "note", parts[0], "编辑便签"
+			return "update_note", "note", parts[0], "编辑任务"
 		} else if method == "DELETE" {
-			return "delete_note", "note", parts[0], "删除便签"
+			return "delete_note", "note", parts[0], "删除任务"
 		}
 
 	case strings.HasPrefix(path, "tags"):

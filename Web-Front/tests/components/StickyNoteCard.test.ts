@@ -1,78 +1,78 @@
-import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import StickyNoteCard from '@/components/note/StickyNoteCard.vue'
-import { createMockNote } from '../mocks/data'
+import { describe, it, expect } from 'vitest';
+import { mount } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
+import StickyNoteCard from '@/components/note/StickyNoteCard.vue';
+import { createMockNote } from '../mocks/data';
 
 describe('StickyNoteCard', () => {
   const createWrapper = (overrides = {}) => {
-    setActivePinia(createPinia())
-    const note = createMockNote(overrides)
+    setActivePinia(createPinia());
+    const note = createMockNote(overrides);
     return {
       wrapper: mount(StickyNoteCard, {
         props: { note, mode: 'web', archived: false },
       }),
       note,
-    }
-  }
+    };
+  };
 
-  it('待办便签应有黄色背景样式', () => {
-    const { wrapper } = createWrapper({ color_status: 'yellow' })
-    const el = wrapper.element as HTMLElement
-    const bg = el.style.background || el.style.backgroundColor || ''
-    expect(bg).toMatch(/\(254,\s*243,\s*199\)/)
-  })
+  it('待办任务应有黄色背景样式', () => {
+    const { wrapper } = createWrapper({ color_status: 'yellow' });
+    const el = wrapper.element as HTMLElement;
+    const bg = el.style.background || el.style.backgroundColor || '';
+    expect(bg).toMatch(/\(254,\s*243,\s*199\)/);
+  });
 
-  it('盯办便签应有红色背景样式', () => {
-    const { wrapper } = createWrapper({ color_status: 'red' })
-    const el = wrapper.element as HTMLElement
-    const bg = el.style.background || el.style.backgroundColor || ''
-    expect(bg).toMatch(/\(254,\s*226,\s*226\)/)
-  })
+  it('盯办任务应有红色背景样式', () => {
+    const { wrapper } = createWrapper({ color_status: 'red' });
+    const el = wrapper.element as HTMLElement;
+    const bg = el.style.background || el.style.backgroundColor || '';
+    expect(bg).toMatch(/\(254,\s*226,\s*226\)/);
+  });
 
-  it('应显示便签标题', () => {
-    const { wrapper, note } = createWrapper()
-    expect(wrapper.text()).toContain(note.title)
-  })
+  it('应显示任务标题', () => {
+    const { wrapper, note } = createWrapper();
+    expect(wrapper.text()).toContain(note.title);
+  });
 
-  it('应显示便签内容', () => {
-    const { wrapper, note } = createWrapper()
-    expect(wrapper.text()).toContain(note.content)
-  })
+  it('应显示任务内容', () => {
+    const { wrapper, note } = createWrapper();
+    expect(wrapper.text()).toContain(note.content);
+  });
 
-  it('盯办便签应显示盯办徽章', () => {
-    const { wrapper } = createWrapper({ color_status: 'red' })
-    expect(wrapper.text()).toContain('盯办')
-  })
+  it('盯办任务应显示盯办徽章', () => {
+    const { wrapper } = createWrapper({ color_status: 'red' });
+    expect(wrapper.text()).toContain('盯办');
+  });
 
   it('应显示完成并归档按钮', () => {
-    const { wrapper } = createWrapper()
-    expect(wrapper.text()).toContain('完成并归档')
-  })
+    const { wrapper } = createWrapper();
+    expect(wrapper.text()).toContain('完成并归档');
+  });
 
-  it('盯办便签应显示盯办按钮', () => {
-    const { wrapper } = createWrapper({ color_status: 'yellow' })
-    expect(wrapper.text()).toContain('盯办')
-  })
+  it('盯办任务应显示盯办按钮', () => {
+    const { wrapper } = createWrapper({ color_status: 'yellow' });
+    expect(wrapper.text()).toContain('盯办');
+  });
 
   it('已归档应显示已归档水印', () => {
-    setActivePinia(createPinia())
-    const note = createMockNote()
+    setActivePinia(createPinia());
+    const note = createMockNote();
     const wrapper = mount(StickyNoteCard, {
       props: { note, mode: 'web', archived: true },
-    })
-    expect(wrapper.text()).toContain('已归档')
-  })
+    });
+    expect(wrapper.text()).toContain('已归档');
+  });
 
   it('点击应触发 click 事件', async () => {
-    const { wrapper } = createWrapper()
-    await wrapper.trigger('click')
-    expect(wrapper.emitted('click')).toBeTruthy()
-  })
+    const { wrapper } = createWrapper();
+    await wrapper.trigger('click');
+    expect(wrapper.emitted('click')).toBeTruthy();
+  });
 
   it('右键应触发 context-menu 事件', async () => {
-    const { wrapper } = createWrapper()
-    await wrapper.trigger('contextmenu')
-    expect(wrapper.emitted('context-menu')).toBeTruthy()
-  })
-})
+    const { wrapper } = createWrapper();
+    await wrapper.trigger('contextmenu');
+    expect(wrapper.emitted('context-menu')).toBeTruthy();
+  });
+});

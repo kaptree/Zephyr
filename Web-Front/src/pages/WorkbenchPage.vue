@@ -9,6 +9,8 @@ import StickyNoteCard from '@/components/note/StickyNoteCard.vue';
 import UserPicker from '@/components/common/UserPicker.vue';
 import { createWorkGroup, searchGroups, deleteWorkGroup } from '@/services/workgroup';
 import type { WorkGroupData } from '@/services/workgroup';
+import { recommendUsers, getWorkTypeOptions } from '@/services/admin';
+import type { WorkTypeOption } from '@/types';
 
 const router = useRouter();
 const noteStore = useNoteStore();
@@ -51,6 +53,19 @@ const wgSubGroups = ref<
 >([{ name: '', members: [] }]);
 const wgCreating = ref(false);
 const wgError = ref('');
+
+const selectedWorkType = ref('');
+const workTypeOptions = ref<WorkTypeOption[]>([]);
+const recommending = ref(false);
+const recommendError = ref('');
+const recommendResult = ref<
+  Array<{
+    id: string;
+    name: string;
+    dept_name: string;
+    work_type_stats?: { work_type: string; group_count: number }[];
+  }>
+>([]);
 const selectedWGUserIds = ref<string[][]>([[]]);
 
 const displayedNotes = computed(() => {
@@ -62,6 +77,7 @@ const displayedNotes = computed(() => {
 onMounted(() => {
   noteStore.fetchNotes();
   loadWorkGroups();
+  loadWorkTypeOptions();
 });
 
 function handleTabClick(tab: string) {
@@ -114,7 +130,7 @@ function closeDetail() {
 async function handleSubmit() {
   if (creating.value) return;
   if (!newTitle.value.trim()) {
-    createError.value = '请输入便签标题';
+    createError.value = '请输入任务标题';
     return;
   }
   if (sourceType.value !== 'self' && selectedAssigneeIds.value.length === 0) {
@@ -150,7 +166,7 @@ async function handleSubmit() {
   } catch (e: unknown) {
     createError.value =
       (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-      '创建便签失败';
+      '创建任务失败';
   } finally {
     creating.value = false;
   }
@@ -304,6 +320,49 @@ async function handleDeleteGroup(id: string) {
     await loadWorkGroups();
   } catch {
     /* ignore */
+  }
+}
+
+async function loadWorkTypeOptions() {
+  try {
+    const res = await getWorkTypeOptions();
+    workTypeOptions.value = (res.data as unknown as WorkTypeOption[]) || [];
+  } catch {
+    workTypeOptions.value = [];
+  }
+}
+
+async function handleRecommend() {
+  if (!selectedWorkType.value) return;
+  recommending.value = true;
+  recommendError.value = '';
+  recommendResult.value = [];
+  try {
+    const res = await recommendUsers({ work_type: selectedWorkType.value, limit: 10 });
+    const users = (res.data as unknown as any[]) || [];
+    recommendResult.value = users.map((u: any) => ({
+      id: u.id,
+      name: u.name,
+      dept_name: u.department?.name || u.dept_name || '',
+      work_type_stats: [],
+    }));
+    if (users.length === 0) {
+      recommendError.value = '暂无匹配的推荐人员';
+    }
+  } catch {
+    recommendError.value = '推荐失败，请重试';
+  } finally {
+    recommending.value = false;
+  }
+}
+
+function selectRecommendUser(userId: string) {
+  if (!selectedAssigneeIds.value.includes(userId)) {
+    if (sourceType.value === 'assigned') {
+      selectedAssigneeIds.value = [userId];
+    } else {
+      selectedAssigneeIds.value.push(userId);
+    }
   }
 }
 
@@ -536,7 +595,7 @@ const templateLabels: Record<string, string> = {
       </div>
     </template>
 
-    <!-- ====== 便签内容区 ====== -->
+    <!-- ====== 任务内容区 ====== -->
     <template v-else>
       <div
         v-if="noteStore.loading && noteStore.activeNotes.length === 0"
@@ -566,9 +625,9 @@ const templateLabels: Record<string, string> = {
           </svg>
         </div>
         <p class="text-slate-400 dark:text-slate-500 text-sm">
-          {{ activeTab === 'completed' ? '暂无已完成便签' : '暂无活跃便签' }}
+          {{ activeTab === 'completed' ? '暂无已完成任务' : '暂无活跃任务' }}
         </p>
-        <p class="text-slate-300 dark:text-slate-600 text-xs mt-1">点击右下角 '+' 新建便签</p>
+        <p class="text-slate-300 dark:text-slate-600 text-xs mt-1">点击右下角 '+' 新建任务</p>
       </div>
       <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
         <StickyNoteCard
@@ -600,7 +659,7 @@ const templateLabels: Record<string, string> = {
       </svg>
     </button>
 
-    <!-- ====== 新建便签模态框 ====== -->
+    <!-- ====== 新建任务模态框 ====== -->
     <Teleport to="body">
       <div
         v-if="showCreateModal"
@@ -612,7 +671,7 @@ const templateLabels: Record<string, string> = {
         >
           <div class="p-6">
             <div class="flex items-center justify-between mb-6">
-              <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">新建便签</h2>
+              <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">新建任务</h2>
               <button
                 class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
                 @click="showCreateModal = false"
@@ -633,18 +692,18 @@ const templateLabels: Record<string, string> = {
               </button>
             </div>
             <form class="space-y-4" @submit.prevent="handleSubmit" @keydown.enter.prevent>
-              <input v-model="newTitle" class="input-field" placeholder="便签标题" autofocus />
+              <input v-model="newTitle" class="input-field" placeholder="任务标题" autofocus />
               <textarea
                 v-model="newContent"
                 class="input-field h-32 resize-none"
-                placeholder="便签内容..."
+                placeholder="任务内容..."
               />
               <div>
                 <span class="text-xs text-slate-500 mb-1.5 block">标签</span
                 ><TagSelector v-model="selectedTagIds" :max="5" />
               </div>
               <div>
-                <span class="text-xs text-slate-500 mb-2 block">便签类型</span>
+                <span class="text-xs text-slate-500 mb-2 block">任务类型</span>
                 <div class="flex gap-3">
                   <label
                     :class="[
@@ -683,6 +742,61 @@ const templateLabels: Record<string, string> = {
                   :multiple="sourceType === 'collaboration'"
                   :max="sourceType === 'assigned' ? 1 : 20"
                 />
+                <div
+                  class="mt-3 p-3 rounded-lg border border-dashed border-blue-200 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10"
+                >
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xs text-slate-500">🔍 工作类型</span>
+                    <select
+                      v-model="selectedWorkType"
+                      class="input-field !py-1 !text-xs !w-auto"
+                      @change="handleRecommend()"
+                    >
+                      <option value="">选择类型</option>
+                      <option v-for="opt in workTypeOptions" :key="opt.value" :value="opt.value">
+                        {{ opt.label }}
+                      </option>
+                    </select>
+                    <button
+                      type="button"
+                      class="text-xs px-2.5 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-btn hover:from-blue-600 hover:to-purple-600 transition-smooth disabled:opacity-50 flex items-center gap-1"
+                      :disabled="!selectedWorkType || recommending"
+                      @click="handleRecommend()"
+                    >
+                      <span
+                        v-if="recommending"
+                        class="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"
+                      ></span>
+                      🤖 一键推荐
+                    </button>
+                  </div>
+                  <p v-if="recommendError" class="text-xs text-red-500 mb-2">
+                    {{ recommendError }}
+                  </p>
+                  <div
+                    v-if="recommendResult.length > 0"
+                    class="flex flex-wrap gap-1 max-h-24 overflow-y-auto"
+                  >
+                    <button
+                      v-for="u in recommendResult"
+                      :key="u.id"
+                      type="button"
+                      :class="[
+                        'text-xs px-2 py-1 rounded-full transition-smooth',
+                        selectedAssigneeIds.includes(u.id)
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-slate-200 dark:border-slate-600',
+                      ]"
+                      @click="selectRecommendUser(u.id)"
+                    >
+                      {{ u.name }}
+                      <span v-if="u.dept_name" class="text-[10px] opacity-60 ml-0.5">{{
+                        u.dept_name
+                      }}</span>
+                      <span v-if="selectedAssigneeIds.includes(u.id)" class="ml-1">✓</span>
+                    </button>
+                  </div>
+                </div>
               </div>
               <p v-if="createError" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-btn">
                 {{ createError }}
@@ -703,7 +817,7 @@ const templateLabels: Record<string, string> = {
                   class="px-5 py-2.5 text-sm text-white bg-[#3B82F6] rounded-btn hover:bg-blue-600 transition-smooth disabled:opacity-50"
                   :disabled="creating"
                 >
-                  {{ creating ? '创建中...' : '创建便签' }}
+                  {{ creating ? '创建中...' : '创建任务' }}
                 </button>
               </div>
             </form>
@@ -720,7 +834,7 @@ const templateLabels: Record<string, string> = {
           <div class="p-6 h-full flex flex-col">
             <div class="flex items-center justify-between mb-6">
               <div class="flex items-center gap-2">
-                <h2 class="text-lg font-semibold text-slate-900">便签详情</h2>
+                <h2 class="text-lg font-semibold text-slate-900">任务详情</h2>
                 <span
                   v-if="selectedNote.color_status === 'red'"
                   class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-tag"

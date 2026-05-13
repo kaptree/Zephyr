@@ -574,10 +574,10 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
         <div class="flex items-center justify-between mb-4">
           <div>
             <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-300">
-              📋 专项工作便签
+              📋 专项工作任务
             </h2>
             <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-              仅属于此专项行动的任务便签，独立于日常工作便签
+              仅属于此专项行动的任务任务，独立于日常工作任务
             </p>
           </div>
           <button
@@ -592,7 +592,7 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
                 d="M12 4v16m8-8H4"
               />
             </svg>
-            新建便签
+            新建任务
           </button>
         </div>
 
@@ -607,8 +607,8 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
           class="text-center py-16 text-slate-400 dark:text-slate-500"
         >
           <p class="text-2xl mb-2">📝</p>
-          <p class="text-sm">暂无专项便签</p>
-          <p class="text-xs mt-1">点击「新建便签」添加此专项行动的任务</p>
+          <p class="text-sm">暂无专项任务</p>
+          <p class="text-xs mt-1">点击「新建任务」添加此专项行动的任务</p>
         </div>
 
         <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
@@ -667,7 +667,7 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
           <div class="p-6">
             <div class="flex items-center justify-between mb-6">
               <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                📝 新建专项便签
+                📝 新建专项任务
               </h2>
               <button
                 class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
@@ -689,11 +689,11 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
               </button>
             </div>
             <form class="space-y-4" @submit.prevent="handleCreateNote" @keydown.enter.prevent>
-              <input v-model="noteTitle" class="input-field" placeholder="便签标题" autofocus />
+              <input v-model="noteTitle" class="input-field" placeholder="任务标题" autofocus />
               <textarea
                 v-model="noteContent"
                 class="input-field h-24 resize-none"
-                placeholder="便签内容..."
+                placeholder="任务内容..."
               />
               <div class="grid grid-cols-2 gap-3">
                 <div>
@@ -733,7 +733,7 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
                   class="px-5 py-2.5 text-sm text-white bg-gradient-to-r from-purple-500 to-blue-500 rounded-btn hover:from-purple-600 hover:to-blue-600 transition-smooth disabled:opacity-50"
                   :disabled="noteCreating"
                 >
-                  {{ noteCreating ? '创建中...' : '创建便签' }}
+                  {{ noteCreating ? '创建中...' : '创建任务' }}
                 </button>
               </div>
             </form>
@@ -750,7 +750,7 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
           <div class="p-6 h-full flex flex-col">
             <div class="flex items-center justify-between mb-6">
               <div class="flex items-center gap-2">
-                <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">便签详情</h2>
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">任务详情</h2>
                 <span
                   v-if="selectedDetailNote.color_status === 'red'"
                   class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-tag"

@@ -148,12 +148,12 @@ function fmtNum(n: number): string {
 
 function getActionLabel(action: string): string {
   const map: Record<string, string> = {
-    create: '创建便签',
-    update: '更新便签',
+    create: '创建任务',
+    update: '更新任务',
     complete: '完成归档',
     remind: '盯办提醒',
-    restore: '恢复便签',
-    delete: '删除便签',
+    restore: '恢复任务',
+    delete: '删除任务',
   };
   return map[action] || action;
 }
@@ -231,7 +231,7 @@ function timeAgo(ts: string): string {
               class="absolute top-0 right-0 w-24 h-24 opacity-[0.06]"
               style="background: radial-gradient(circle, #3b82f6, transparent 70%)"
             />
-            <span class="text-slate-400 text-xs mb-2 tracking-wider uppercase">便签总数</span>
+            <span class="text-slate-400 text-xs mb-2 tracking-wider uppercase">任务总数</span>
             <span
               class="text-4xl font-bold text-slate-900 tabular-nums"
               style="font-family: 'JetBrains Mono', 'Inter', monospace"
@@ -247,7 +247,7 @@ function timeAgo(ts: string): string {
               class="absolute top-0 right-0 w-24 h-24 opacity-[0.06]"
               style="background: radial-gradient(circle, #22c55e, transparent 70%)"
             />
-            <span class="text-slate-400 text-xs mb-2 tracking-wider uppercase">活跃便签</span>
+            <span class="text-slate-400 text-xs mb-2 tracking-wider uppercase">活跃任务</span>
             <span
               class="text-4xl font-bold text-slate-900 tabular-nums"
               style="font-family: 'JetBrains Mono', 'Inter', monospace"
@@ -263,7 +263,7 @@ function timeAgo(ts: string): string {
               class="absolute top-0 right-0 w-24 h-24 opacity-[0.06]"
               style="background: radial-gradient(circle, #a855f7, transparent 70%)"
             />
-            <span class="text-slate-400 text-xs mb-2 tracking-wider uppercase">归档便签</span>
+            <span class="text-slate-400 text-xs mb-2 tracking-wider uppercase">归档任务</span>
             <span
               class="text-4xl font-bold text-slate-900 tabular-nums"
               style="font-family: 'JetBrains Mono', 'Inter', monospace"
@@ -296,7 +296,7 @@ function timeAgo(ts: string): string {
             class="col-span-2 rounded-2xl border border-slate-100 bg-white shadow-card p-6 flex flex-col"
           >
             <div class="flex items-center justify-between mb-3">
-              <h3 class="text-slate-900 font-semibold text-sm">便签增长趋势</h3>
+              <h3 class="text-slate-900 font-semibold text-sm">任务增长趋势</h3>
               <div class="flex gap-1 bg-slate-100 rounded-btn p-0.5">
                 <button
                   v-for="p in [

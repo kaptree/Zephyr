@@ -365,7 +365,7 @@ func (h *WorkGroupHandler) GetGroupNotes(c *gin.Context) {
 
 	notes, total, err := h.noteRepo.ListByGroup(groupID, userID, page, pageSize)
 	if err != nil {
-		utils.InternalError(c, "获取工作组便签失败")
+		utils.InternalError(c, "获取工作组任务失败")
 		return
 	}
 	if notes == nil {
@@ -432,7 +432,7 @@ func (h *WorkGroupHandler) CreateGroupNote(c *gin.Context) {
 	}
 
 	if err := h.noteRepo.Create(note); err != nil {
-		utils.InternalError(c, "创建便签失败")
+		utils.InternalError(c, "创建任务失败")
 		return
 	}
 
@@ -585,7 +585,7 @@ func (h *WorkGroupHandler) GenerateReport(c *gin.Context) {
 
 	notes, err := h.noteRepo.ListAllByGroup(groupID)
 	if err != nil {
-		utils.InternalError(c, "获取便签数据失败")
+		utils.InternalError(c, "获取任务数据失败")
 		return
 	}
 

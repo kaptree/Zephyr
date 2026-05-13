@@ -15,6 +15,8 @@ type User struct {
 	Department   *Department    `gorm:"foreignKey:DepartmentID" json:"department,omitempty"`
 	Role         string         `gorm:"type:varchar(50);not null;default:'member'" json:"role"`
 	Rank         string         `gorm:"type:varchar(50)" json:"rank"`
+	Position     string         `gorm:"type:varchar(100)" json:"position"`
+	Skills       string         `gorm:"type:text" json:"skills"`
 	Phone        string         `gorm:"type:varchar(20)" json:"phone"`
 	Email        string         `gorm:"type:varchar(100)" json:"email"`
 	AvatarURL    string         `gorm:"type:varchar(500)" json:"avatar"`
@@ -24,6 +26,16 @@ type User struct {
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+type WorkTypeStat struct {
+	WorkType   string `json:"work_type"`
+	GroupCount int64  `json:"group_count"`
+}
+
+type UserWithStats struct {
+	User
+	WorkTypeStats []WorkTypeStat `json:"work_type_stats,omitempty"`
 }
 
 func (User) TableName() string {

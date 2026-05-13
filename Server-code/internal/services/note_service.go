@@ -167,7 +167,7 @@ func (s *NoteService) Create(userID, role, deptID string, req CreateNoteRequest)
 		return nil, err
 	}
 
-	_ = s.recordLedger(note.ID.String(), userID, "create", "便签创建", "", "")
+	_ = s.recordLedger(note.ID.String(), userID, "create", "任务创建", "", "")
 
 	return s.noteRepo.FindByID(note.ID.String())
 }
@@ -227,7 +227,7 @@ func (s *NoteService) Update(id, userID string, req UpdateNoteRequest) (*models.
 		return nil, err
 	}
 
-	_ = s.recordLedger(id, userID, "update", "便签更新", "", "")
+	_ = s.recordLedger(id, userID, "update", "任务更新", "", "")
 
 	return s.noteRepo.FindByID(id)
 }
@@ -254,7 +254,7 @@ func (s *NoteService) Complete(id, userID, role string, req CompleteNoteRequest)
 		return nil, err
 	}
 
-	_ = s.recordLedger(id, userID, "complete", "便签办结归档", req.FeedbackContent, "")
+	_ = s.recordLedger(id, userID, "complete", "任务办结归档", req.FeedbackContent, "")
 
 	return s.noteRepo.FindByID(id)
 }
@@ -307,7 +307,7 @@ func (s *NoteService) Restore(id, userID string) (*models.Note, error) {
 	if err := s.noteRepo.Restore(id); err != nil {
 		return nil, err
 	}
-	_ = s.recordLedger(id, userID, "update", "便签恢复", "", "")
+	_ = s.recordLedger(id, userID, "update", "任务恢复", "", "")
 	return s.noteRepo.FindByID(id)
 }
 

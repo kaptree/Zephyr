@@ -194,6 +194,90 @@ func (r *WorkGroupRepository) Delete(id string) error {
 	return r.db.Delete(&models.WorkGroup{}, "id = ?", id).Error
 }
 
+type WorkTypeStatResult struct {
+	UserID     string
+	WorkType   string
+	GroupCount int64
+}
+
+func (r *WorkGroupRepository) GetWorkTypeStatsByUser(userID string) ([]models.WorkTypeStat, error) {
+	var results []WorkTypeStatResult
+	err := r.db.Table("work_group_members AS m").
+		Select("m.user_id::text AS user_id, g.template_type AS work_type, COUNT(DISTINCT g.id) AS group_count").
+		Joins("JOIN work_groups AS g ON g.id = m.group_id").
+		Where("m.user_id = ?", userID).
+		Group("m.user_id, g.template_type").
+		Order("group_count DESC").
+		Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	stats := make([]models.WorkTypeStat, len(results))
+	for i, r := range results {
+		stats[i] = models.WorkTypeStat{WorkType: r.WorkType, GroupCount: r.GroupCount}
+	}
+	return stats, nil
+}
+
+func (r *WorkGroupRepository) GetAllUsersWorkTypeStats() (map[string][]models.WorkTypeStat, error) {
+	var results []WorkTypeStatResult
+	err := r.db.Table("work_group_members AS m").
+		Select("m.user_id::text AS user_id, g.template_type AS work_type, COUNT(DISTINCT g.id) AS group_count").
+		Joins("JOIN work_groups AS g ON g.id = m.group_id").
+		Group("m.user_id, g.template_type").
+		Order("m.user_id, group_count DESC").
+		Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	statsMap := make(map[string][]models.WorkTypeStat)
+	for _, r := range results {
+		statsMap[r.UserID] = append(statsMap[r.UserID], models.WorkTypeStat{
+			WorkType:   r.WorkType,
+			GroupCount: r.GroupCount,
+		})
+	}
+	return statsMap, nil
+}
+
+func (r *WorkGroupRepository) RecommendUsersByWorkType(workType string, excludeUserID string, limit int) ([]models.User, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	var users []models.User
+	err := r.db.Unscoped().Table("work_group_members AS m").
+		Select("u.*, COUNT(DISTINCT g.id) AS participation_count").
+		Joins("JOIN work_groups AS g ON g.id = m.group_id").
+		Joins("JOIN users AS u ON u.id = m.user_id AND u.deleted_at IS NULL").
+		Where("g.template_type = ? AND u.is_active = true", workType).
+		Group("u.id").
+		Order("participation_count DESC").
+		Limit(limit).
+		Preload("Department").
+		Find(&users).Error
+	if err != nil {
+		return nil, err
+	}
+	if excludeUserID != "" {
+		filtered := make([]models.User, 0, len(users))
+		for _, u := range users {
+			if u.ID.String() != excludeUserID {
+				filtered = append(filtered, u)
+			}
+		}
+		users = filtered
+	}
+	if len(users) == 0 {
+		err := r.db.Preload("Department").
+			Where("is_active = true").
+			Order("name ASC").
+			Limit(limit).
+			Find(&users).Error
+		return users, err
+	}
+	return users, nil
+}
+
 type WorkGroupSearchFilter struct {
 	Keyword  string
 	UserID   string

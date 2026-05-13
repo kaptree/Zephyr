@@ -25,6 +25,8 @@ export interface User {
   email: string
   phone: string
   rank: string
+  position: string
+  skills: string
   dept_id: string
   dept_name: string
   role: Role
@@ -38,6 +40,28 @@ export interface UserBrief {
   avatar: string
   dept_name: string
   role: Role
+}
+
+export interface WorkTypeStat {
+  work_type: string
+  group_count: number
+}
+
+export interface UserProfile extends User {
+  work_type_stats: WorkTypeStat[]
+}
+
+export interface WorkTypeOption {
+  value: string
+  label: string
+}
+
+export const WORK_TYPE_LABELS: Record<string, string> = {
+  default: '日常任务',
+  data_analysis: '数据分析',
+  special_project: '专项行动',
+  emergency_canvas: '紧急协查',
+  collaborative_writing: '协同作战',
 }
 
 export interface Department {

@@ -55,6 +55,12 @@ func (s *UserService) UpdateUser(id string, req UpdateUserRequest) (*models.User
 	if req.Rank != "" {
 		user.Rank = req.Rank
 	}
+	if req.Position != "" {
+		user.Position = req.Position
+	}
+	if req.Skills != "" {
+		user.Skills = req.Skills
+	}
 	if req.Phone != "" {
 		user.Phone = req.Phone
 	}
@@ -98,6 +104,8 @@ type UpdateUserRequest struct {
 	Name         string `json:"name"`
 	Role         string `json:"role"`
 	Rank         string `json:"rank"`
+	Position     string `json:"position"`
+	Skills       string `json:"skills"`
 	Phone        string `json:"phone"`
 	Email        string `json:"email"`
 	Avatar       string `json:"avatar"`

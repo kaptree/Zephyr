@@ -246,7 +246,7 @@ func seedNotes() int {
 	var count int64
 	database.DB.Model(&models.Note{}).Count(&count)
 	if count > 0 {
-		fmt.Println("便签数据已存在，跳过")
+		fmt.Println("任务数据已存在，跳过")
 		return 0
 	}
 
@@ -353,7 +353,7 @@ func seedNotes() int {
 		"yellow", "self", &due8h)
 	noteCount++
 
-	fmt.Printf("  ✓ 便签: %d 条 (2条已归档, 3条紧急盯办)\n", noteCount)
+	fmt.Printf("  ✓ 任务: %d 条 (2条已归档, 3条紧急盯办)\n", noteCount)
 	return noteCount
 }
 
@@ -392,7 +392,7 @@ func createNote(owner models.User, dept models.Department, tags []models.Tag, ti
 		NoteID:       note.ID,
 		UserID:       owner.ID,
 		Action:       "create",
-		ActionDetail: "创建便签",
+		ActionDetail: "创建任务",
 	}
 	database.DB.Create(&entry)
 

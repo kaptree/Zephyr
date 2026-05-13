@@ -60,7 +60,7 @@ func (h *NoteHandler) ListNotes(c *gin.Context) {
 
 	notes, total, err := h.noteService.List(filter, scope)
 	if err != nil {
-		utils.InternalError(c, "查询便签列表失败")
+		utils.InternalError(c, "查询任务列表失败")
 		return
 	}
 
@@ -72,10 +72,10 @@ func (h *NoteHandler) GetNote(c *gin.Context) {
 	note, err := h.noteService.GetByID(id)
 	if err != nil {
 		if err == apperrors.ErrNoteNotFound {
-			utils.NotFound(c, "便签不存在")
+			utils.NotFound(c, "任务不存在")
 			return
 		}
-		utils.InternalError(c, "查询便签失败")
+		utils.InternalError(c, "查询任务失败")
 		return
 	}
 	utils.Success(c, note)
@@ -103,7 +103,7 @@ func (h *NoteHandler) CreateNote(c *gin.Context) {
 			utils.Forbidden(c, "无权执行此操作")
 			return
 		}
-		utils.InternalError(c, "创建便签失败")
+		utils.InternalError(c, "创建任务失败")
 		return
 	}
 
@@ -123,10 +123,10 @@ func (h *NoteHandler) UpdateNote(c *gin.Context) {
 	note, err := h.noteService.Update(id, userID, req)
 	if err != nil {
 		if err == apperrors.ErrNoteNotFound {
-			utils.NotFound(c, "便签不存在")
+			utils.NotFound(c, "任务不存在")
 			return
 		}
-		utils.InternalError(c, "更新便签失败")
+		utils.InternalError(c, "更新任务失败")
 		return
 	}
 
@@ -144,14 +144,14 @@ func (h *NoteHandler) CompleteNote(c *gin.Context) {
 	note, err := h.noteService.Complete(id, userID, role, req)
 	if err != nil {
 		if err == apperrors.ErrNoteNotFound {
-			utils.NotFound(c, "便签不存在")
+			utils.NotFound(c, "任务不存在")
 			return
 		}
 		if err == apperrors.ErrPermissionDenied {
-			utils.Forbidden(c, "仅被指派人可以完成此便签")
+			utils.Forbidden(c, "仅被指派人可以完成此任务")
 			return
 		}
-		utils.InternalError(c, "办结便签失败")
+		utils.InternalError(c, "办结任务失败")
 		return
 	}
 
@@ -171,7 +171,7 @@ func (h *NoteHandler) RemindNote(c *gin.Context) {
 	note, err := h.noteService.Remind(id, userID, req)
 	if err != nil {
 		if err == apperrors.ErrNoteNotFound {
-			utils.NotFound(c, "便签不存在")
+			utils.NotFound(c, "任务不存在")
 			return
 		}
 		utils.InternalError(c, "盯办提醒失败")
@@ -186,7 +186,7 @@ func (h *NoteHandler) DeleteNote(c *gin.Context) {
 	soft := c.DefaultQuery("soft", "true") != "false"
 
 	if err := h.noteService.Delete(id, !soft); err != nil {
-		utils.InternalError(c, "删除便签失败")
+		utils.InternalError(c, "删除任务失败")
 		return
 	}
 
@@ -199,7 +199,7 @@ func (h *NoteHandler) RestoreNote(c *gin.Context) {
 
 	note, err := h.noteService.Restore(id, userID)
 	if err != nil {
-		utils.InternalError(c, "恢复便签失败")
+		utils.InternalError(c, "恢复任务失败")
 		return
 	}
 

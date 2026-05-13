@@ -48,7 +48,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	noteService := services.NewNoteService(noteRepo)
 
 	authHandler := handlers.NewAuthHandler(authService)
-	userHandler := handlers.NewUserHandler(userService)
+	userHandler := handlers.NewUserHandler(userService, groupRepo)
 	deptHandler := handlers.NewDepartmentHandler(deptRepo)
 	noteHandler := handlers.NewNoteHandler(noteService)
 	tagHandler := handlers.NewTagHandler(tagRepo)
@@ -96,7 +96,11 @@ func Setup(cfg *config.Config) *gin.Engine {
 		{
 			users.GET("", userHandler.ListUsers)
 			users.GET("/visible", userHandler.GetVisibleUsers)
+			users.GET("/recommend", userHandler.RecommendUsers)
+			users.GET("/work-type-options", userHandler.WorkTypeOptions)
+			users.GET("/with-stats", userHandler.ListUsersWithStats)
 			users.GET("/:id", userHandler.GetUser)
+			users.GET("/:id/profile", userHandler.GetUserProfile)
 			users.PUT("/:id", middleware.RequireRoles("super_admin", "dept_admin"), userHandler.UpdateUser)
 			users.DELETE("/:id", middleware.RequireRoles("super_admin"), userHandler.DeleteUser)
 			users.POST("", middleware.RequireRoles("super_admin", "dept_admin"), authHandler.Register)

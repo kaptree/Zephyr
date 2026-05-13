@@ -16,14 +16,17 @@ var RDB *redis.Client
 
 func InitRedis(cfg *config.Config) error {
 	RDB = redis.NewClient(&redis.Options{
-		Addr:         cfg.RedisAddr(),
-		Password:     cfg.Redis.Password,
-		DB:           cfg.Redis.DB,
-		PoolSize:     cfg.Redis.PoolSize,
-		MinIdleConns: cfg.Redis.MinIdleConns,
-		DialTimeout:  time.Duration(cfg.Redis.DialTimeoutSeconds) * time.Second,
-		ReadTimeout:  time.Duration(cfg.Redis.ReadTimeoutSeconds) * time.Second,
-		WriteTimeout: time.Duration(cfg.Redis.WriteTimeoutSeconds) * time.Second,
+		Addr:            cfg.RedisAddr(),
+		Password:        cfg.Redis.Password,
+		DB:              cfg.Redis.DB,
+		PoolSize:        1,
+		MinIdleConns:    0,
+		DialTimeout:     time.Duration(cfg.Redis.DialTimeoutSeconds) * time.Second,
+		ReadTimeout:     time.Duration(cfg.Redis.ReadTimeoutSeconds) * time.Second,
+		WriteTimeout:    time.Duration(cfg.Redis.WriteTimeoutSeconds) * time.Second,
+		MaxRetries:      0,
+		ConnMaxLifetime: 0,
+		PoolTimeout:     1 * time.Second,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

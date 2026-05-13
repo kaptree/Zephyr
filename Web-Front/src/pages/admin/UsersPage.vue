@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { getUsers, createUser, updateUser, deleteUser, getDepartments } from '@/services/admin'
-import type { User, Department } from '@/types'
+import { getUsers, getUsersWithStats, createUser, updateUser, deleteUser, getDepartments } from '@/services/admin'
+import type { User, Department, WorkTypeStat } from '@/types'
+import { WORK_TYPE_LABELS } from '@/types'
 
 interface UserRow {
   id: string
@@ -11,9 +12,12 @@ interface UserRow {
   dept_id: string
   role: string
   rank: string
+  position: string
+  skills: string
   phone: string
   email: string
   is_active: boolean
+  work_type_stats: WorkTypeStat[]
 }
 
 const users = ref<UserRow[]>([])
@@ -24,12 +28,16 @@ const departments = ref<Department[]>([])
 const allDepts = ref<{ id: string; name: string }[]>([])
 
 const showModal = ref(false)
+const showProfile = ref(false)
+const profileUser = ref<UserRow | null>(null)
 const editingUserId = ref<string | null>(null)
 const formUsername = ref('')
 const formName = ref('')
 const formPassword = ref('')
 const formRole = ref('user')
 const formRank = ref('')
+const formPosition = ref('')
+const formSkills = ref('')
 const formPhone = ref('')
 const formEmail = ref('')
 const formDeptId = ref('')
@@ -52,13 +60,23 @@ function flattenDepts(depts: Department[], prefix = ''): void {
   }
 }
 
+function parseSkills(skills: string): string[] {
+  if (!skills) return []
+  try {
+    const parsed = JSON.parse(skills)
+    return Array.isArray(parsed) ? parsed : [skills]
+  } catch {
+    return skills.split(/[,，;；]/).map((s) => s.trim()).filter(Boolean)
+  }
+}
+
 async function loadData() {
   loading.value = true
   loadError.value = ''
   try {
     const [deptRes, userRes] = await Promise.all([
       getDepartments(false),
-      getUsers({ page: 1, page_size: 100 }),
+      getUsersWithStats({ page: 1, page_size: 100 }),
     ])
     departments.value = deptRes.data as unknown as Department[]
     allDepts.value = []
@@ -70,8 +88,11 @@ async function loadData() {
       dept_id: u.dept_id || u.department?.id || '',
       role: u.role || 'user',
       rank: u.rank || '',
+      position: u.position || '',
+      skills: u.skills || '',
       phone: u.phone || '',
       email: u.email || '',
+      work_type_stats: u.work_type_stats || [],
     }))
   } catch {
     loadError.value = '加载人员列表失败'
@@ -89,6 +110,8 @@ function openCreate() {
   formPassword.value = ''
   formRole.value = 'user'
   formRank.value = ''
+  formPosition.value = ''
+  formSkills.value = ''
   formPhone.value = ''
   formEmail.value = ''
   formDeptId.value = ''
@@ -104,6 +127,8 @@ function openEdit(user: UserRow) {
   formPassword.value = ''
   formRole.value = user.role
   formRank.value = user.rank || ''
+  formPosition.value = user.position || ''
+  formSkills.value = user.skills || ''
   formPhone.value = user.phone || ''
   formEmail.value = user.email || ''
   formDeptId.value = (user.dept_id || '').trim()
@@ -127,6 +152,7 @@ async function handleSubmit() {
   }
 
   const deptId = (formDeptId.value || '').trim()
+  const rawSkills = formSkills.value.trim()
 
   submitting.value = true
   formError.value = ''
@@ -136,6 +162,8 @@ async function handleSubmit() {
         name: formName.value.trim(),
         role: formRole.value,
         rank: (formRank.value || '').trim(),
+        position: (formPosition.value || '').trim(),
+        skills: rawSkills,
         phone: (formPhone.value || '').trim(),
         email: (formEmail.value || '').trim(),
         dept_id: deptId,
@@ -148,6 +176,8 @@ async function handleSubmit() {
         password: formPassword.value,
         role: formRole.value,
         rank: (formRank.value || '').trim(),
+        position: (formPosition.value || '').trim(),
+        skills: rawSkills,
         phone: (formPhone.value || '').trim(),
         email: (formEmail.value || '').trim(),
         dept_id: deptId,
@@ -172,6 +202,11 @@ async function handleDelete(user: UserRow) {
     const err = e as { response?: { data?: { message?: string } } }
     alert(err?.response?.data?.message || '删除失败')
   }
+}
+
+function openProfile(user: UserRow) {
+  profileUser.value = user
+  showProfile.value = true
 }
 
 function getRoleClass(role: string) {
@@ -208,7 +243,9 @@ function getStatusClass(active: boolean) {
             <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">姓名</th>
             <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">用户名</th>
             <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">部门</th>
+            <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">岗位/技能标签</th>
             <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">角色</th>
+            <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">参与类型</th>
             <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">状态</th>
             <th class="text-right px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">操作</th>
           </tr>
@@ -229,9 +266,37 @@ function getStatusClass(active: boolean) {
             <td class="px-4 py-3 text-sm text-slate-600 font-mono">{{ user.username }}</td>
             <td class="px-4 py-3 text-sm text-slate-600">{{ user.dept_name }}</td>
             <td class="px-4 py-3">
+              <div class="flex flex-wrap gap-1">
+                <span v-if="user.position" class="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 font-medium">
+                  {{ user.position }}
+                </span>
+                <span
+                  v-for="skill in parseSkills(user.skills)"
+                  :key="skill"
+                  class="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium"
+                >
+                  {{ skill }}
+                </span>
+                <span v-if="!user.position && !user.skills" class="text-xs text-slate-300">-</span>
+              </div>
+            </td>
+            <td class="px-4 py-3">
               <span :class="['text-xs px-2 py-0.5 rounded-tag font-medium', getRoleClass(user.role)]">
                 {{ roleMap[user.role] || user.role }}
               </span>
+            </td>
+            <td class="px-4 py-3">
+              <div class="flex flex-wrap gap-1">
+                <span
+                  v-for="stat in (user.work_type_stats || [])"
+                  :key="stat.work_type"
+                  class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-50 dark:bg-green-900/40 text-green-600 dark:text-green-400 font-medium"
+                  :title="`${WORK_TYPE_LABELS[stat.work_type] || stat.work_type}：${stat.group_count}次`"
+                >
+                  {{ WORK_TYPE_LABELS[stat.work_type] || stat.work_type }} {{ stat.group_count }}次
+                </span>
+                <span v-if="!user.work_type_stats?.length" class="text-xs text-slate-300">暂无</span>
+              </div>
             </td>
             <td class="px-4 py-3">
               <span :class="['text-xs px-2 py-0.5 rounded-tag font-medium', getStatusClass(user.is_active !== false)]">
@@ -240,6 +305,7 @@ function getStatusClass(active: boolean) {
             </td>
             <td class="px-4 py-3 text-right">
               <div class="flex items-center justify-end gap-1">
+                <button class="text-xs px-2 py-1 bg-purple-50 text-purple-600 rounded hover:bg-purple-100 transition-smooth" @click="openProfile(user)">档案</button>
                 <button class="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-smooth" @click="openEdit(user)">编辑</button>
                 <button class="text-xs px-2 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-smooth" @click="handleDelete(user)">删除</button>
               </div>
@@ -248,6 +314,94 @@ function getStatusClass(active: boolean) {
         </tbody>
       </table>
     </div>
+
+    <!-- 人员档案弹窗 -->
+    <Teleport to="body">
+      <div v-if="showProfile && profileUser" class="fixed inset-0 z-50 flex items-start justify-center pt-[8vh]">
+        <div class="overlay-backdrop" @click="showProfile = false" />
+        <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-lg mx-4 p-6 animate-fade-in">
+          <div class="flex items-center justify-between mb-5">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-sm font-medium text-blue-600">
+                {{ profileUser.name.charAt(0) }}
+              </div>
+              <div>
+                <h3 class="text-base font-semibold text-slate-900">{{ profileUser.name }}</h3>
+                <p class="text-xs text-slate-400">{{ profileUser.username }} · {{ profileUser.dept_name }}</p>
+              </div>
+            </div>
+            <button class="p-1 rounded-lg hover:bg-slate-100" @click="showProfile = false">
+              <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+
+          <div class="space-y-4 max-h-[65vh] overflow-y-auto pr-1 scrollbar-thin">
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-3">
+                <span class="text-[10px] text-slate-400 uppercase">角色</span>
+                <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mt-0.5">{{ roleMap[profileUser.role] || profileUser.role }}</p>
+              </div>
+              <div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-3">
+                <span class="text-[10px] text-slate-400 uppercase">警衔/职级</span>
+                <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mt-0.5">{{ profileUser.rank || '-' }}</p>
+              </div>
+            </div>
+
+            <div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-3">
+              <span class="text-[10px] text-slate-400 uppercase">岗位</span>
+              <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mt-0.5">{{ profileUser.position || '未设置' }}</p>
+            </div>
+
+            <div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-3">
+              <span class="text-[10px] text-slate-400 uppercase">技能特长</span>
+              <div class="flex flex-wrap gap-1 mt-1">
+                <template v-if="parseSkills(profileUser.skills).length">
+                  <span
+                    v-for="skill in parseSkills(profileUser.skills)"
+                    :key="skill"
+                    class="text-xs px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium"
+                  >
+                    {{ skill }}
+                  </span>
+                </template>
+                <span v-else class="text-sm text-slate-400">未设置</span>
+              </div>
+            </div>
+
+            <div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-3">
+              <span class="text-[10px] text-slate-400 uppercase">参与过的工作类型</span>
+              <div class="flex flex-wrap gap-1 mt-1">
+                <template v-if="profileUser.work_type_stats?.length">
+                  <span
+                    v-for="stat in profileUser.work_type_stats"
+                    :key="stat.work_type"
+                    class="text-xs px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-900/40 text-green-600 dark:text-green-400 font-medium"
+                  >
+                    {{ WORK_TYPE_LABELS[stat.work_type] || stat.work_type }} × {{ stat.group_count }}
+                  </span>
+                </template>
+                <span v-else class="text-sm text-slate-400">暂无参与记录</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-3">
+                <span class="text-[10px] text-slate-400 uppercase">手机号</span>
+                <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mt-0.5">{{ profileUser.phone || '-' }}</p>
+              </div>
+              <div class="bg-slate-50 dark:bg-slate-900 rounded-lg p-3">
+                <span class="text-[10px] text-slate-400 uppercase">邮箱</span>
+                <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mt-0.5">{{ profileUser.email || '-' }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700 mt-4">
+            <button class="btn-secondary text-xs !py-1.5 !px-4" @click="showProfile = false">关闭</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- 新建/编辑人员模态框 -->
     <Teleport to="body">
@@ -276,6 +430,17 @@ function getStatusClass(active: boolean) {
               <div>
                 <span class="text-xs text-slate-500 mb-1 block">警衔/职级</span>
                 <input v-model="formRank" class="input-field !py-1.5 !text-sm" placeholder="如: 二级警督" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <span class="text-xs text-slate-500 mb-1 block">岗位</span>
+                <input v-model="formPosition" class="input-field !py-1.5 !text-sm" placeholder="如: 刑侦民警" />
+              </div>
+              <div>
+                <span class="text-xs text-slate-500 mb-1 block">技能特长</span>
+                <input v-model="formSkills" class="input-field !py-1.5 !text-sm" placeholder="逗号分隔，如: Python,数据分析" />
               </div>
             </div>
 

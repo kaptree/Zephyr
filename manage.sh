@@ -56,6 +56,29 @@ port_pid() {
 }
 
 # -------------------------------------------------------
+# 轮询等待端口就绪
+# -------------------------------------------------------
+wait_for_port() {
+  local port=$1 label=$2 max_wait=${3:-30}
+  local waited=0
+  while [[ $waited -lt $max_wait ]]; do
+    local pid
+    pid=$(port_pid "$port")
+    if [[ -n "$pid" ]]; then
+      log_ok "${label}服务就绪 (PID $pid → 端口 $port, 耗时 ${waited}s)"
+      return 0
+    fi
+    sleep 1
+    waited=$((waited + 1))
+    if [[ $((waited % 5)) -eq 0 ]]; then
+      log_info "等待${label}服务启动... (${waited}s/${max_wait}s)"
+    fi
+  done
+  log_error "${label}服务启动超时 (${max_wait}s)，请手动检查"
+  return 1
+}
+
+# -------------------------------------------------------
 # 获取进程命令行信息
 # -------------------------------------------------------
 proc_info() {
@@ -165,36 +188,16 @@ start_backend() {
   if [[ -f "labelpro-server" ]]; then
     nohup ./labelpro-server &>/dev/null &
     local bg_pid=$!
-    sleep 2
-    if kill -0 "$bg_pid" 2>/dev/null; then
-      log_ok "后端服务已启动 (PID $bg_pid → 端口 $BACKEND_PORT)"
-    else
-      log_warn "后端二进制启动失败，尝试 go run..."
-      nohup go run main.go &>/dev/null &
-      bg_pid=$!
-      sleep 3
-      if kill -0 "$bg_pid" 2>/dev/null; then
-        log_ok "后端服务已启动 (PID $bg_pid → 端口 $BACKEND_PORT)"
-      else
-        log_error "后端启动失败，请手动检查 $BACKEND_DIR"
-        return 1
-      fi
-    fi
+    wait_for_port "$BACKEND_PORT" "后端" 30
   else
     nohup go run main.go &>/dev/null &
     local bg_pid=$!
-    sleep 3
-    if kill -0 "$bg_pid" 2>/dev/null; then
-      log_ok "后端服务已启动 (PID $bg_pid → 端口 $BACKEND_PORT)"
-    else
-      log_error "后端启动失败，请手动检查 $BACKEND_DIR"
-      return 1
-    fi
+    wait_for_port "$BACKEND_PORT" "后端" 60
   fi
 }
 
 start_frontend() {
-  log_info "正在启动前端开发服务器..."
+  log_info "正在启动前端服务..."
   local pid
   pid=$(port_pid "$FRONTEND_PORT")
   if [[ -n "$pid" ]]; then
@@ -202,29 +205,22 @@ start_frontend() {
     return 0
   fi
 
-  # 优先使用 dist 目录产物预览
   if [[ -f "$DIST_FRONTEND_DIR/index.html" ]]; then
     cd "$DIST_FRONTEND_DIR"
-    nohup npx vite preview --port "$FRONTEND_PORT" --host &>/dev/null &
-    local bg_pid=$!
-    sleep 2
-    if kill -0 "$bg_pid" 2>/dev/null; then
-      log_ok "前端预览服务器已启动 (PID $bg_pid → 端口 $FRONTEND_PORT)"
-      return 0
-    fi
-    log_warn "dist 预览启动失败，回退到源码开发模式..."
+    nohup python3 -m http.server "$FRONTEND_PORT" --bind 0.0.0.0 &>/dev/null &
+    wait_for_port "$FRONTEND_PORT" "前端(静态)" 5 || {
+      log_warn "静态文件服务启动失败，回退到源码开发模式..."
+      start_frontend_dev
+    }
+  else
+    start_frontend_dev
   fi
+}
 
+start_frontend_dev() {
   cd "$FRONTEND_DIR"
   nohup npm run dev -- --port "$FRONTEND_PORT" &>/dev/null &
-  local bg_pid=$!
-  sleep 3
-  if kill -0 "$bg_pid" 2>/dev/null; then
-    log_ok "前端开发服务器已启动 (PID $bg_pid → 端口 $FRONTEND_PORT)"
-  else
-    log_error "前端启动失败，请手动检查 $FRONTEND_DIR"
-    return 1
-  fi
+  wait_for_port "$FRONTEND_PORT" "前端(开发)" 30
 }
 
 stop_by_port() {
