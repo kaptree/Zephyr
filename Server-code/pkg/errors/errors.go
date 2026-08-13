@@ -20,6 +20,7 @@ var (
 	ErrTagInUse           = errors.New("tag is in use and cannot be deleted")
 	ErrInvalidOperation   = errors.New("invalid operation")
 	ErrLoginLocked        = errors.New("account locked due to too many login attempts")
+	ErrInvalidChatContent = errors.New("chat content cannot be empty")
 )
 
 type AppError struct {

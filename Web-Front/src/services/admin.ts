@@ -39,7 +39,7 @@ export function createUser(payload: { username: string; name: string; password: 
   return post<User>('/api/v1/users', payload)
 }
 
-export function updateUser(id: string, payload: { name?: string; role?: string; rank?: string; position?: string; skills?: string; phone?: string; email?: string; avatar?: string; dept_id?: string; is_active?: boolean }) {
+export function updateUser(id: string, payload: { name?: string; role?: string; rank?: string; position?: string; skills?: string; phone?: string; email?: string; avatar?: string; dept_id?: string; is_active?: boolean; password?: string }) {
   return put<User>(`/api/v1/users/${id}`, payload)
 }
 

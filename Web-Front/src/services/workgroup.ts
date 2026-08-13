@@ -52,7 +52,7 @@ export interface GroupSearchQuery {
 export function searchGroups(
   query: GroupSearchQuery
 ): Promise<ApiResponse<PaginatedData<WorkGroupData>>> {
-  return get('/api/v1/groups', query as Record<string, unknown>);
+  return get('/api/v1/groups', query as unknown as Record<string, unknown>);
 }
 
 export function getMyGroups(): Promise<ApiResponse<WorkGroupData[]>> {

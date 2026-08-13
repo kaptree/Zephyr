@@ -161,6 +161,36 @@ func (h *NoteHandler) CompleteNote(c *gin.Context) {
 	utils.Success(c, note)
 }
 
+// Feedback 被指派人对任务提交反馈填报
+func (h *NoteHandler) Feedback(c *gin.Context) {
+	id := c.Param("id")
+	userID := middleware.GetUserID(c)
+
+	var req struct {
+		Content string `json:"content"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Content == "" {
+		utils.BadRequest(c, "反馈内容不能为空")
+		return
+	}
+
+	note, err := h.noteService.Feedback(id, userID, req.Content)
+	if err != nil {
+		if err == apperrors.ErrNoteNotFound {
+			utils.NotFound(c, "任务不存在")
+			return
+		}
+		if err == apperrors.ErrInvalidChatContent {
+			utils.BadRequest(c, "反馈内容不能为空")
+			return
+		}
+		utils.InternalError(c, "提交反馈失败")
+		return
+	}
+
+	utils.Success(c, note)
+}
+
 func (h *NoteHandler) RemindNote(c *gin.Context) {
 	id := c.Param("id")
 	userID := middleware.GetUserID(c)

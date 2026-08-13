@@ -139,9 +139,11 @@ Web-Front/src/
 **任务 Tab（全部/待办/指派/盯办/已完成）**：
 
 - 任务墙：`grid-cols-[repeat(auto-fill,minmax(280px,1fr))]` 自适应网格
-- 点击任务 → 右侧滑出详情面板（编辑标题/内容/查看标签/完成归档/盯办）
-- 悬浮 FAB 按钮 → 弹窗创建任务（标题/内容/标签/类型/指派人员）
-  - 「指派他人」模式下支持选择工作类型，「一键推荐」基于历史参与数据智能推荐合适人员
+- 点击任务 → 居中模态框编辑详情（标题/富文本内容/标签/完成归档/盯办）
+- 悬浮 FAB 按钮 → 居中弹窗创建任务（标题/富文本内容/标签/类型/指派人员）
+  - 「指派他人」支持**多人勾选**（最多 50 人）：部门树每行带「全选/全不选」按钮，一键选中该部门（含子部门）全部人员；被指派的所有人员都会收到盯办提醒
+  - 「指派他人」模式下支持选择工作类型，「一键推荐」基于历史参与数据智能推荐合适人员（可多选）
+- **富文本编辑**：创建/编辑任务内容使用 `RichTextEditor`（contenteditable），支持回车换行、加粗/斜体/下划线/删除线、标题、有序/无序列表、引用、代码块、撤销/重做、清除格式；旧纯文本内容自动兼容渲染（换行转 `<br>`）
 - **辅助模块**：为不同的业务场景提供了各自独立的管理页面：
   - **[WorkbenchPage]** 便签 + 任务云端管理，团队任务统筹分发
   - **[GroupDetailPage]** 专项工作组详情页，支持新建任务时从预设组快速加载成员
@@ -220,6 +222,40 @@ Web-Front/src/
 - 部门树浏览 + 搜索双模式
 - 多选/单选，已选人员头像+姓名胶囊
 - 搜索框加 `@keydown.enter.prevent` 防止触发外层表单提交
+- 支持 `drop-up` 属性控制下拉面板向上/向下展开（弹窗内自动向上避免溢出）
+- 部门树每行提供「全选/全不选」按钮：一键选中该部门及其所有子部门的全部人员（受 `max` 限制）
+
+### 6.4 RichTextEditor
+
+- **Props**：`modelValue`(HTML字符串)、`placeholder`、`minHeight`
+- **Events**：`update:modelValue`
+- 基于 `contenteditable` + `document.execCommand` 实现，无第三方依赖
+- 工具栏：撤销/重做、标题、加粗、斜体、下划线、删除线、有序/无序列表、引用、代码块、清除格式
+- 支持回车换行（默认内容块行为），placeholder 空态提示
+- 与 `utils/richText.ts` 配合：旧纯文本内容渲染时自动转义并转 `<br>`，新富文本内容原样渲染
+
+### 6.5 NotificationBell — 通知铃铛（★ 新增）
+
+- 右上角铃铛按钮 + 未读数角标（>99 显示 99+），点击展开下拉通知面板
+- 通知列表：类型徽标（指派/完成/反馈/催办）、标题、摘要、相对时间、未读高亮
+- 支持「全部已读」、单条删除；点击消息 → 详情弹窗（富文本渲染），可「查看任务」跳转工作台对应任务
+- 挂载时拉取未读数，通过 Pinia store 订阅 WebSocket 实时增量
+
+### 6.6 ChatDrawer — 聊天面板（★ 新增）
+
+- 右侧抽屉：会话列表（头像/最近消息/未读数）+ 消息区（气泡、时间、富文本渲染）+ 输入区（Enter 发送 / Shift+Enter 换行）
+- 会话未读角标同步到顶部栏聊天图标
+- 从任务详情「联系」入口可直达指定会话（`openChat(peerId)`）
+
+### 6.7 FeedbackModal — 任务反馈填报（★ 新增）
+
+- 完成并归档任务时弹出，复用 `RichTextEditor` 填写反馈内容
+- 支持两种模式：`complete`（提交反馈并完成）/ `feedback`（归档后补充反馈）
+- 归档详情面板提供「反馈填报」按钮补充提交，提交后通知任务发起人
+
+### 6.8 工具函数 `utils/sound.ts`（★ 新增）
+
+- 基于 Web Audio API 合成提示音（无外部资源）：新通知双音提示、新聊天单音提示
 
 ---
 
@@ -228,12 +264,18 @@ Web-Front/src/
 ### 7.1 `useNoteStore`
 
 - **State**：`activeNotes`、`selectedNote`、`loading`
-- **Actions**：`fetchNotes`、`createNote`、`completeNote`、`remindNote`、`updateNoteLocally`
+- **Actions**：`fetchNotes`、`createNote`、`completeNote`（支持携带反馈内容）、`remindNote`、`updateNoteLocally`
 
 ### 7.2 `useAuthStore`
 
 - **State**：`user`、`token`
 - 登录后存储 token 到 localStorage，自动注入请求头
+
+### 7.3 `useNotificationStore`（★ 新增）
+
+- **State**：`unreadCount`、`notifications`、`conversations`、`messages`、`connected`、`chatOpen`、`chatPeerId`
+- **Actions**：`connectSocket`（建立 `/ws/user/:user_id` 个人通知通道）、`fetchUnreadCount`、`fetchList`、`markRead`、`markAllRead`、`remove`、`refreshConversations`、`loadMessages`、`sendMessage`、`markConversationRead`、`openChat`、`closeChat`
+- WebSocket 事件：`notification:new`（未读数+1、插入列表、播放提示音）、`chat:message`（追加消息、刷新会话、播放提示音）
 
 ---
 
@@ -250,6 +292,7 @@ Web-Front/src/
 | `groupNotes.ts` | `getGroupNotes / createGroupNote`                                                                                            | 专属任务               |
 | `analytics.ts`  | `fetchPersonalStats / generateAIReport / fetchReports / fetchReportTemplate / saveReportTemplate`                            | 分析+报告模板          |
 | `system.ts`     | `fetchConfig / updateConfig / fetchOperations`                                                                               | 系统配置+日志          |
+| `notification.ts` | `fetchNotifications / fetchUnreadCount / markNotificationRead / markAllNotificationsRead / deleteNotification / fetchConversations / fetchChatMessages / sendChatMessage / markConversationRead / fetchReminders / acknowledgeReminder` | ★ 通知+聊天+提醒       |
 
 ---
 

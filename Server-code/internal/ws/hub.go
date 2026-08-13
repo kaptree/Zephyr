@@ -148,6 +148,53 @@ func (h *Hub) broadcastPresence(roomID string) {
 	}
 }
 
+// PushToUser 向指定用户的个人通知通道推送数据（非阻塞）
+func (h *Hub) PushToUser(userID string, data []byte) {
+	if h == nil {
+		return
+	}
+	select {
+	case h.broadcast <- &Message{RoomID: "user:" + userID, Data: data}:
+	default:
+	}
+}
+
+// HandleUserWebSocket 个人通知通道：GET /ws/user/:user_id?token=xxx
+func HandleUserWebSocket(hub *Hub) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := c.Query("token")
+		if token == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
+			return
+		}
+
+		claims, err := utils.ParseToken(token)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
+
+		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+		if err != nil {
+			logger.Error("websocket upgrade failed", zap.Error(err))
+			return
+		}
+
+		client := &Client{
+			ID:     claims.UserID,
+			Name:   claims.Username,
+			RoomID: "user:" + claims.UserID,
+			Conn:   conn,
+			Send:   make(chan []byte, 256),
+		}
+
+		hub.register <- client
+
+		go client.writePump()
+		go client.readPump(hub)
+	}
+}
+
 func HandleWebSocket(hub *Hub) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		noteID := c.Param("note_id")

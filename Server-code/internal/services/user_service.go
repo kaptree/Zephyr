@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"labelpro-server/internal/models"
 	"labelpro-server/internal/repository"
+	"labelpro-server/internal/utils"
 	apperrors "labelpro-server/pkg/errors"
 
 	"github.com/google/uuid"
@@ -81,6 +82,13 @@ func (s *UserService) UpdateUser(id string, req UpdateUserRequest) (*models.User
 	if req.IsActive != nil {
 		user.IsActive = *req.IsActive
 	}
+	if req.Password != "" {
+		hash, err := utils.HashPassword(req.Password)
+		if err != nil {
+			return nil, err
+		}
+		user.PasswordHash = hash
+	}
 
 	if err := s.userRepo.Update(user); err != nil {
 		return nil, err
@@ -111,4 +119,5 @@ type UpdateUserRequest struct {
 	Avatar       string `json:"avatar"`
 	DepartmentID string `json:"dept_id"`
 	IsActive     *bool  `json:"is_active"`
+	Password     string `json:"password"`
 }

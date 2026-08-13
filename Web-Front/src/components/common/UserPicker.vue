@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, h, defineComponent, type PropType } from 'vue';
+import {
+  ref,
+  computed,
+  onMounted,
+  h,
+  defineComponent,
+  type PropType,
+  type DefineComponent,
+} from 'vue';
 import type { UserBrief, Department } from '@/types';
 import { getDepartments, getUsers } from '@/services/admin';
 
@@ -103,11 +111,59 @@ function toggleDept(deptId: string) {
   expandedDepts.value = current;
 }
 
+/** 收集某部门下（含所有子部门）的全部用户 ID */
+function collectDeptUserIds(deptId: string): string[] {
+  const ids: string[] = [];
+  const walk = (deps: Department[]) => {
+    for (const d of deps) {
+      users.value.filter((u) => (u as any).dept_id === d.id).forEach((u) => ids.push(u.id));
+      if (d.children?.length) walk(d.children);
+    }
+  };
+  const find = (deps: Department[]): boolean => {
+    for (const d of deps) {
+      if (d.id === deptId) {
+        walk([d]);
+        return true;
+      }
+      if (d.children?.length && find(d.children)) return true;
+    }
+    return false;
+  };
+  find(departments.value);
+  return [...new Set(ids)];
+}
+
+/** 一键全选 / 取消全选某部门下的所有人 */
+function toggleSelectAllDept(deptId: string) {
+  const ids = collectDeptUserIds(deptId);
+  if (ids.length === 0) return;
+  const current = new Set(props.modelValue);
+  const allSelected = ids.every((id) => current.has(id));
+  if (allSelected) {
+    ids.forEach((id) => current.delete(id));
+  } else {
+    ids.forEach((id) => current.add(id));
+  }
+  let result = Array.from(current);
+  if (!props.multiple) {
+    result = result.slice(0, 1);
+  } else if (result.length > props.max) {
+    result = result.slice(0, props.max);
+  }
+  emit('update:modelValue', result);
+}
+
 function getDirectDeptUsers(deptId: string): UserBrief[] {
   return users.value.filter((u) => (u as any).dept_id === deptId);
 }
 
-const DeptTreeItem = defineComponent({
+const DeptTreeItem: DefineComponent<{
+  departments: Department[];
+  expandedSet: Set<string>;
+  userList: UserBrief[];
+  selectedIds: string[];
+}> = defineComponent({
   name: 'DeptTreeItem',
   props: {
     departments: { type: Array as PropType<Department[]>, required: true },
@@ -115,7 +171,7 @@ const DeptTreeItem = defineComponent({
     userList: { type: Array as PropType<UserBrief[]>, required: true },
     selectedIds: { type: Array as PropType<string[]>, required: true },
   },
-  emits: ['toggle-dept', 'toggle-user'],
+  emits: ['toggle-dept', 'toggle-user', 'select-all'],
   setup(props, { emit }) {
     function getDirect(deptId: string): UserBrief[] {
       return props.userList.filter((u: any) => u.dept_id === deptId);
@@ -129,6 +185,19 @@ const DeptTreeItem = defineComponent({
     function onToggleUser(id: string) {
       emit('toggle-user', id);
     }
+    function onSelectAll(id: string) {
+      emit('select-all', id);
+    }
+    /** 收集部门（含子部门）下所有用户 ID */
+    function collectDeptIds(dept: Department): string[] {
+      const ids: string[] = [];
+      const walk = (d: Department) => {
+        getDirect(d.id).forEach((u) => ids.push(u.id));
+        if (d.children) d.children.forEach(walk);
+      };
+      walk(dept);
+      return ids;
+    }
 
     return () => {
       return h(
@@ -138,39 +207,61 @@ const DeptTreeItem = defineComponent({
           const isExpanded = props.expandedSet.has(dept.id);
           const directUsers = getDirect(dept.id);
           const hasChildren = dept.children && dept.children.length > 0;
+          const deptUserIds = collectDeptIds(dept);
+          const allSel = deptUserIds.length > 0 && deptUserIds.every((id) => isSel(id));
 
           return h('div', { key: dept.id }, [
             h(
-              'button',
+              'div',
               {
-                type: 'button',
                 class:
                   'w-full flex items-center gap-2 px-3 py-2.5 rounded-btn text-sm text-left transition-smooth hover:bg-slate-50',
-                onClick: () => onToggleDept(dept.id),
               },
               [
                 h(
-                  'svg',
+                  'button',
                   {
-                    class: `w-3.5 h-3.5 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`,
-                    fill: 'none',
-                    viewBox: '0 0 24 24',
-                    stroke: 'currentColor',
+                    type: 'button',
+                    class: 'flex items-center gap-2 flex-1 min-w-0 text-left',
+                    onClick: () => onToggleDept(dept.id),
                   },
                   [
-                    h('path', {
-                      'stroke-linecap': 'round',
-                      'stroke-linejoin': 'round',
-                      'stroke-width': '2',
-                      d: 'M9 5l7 7-7 7',
-                    }),
+                    h(
+                      'svg',
+                      {
+                        class: `w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${isExpanded ? 'rotate-90' : ''}`,
+                        fill: 'none',
+                        viewBox: '0 0 24 24',
+                        stroke: 'currentColor',
+                      },
+                      [
+                        h('path', {
+                          'stroke-linecap': 'round',
+                          'stroke-linejoin': 'round',
+                          'stroke-width': '2',
+                          d: 'M9 5l7 7-7 7',
+                        }),
+                      ]
+                    ),
+                    h('span', { class: 'font-medium text-slate-700 truncate' }, dept.name),
+                    h('span', { class: 'text-xs text-slate-400' }, String(dept.member_count || 0)),
                   ]
                 ),
-                h('span', { class: 'font-medium text-slate-700' }, dept.name),
                 h(
-                  'span',
-                  { class: 'text-xs text-slate-400 ml-auto' },
-                  String(dept.member_count || 0)
+                  'button',
+                  {
+                    type: 'button',
+                    class: `text-[10px] px-1.5 py-0.5 rounded shrink-0 transition-smooth ${
+                      allSel
+                        ? 'bg-blue-500 text-white hover:bg-blue-600'
+                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                    }`,
+                    onClick: (e: MouseEvent) => {
+                      e.stopPropagation();
+                      onSelectAll(dept.id);
+                    },
+                  },
+                  allSel ? '全不选' : '全选'
                 ),
               ]
             ),
@@ -185,6 +276,7 @@ const DeptTreeItem = defineComponent({
                         selectedIds: props.selectedIds,
                         'onToggle-dept': onToggleDept,
                         'onToggle-user': onToggleUser,
+                        'onSelect-all': onSelectAll,
                       })
                     : null,
 
@@ -326,6 +418,7 @@ const DeptTreeItem = defineComponent({
           :selected-ids="modelValue"
           @toggle-dept="toggleDept"
           @toggle-user="toggleUser"
+          @select-all="toggleSelectAllDept"
         />
       </div>
 

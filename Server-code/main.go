@@ -74,6 +74,8 @@ func main() {
 		&models.OperationLog{},
 		&models.WorkReport{},
 		&models.ReportTemplate{},
+		&models.Notification{},
+		&models.ChatMessage{},
 	); err != nil {
 		logger.Fatal("Failed to auto migrate database", zap.Error(err))
 	}

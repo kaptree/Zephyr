@@ -235,8 +235,64 @@ func (r *NoteRepository) CreateReminder(reminder *models.Reminder) error {
 	return r.db.Create(reminder).Error
 }
 
+// ListRemindersForTarget 某人收到的盯办提醒列表（含任务标题）
+func (r *NoteRepository) ListRemindersForTarget(userID string, out *[]models.Reminder) error {
+	return r.db.Preload("Reminder").
+		Preload("Target").
+		Where("target_id = ?", userID).
+		Order("created_at DESC").
+		Find(out).Error
+}
+
+// AcknowledgeReminder 确认盯办提醒（is_acknowledged=true）
+func (r *NoteRepository) AcknowledgeReminder(id, userID string) error {
+	return r.db.Model(&models.Reminder{}).
+		Where("id = ? AND target_id = ?", id, userID).
+		Update("is_acknowledged", true).Error
+}
+
 func (r *NoteRepository) CreateAssignee(assignee *models.NoteAssignee) error {
 	return r.db.Create(assignee).Error
+}
+
+// IsAssignee 判断用户是否为任务的被指派人
+func (r *NoteRepository) IsAssignee(noteID, userID string) (bool, error) {
+	var count int64
+	err := r.db.Model(&models.NoteAssignee{}).
+		Where("note_id = ? AND user_id = ?", noteID, userID).
+		Count(&count).Error
+	return count > 0, err
+}
+
+// UpdateAssigneeFeedback 回写被指派人的任务反馈内容
+func (r *NoteRepository) UpdateAssigneeFeedback(noteID, userID string, content string) error {
+	now := time.Now()
+	return r.db.Model(&models.NoteAssignee{}).
+		Where("note_id = ? AND user_id = ?", noteID, userID).
+		Updates(map[string]interface{}{
+			"feedback_content": content,
+			"feedback_at":      now,
+			"is_read":          true,
+		}).Error
+}
+
+// GetAssigneeFeedback 获取某人对某任务的反馈
+func (r *NoteRepository) GetAssigneeFeedback(noteID, userID string) (string, error) {
+	var a models.NoteAssignee
+	err := r.db.Where("note_id = ? AND user_id = ?", noteID, userID).First(&a).Error
+	if err != nil {
+		return "", err
+	}
+	return a.FeedbackContent, nil
+}
+
+// GetNoteCreatorID 获取任务发起人 ID
+func (r *NoteRepository) GetNoteCreatorID(noteID string) (string, error) {
+	var n models.Note
+	if err := r.db.Select("creator_id").First(&n, "id = ?", noteID).Error; err != nil {
+		return "", err
+	}
+	return n.CreatorID.String(), nil
 }
 
 func (r *NoteRepository) CheckUserAccess(noteID, userID string) (bool, error) {

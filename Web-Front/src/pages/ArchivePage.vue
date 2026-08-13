@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { useToast } from '@/composables/useToast';
 import { useNoteStore } from '@/stores/notes';
 import type { Note } from '@/types';
 import StickyNoteCard from '@/components/note/StickyNoteCard.vue';
+import FeedbackModal from '@/components/notification/FeedbackModal.vue';
+import { renderNoteContent } from '@/utils/richText';
+import { submitFeedback } from '@/services/notes';
 
 const noteStore = useNoteStore();
+const toast = useToast();
 const viewMode = ref<'timeline' | 'card'>('card');
 const keyword = ref('');
 const dateFrom = ref('');
@@ -12,6 +17,9 @@ const dateTo = ref('');
 const showDetailPanel = ref(false);
 const selectedNote = ref<Note | null>(null);
 const restoring = ref(false);
+const feedbackVisible = ref(false);
+const feedbackNote = ref<Note | null>(null);
+const submittingFeedback = ref(false);
 
 onMounted(() => {
   noteStore.fetchArchivedNotes({});
@@ -53,6 +61,27 @@ async function handleRestore(note: Note) {
     // ignore
   } finally {
     restoring.value = false;
+  }
+}
+
+function openFeedback(note: Note) {
+  feedbackNote.value = note;
+  feedbackVisible.value = true;
+}
+
+async function handleSubmitFeedback(content: string) {
+  if (!feedbackNote.value) return;
+  submittingFeedback.value = true;
+  try {
+    await submitFeedback(feedbackNote.value.id, content);
+    toast.success('反馈提交成功，已通知任务发起人');
+    feedbackVisible.value = false;
+    feedbackNote.value = null;
+  } catch (e: unknown) {
+    const err = e as { friendlyMessage?: string };
+    toast.error(err.friendlyMessage || '反馈提交失败');
+  } finally {
+    submittingFeedback.value = false;
   }
 }
 
@@ -180,7 +209,10 @@ function groupNotesByMonth(notes: Note[]) {
               <h4 class="text-sm font-medium text-slate-900 mb-1 truncate">
                 {{ note.title || '无标题' }}
               </h4>
-              <p class="text-xs text-slate-400 line-clamp-2">{{ note.content || '暂无内容' }}</p>
+              <p class="text-xs text-slate-400 line-clamp-2">
+                <span v-if="!note.content" class="text-slate-300">暂无内容</span>
+                <span v-else v-html="renderNoteContent(note.content)"></span>
+              </p>
               <div class="flex items-center gap-2 mt-2">
                 <span
                   v-for="tag in note.tags?.slice(0, 3)"
@@ -259,9 +291,10 @@ function groupNotesByMonth(notes: Note[]) {
               </div>
               <div>
                 <span class="text-xs text-slate-400 mb-1 block">内容</span>
-                <p class="text-sm text-slate-700 whitespace-pre-wrap">
-                  {{ selectedNote.content || '暂无内容' }}
-                </p>
+                <div class="text-sm text-slate-700 rich-content-display">
+                  <span v-if="!selectedNote.content" class="text-slate-300">暂无内容</span>
+                  <span v-else v-html="renderNoteContent(selectedNote.content)"></span>
+                </div>
               </div>
               <div v-if="selectedNote.tags?.length" class="flex flex-wrap gap-2">
                 <span
@@ -304,11 +337,26 @@ function groupNotesByMonth(notes: Note[]) {
               >
                 {{ restoring ? '恢复中...' : '恢复任务' }}
               </button>
+              <button
+                class="flex-1 py-2.5 text-sm bg-violet-500 text-white rounded-btn hover:bg-violet-600 transition-smooth"
+                @click="openFeedback(selectedNote!)"
+              >
+                反馈填报
+              </button>
               <button class="flex-1 py-2.5 btn-secondary text-sm" @click="closeDetail">关闭</button>
             </div>
           </div>
         </div>
       </div>
     </Teleport>
+
+    <!-- 补充反馈填报弹窗 -->
+    <FeedbackModal
+      :visible="feedbackVisible"
+      :note="feedbackNote"
+      mode="feedback"
+      @update:visible="feedbackVisible = $event"
+      @submit="handleSubmitFeedback"
+    />
   </div>
 </template>

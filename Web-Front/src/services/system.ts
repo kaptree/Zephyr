@@ -66,7 +66,7 @@ export interface OperationLogQuery {
 }
 
 export function listOperationLogs(query: OperationLogQuery): Promise<ApiResponse<PaginatedData<OperationLogItem>>> {
-  return get('/api/v1/system/operations', query as Record<string, unknown>)
+  return get('/api/v1/system/operations', query as unknown as Record<string, unknown>)
 }
 
 export function getOperationActions(): Promise<ApiResponse<string[]>> {

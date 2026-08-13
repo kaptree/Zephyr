@@ -13,6 +13,7 @@ import {
 import { getGroupNotes, createGroupNote } from '@/services/groupNotes';
 import { updateNote } from '@/services/notes';
 import { generateGroupReport, type WorkGroupReport } from '@/services/workgroup';
+import RichTextEditor from '@/components/common/RichTextEditor.vue';
 import { useNoteStore } from '@/stores/notes';
 import { useAuthStore } from '@/stores/auth';
 import StickyNoteCard from '@/components/note/StickyNoteCard.vue';
@@ -656,15 +657,12 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
 
     <!-- Create note modal -->
     <Teleport to="body">
-      <div
-        v-if="showNoteModal"
-        class="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]"
-      >
+      <div v-if="showNoteModal" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="overlay-backdrop" @click="showNoteModal = false" />
         <div
-          class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-lg mx-4 animate-fade-in"
+          class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-2xl mx-4 animate-fade-in max-h-[90vh] flex flex-col"
         >
-          <div class="p-6">
+          <div class="p-6 overflow-y-auto flex-1">
             <div class="flex items-center justify-between mb-6">
               <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
                 📝 新建专项任务
@@ -688,13 +686,24 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
                 </svg>
               </button>
             </div>
-            <form class="space-y-4" @submit.prevent="handleCreateNote" @keydown.enter.prevent>
-              <input v-model="noteTitle" class="input-field" placeholder="任务标题" autofocus />
-              <textarea
-                v-model="noteContent"
-                class="input-field h-24 resize-none"
-                placeholder="任务内容..."
+            <form class="space-y-4" @submit.prevent="handleCreateNote">
+              <input
+                v-model="noteTitle"
+                class="input-field"
+                placeholder="任务标题"
+                autofocus
+                @keydown.enter.prevent
               />
+              <div>
+                <label class="block text-xs font-medium text-slate-500 mb-1.5"
+                  >任务内容（支持富文本）</label
+                >
+                <RichTextEditor
+                  v-model="noteContent"
+                  placeholder="请输入任务内容..."
+                  :min-height="180"
+                />
+              </div>
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="text-xs text-slate-500 mb-1 block">负责人（可选）</label
@@ -742,12 +751,17 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
       </div>
     </Teleport>
 
-    <!-- Detail slide panel -->
+    <!-- Detail edit modal (centered) -->
     <Teleport to="body">
-      <div v-if="showDetailPanel && selectedDetailNote">
+      <div
+        v-if="showDetailPanel && selectedDetailNote"
+        class="fixed inset-0 z-50 flex items-center justify-center"
+      >
         <div class="overlay-backdrop" @click="closeDetail" />
-        <div class="slide-panel">
-          <div class="p-6 h-full flex flex-col">
+        <div
+          class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-2xl mx-4 animate-fade-in max-h-[90vh] flex flex-col"
+        >
+          <div class="p-6 overflow-y-auto flex-1">
             <div class="flex items-center justify-between mb-6">
               <div class="flex items-center gap-2">
                 <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">任务详情</h2>
@@ -755,6 +769,11 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
                   v-if="selectedDetailNote.color_status === 'red'"
                   class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-tag"
                   >盯办中</span
+                >
+                <span
+                  v-if="selectedDetailNote.color_status === 'blue'"
+                  class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-tag"
+                  >协作</span
                 >
               </div>
               <button
@@ -776,16 +795,21 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
                 </svg>
               </button>
             </div>
-            <div class="flex-1 overflow-auto space-y-5">
+            <div class="space-y-5">
               <div>
                 <span class="text-xs text-slate-400 mb-1 block">标题</span
-                ><input v-model="editingTitle" class="input-field text-base font-semibold" />
+                ><input
+                  v-model="editingTitle"
+                  class="input-field text-base font-semibold"
+                  @keydown.enter.prevent
+                />
               </div>
               <div>
-                <span class="text-xs text-slate-400 mb-1 block">内容</span
-                ><textarea
+                <span class="text-xs text-slate-400 mb-1 block">内容（支持富文本）</span>
+                <RichTextEditor
                   v-model="editingContent"
-                  class="input-field min-h-[180px] resize-y text-sm"
+                  placeholder="请输入任务内容..."
+                  :min-height="200"
                 />
               </div>
               <div v-if="selectedDetailNote">
@@ -831,35 +855,35 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
                 </div>
               </div>
             </div>
-            <div class="pt-4 border-t border-slate-100 dark:border-slate-700 mt-4 space-y-3">
-              <div class="flex gap-2">
-                <button
-                  class="flex-1 py-2.5 btn-primary text-sm disabled:opacity-50"
-                  :disabled="saving"
-                  @click="handleSaveDetail"
-                >
-                  {{ saving ? '保存中...' : '保存' }}
-                </button>
-                <button
-                  class="flex-1 py-2.5 text-sm bg-green-500 text-white rounded-btn hover:bg-green-600 transition-smooth disabled:opacity-50"
-                  :disabled="completing"
-                  @click="
-                    completing = true;
-                    handleComplete(selectedDetailNote!);
-                  "
-                >
-                  {{ completing ? '归档中...' : '完成并归档' }}
-                </button>
-                <button
-                  v-if="selectedDetailNote.color_status !== 'red'"
-                  class="flex-1 py-2.5 text-sm bg-red-50 text-red-600 rounded-btn hover:bg-red-100 transition-smooth"
-                  @click="handleRemind(selectedDetailNote!)"
-                >
-                  盯办
-                </button>
-              </div>
-              <button class="w-full py-2 btn-secondary text-sm" @click="closeDetail">关闭</button>
+          </div>
+          <div class="pt-4 border-t border-slate-100 dark:border-slate-700 p-6 space-y-3">
+            <div class="flex gap-2">
+              <button
+                class="flex-1 py-2.5 btn-primary text-sm disabled:opacity-50"
+                :disabled="saving"
+                @click="handleSaveDetail"
+              >
+                {{ saving ? '保存中...' : '保存' }}
+              </button>
+              <button
+                class="flex-1 py-2.5 text-sm bg-green-500 text-white rounded-btn hover:bg-green-600 transition-smooth disabled:opacity-50"
+                :disabled="completing"
+                @click="
+                  completing = true;
+                  handleComplete(selectedDetailNote!);
+                "
+              >
+                {{ completing ? '归档中...' : '完成并归档' }}
+              </button>
+              <button
+                v-if="selectedDetailNote.color_status !== 'red'"
+                class="flex-1 py-2.5 text-sm bg-red-50 text-red-600 rounded-btn hover:bg-red-100 transition-smooth"
+                @click="handleRemind(selectedDetailNote!)"
+              >
+                盯办
+              </button>
             </div>
+            <button class="w-full py-2 btn-secondary text-sm" @click="closeDetail">关闭</button>
           </div>
         </div>
       </div>

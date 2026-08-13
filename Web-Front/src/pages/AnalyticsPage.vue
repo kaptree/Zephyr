@@ -52,6 +52,15 @@ function showToast(type: 'success' | 'error', msg: string) {
   }, 3000);
 }
 
+function copyReportContent() {
+  try {
+    navigator.clipboard.writeText(selectedReport.value?.content || '');
+    showToast('success', '已复制到剪贴板');
+  } catch {
+    showToast('error', '复制失败');
+  }
+}
+
 const periodOptions: { key: Period; label: string; icon: string }[] = [
   { key: 'week', label: '本周', icon: '📅' },
   { key: 'month', label: '本月', icon: '📆' },
@@ -274,7 +283,7 @@ onMounted(() => {
               ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 shadow-sm'
               : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800',
           ]"
-          @click="viewTab = tab.key"
+          @click="viewTab = tab.key as 'stats' | 'history'"
         >
           {{ tab.label }}
         </button>
@@ -754,10 +763,7 @@ onMounted(() => {
             </button>
             <button
               class="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-smooth"
-              @click="
-                navigator.clipboard.writeText(selectedReport.content);
-                showToast('success', '已复制到剪贴板');
-              "
+              @click="copyReportContent()"
             >
               📋 复制
             </button>
@@ -791,7 +797,7 @@ onMounted(() => {
               </h3>
               <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                 使用
-                <code class="text-blue-500 bg-blue-50 dark:bg-blue-900/30 px-1 rounded">{{
+                <code v-pre class="text-blue-500 bg-blue-50 dark:bg-blue-900/30 px-1 rounded">{{
                   变量名
                 }}</code>
                 作为占位符，生成报告时自动替换

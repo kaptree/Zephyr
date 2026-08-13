@@ -46,7 +46,17 @@ func Setup(cfg *config.Config) *gin.Engine {
 
 	authService := services.NewAuthService(userRepo, cfg)
 	userService := services.NewUserService(userRepo, deptRepo)
-	noteService := services.NewNoteService(noteRepo)
+
+	// 通知 / 聊天服务（依赖 WebSocket Hub 做实时推送）
+	var hub *ws.Hub
+	if cfg.WebSocket.Enabled {
+		hub = ws.InitHub()
+	}
+	notifRepo := repository.NewNotificationRepo(database.DB)
+	chatRepo := repository.NewChatRepo(database.DB)
+	notifSvc := services.NewNotificationService(notifRepo, chatRepo, userRepo, noteRepo, hub)
+
+	noteService := services.NewNoteService(noteRepo, notifSvc)
 
 	authHandler := handlers.NewAuthHandler(authService)
 	userHandler := handlers.NewUserHandler(userService, groupRepo)
@@ -61,11 +71,12 @@ func Setup(cfg *config.Config) *gin.Engine {
 	analyticsHandler := handlers.NewAnalyticsHandler(noteRepo, sysRepo)
 	presetHandler := handlers.NewPresetGroupHandler(presetRepo)
 	uploadHandler := handlers.NewUploadHandler()
+	notificationHandler := handlers.NewNotificationHandler(notifSvc)
 
-	if cfg.WebSocket.Enabled {
-		hub := ws.InitHub()
+	if cfg.WebSocket.Enabled && hub != nil {
 		r.GET("/ws/:note_id", ws.HandleWebSocket(hub))
 		r.GET("/ws/group/:group_id", ws.HandleGroupWebSocket(hub))
+		r.GET("/ws/user/:user_id", ws.HandleUserWebSocket(hub))
 	}
 
 	r.Static("/uploads", "./uploads")
@@ -119,6 +130,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 			notes.GET("/:id", noteHandler.GetNote)
 			notes.PUT("/:id", noteHandler.UpdateNote)
 			notes.POST("/:id/complete", noteHandler.CompleteNote)
+			notes.POST("/:id/feedback", noteHandler.Feedback)
 			notes.POST("/:id/remind", noteHandler.RemindNote)
 			notes.DELETE("/:id", noteHandler.DeleteNote)
 			notes.POST("/:id/restore", noteHandler.RestoreNote)
@@ -186,6 +198,29 @@ func Setup(cfg *config.Config) *gin.Engine {
 		{
 			ledger.GET("", ledgerHandler.List)
 			ledger.GET("/stats", middleware.RequireRoles("super_admin", "dept_admin"), ledgerHandler.Stats)
+		}
+
+		notifications := api.Group("/notifications")
+		{
+			notifications.GET("", notificationHandler.List)
+			notifications.GET("/unread-count", notificationHandler.UnreadCount)
+			notifications.POST("/read-all", notificationHandler.MarkAllRead)
+			notifications.POST("/:id/read", notificationHandler.MarkRead)
+			notifications.DELETE("/:id", notificationHandler.Delete)
+		}
+
+		chat := api.Group("/chat")
+		{
+			chat.GET("/conversations", notificationHandler.Conversations)
+			chat.GET("/:userId/messages", notificationHandler.ListMessages)
+			chat.POST("/:userId/messages", notificationHandler.SendMessage)
+			chat.POST("/:userId/read", notificationHandler.MarkConversationRead)
+		}
+
+		reminders := api.Group("/reminders")
+		{
+			reminders.GET("", notificationHandler.ListReminders)
+			reminders.POST("/:id/acknowledge", notificationHandler.AcknowledgeReminder)
 		}
 
 		analytics := api.Group("/analytics")

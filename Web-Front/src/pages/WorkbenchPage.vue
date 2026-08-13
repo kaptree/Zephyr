@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/stores/notes';
 import { useAuthStore } from '@/stores/auth';
+import { useNotificationStore } from '@/stores/notification';
 import type { Note } from '@/types';
 import TagSelector from '@/components/common/TagSelector.vue';
 import StickyNoteCard from '@/components/note/StickyNoteCard.vue';
 import UserPicker from '@/components/common/UserPicker.vue';
+import RichTextEditor from '@/components/common/RichTextEditor.vue';
+import FeedbackModal from '@/components/notification/FeedbackModal.vue';
 import { createWorkGroup, searchGroups, deleteWorkGroup } from '@/services/workgroup';
 import type { WorkGroupData } from '@/services/workgroup';
 import { recommendUsers, getWorkTypeOptions } from '@/services/admin';
@@ -17,8 +20,10 @@ import { fetchTemplates } from '@/services/templates';
 import type { Template } from '@/types';
 
 const router = useRouter();
+const route = useRoute();
 const noteStore = useNoteStore();
 const auth = useAuthStore();
+const notifStore = useNotificationStore();
 const showCreateModal = ref(false);
 const showDetailPanel = ref(false);
 const selectedNote = ref<Note | null>(null);
@@ -38,6 +43,8 @@ const saving = ref(false);
 const completing = ref(false);
 const tagSaving = ref(false);
 const tagError = ref('');
+const feedbackVisible = ref(false);
+const feedbackNote = ref<Note | null>(null);
 
 const activeTab = ref('all');
 
@@ -92,6 +99,21 @@ onMounted(() => {
   loadWorkTypeOptions();
   loadPresets();
   loadUserTemplates();
+  // 支持从通知中心跳转到指定任务
+  const noteId = route.query.note as string | undefined;
+  if (noteId) {
+    noteStore.fetchNotes({ page: 1, page_size: 100 }).then(() => {
+      const target = noteStore.activeNotes.find((n) => n.id === noteId);
+      if (target) openDetail(target);
+      else {
+        import('@/services/notes').then(({ fetchNoteById }) => {
+          fetchNoteById(noteId).then((res) => {
+            openDetail(res.data as unknown as Note);
+          });
+        });
+      }
+    });
+  }
 });
 
 function handleTabClick(tab: string) {
@@ -165,15 +187,20 @@ async function handleSubmit() {
     if (sourceType.value === 'assigned' && selectedAssigneeIds.value.length > 0)
       payload.owner_id = selectedAssigneeIds.value[0];
     const created = await noteStore.createNote(payload);
+    // 指派/协作任务：向所有被指派人员发送盯办提醒（排除发起人自己）
     if (sourceType.value !== 'self' && created) {
-      try {
-        await noteStore.remindNote(
-          created.id,
-          created.owner_id,
-          `【任务指派】${auth.user?.name || '管理员'} 指派您处理：${newTitle.value.trim()}`
-        );
-      } catch {
-        /* ignore */
+      const myId = auth.user?.id;
+      const targets = (created.assignees || []).map(assigneeId).filter((id) => id && id !== myId);
+      for (const tid of targets) {
+        try {
+          await noteStore.remindNote(
+            created.id,
+            tid,
+            `【任务指派】${auth.user?.name || '管理员'} 指派您处理：${newTitle.value.trim()}`
+          );
+        } catch {
+          /* ignore */
+        }
       }
     }
     showCreateModal.value = false;
@@ -223,8 +250,21 @@ async function handleUpdateTags(tagIds: string[]) {
   }
 }
 async function handleComplete(note: Note) {
-  await noteStore.completeNote(note.id);
-  if (showDetailPanel.value && selectedNote.value?.id === note.id) closeDetail();
+  // 完成任务时先弹反馈填报
+  feedbackNote.value = note;
+  feedbackVisible.value = true;
+}
+async function submitFeedback(content: string) {
+  if (!feedbackNote.value) return;
+  const note = feedbackNote.value;
+  completing.value = true;
+  try {
+    await noteStore.completeNote(note.id, { feedback_content: content });
+    if (showDetailPanel.value && selectedNote.value?.id === note.id) closeDetail();
+  } finally {
+    completing.value = false;
+    feedbackNote.value = null;
+  }
 }
 async function handleRemind(note: Note) {
   await noteStore.remindNote(note.id, note.owner_id, '请尽快处理');
@@ -376,8 +416,9 @@ function onTemplateSelect() {
     );
   } catch {}
   if (fields.length > 0) {
-    const lines = fields.map((f: any) => `【${f.name}】`);
-    newContent.value = `📋 模板：${tpl.name}\n${lines.join('\n')}\n\n${newContent.value || ''}`;
+    const header = `<div><b>📋 模板：${tpl.name}</b></div>`;
+    const lines = fields.map((f: any) => `<div>【${f.name}】</div>`).join('');
+    newContent.value = `${header}${lines}<div><br></div>${newContent.value || ''}`;
   }
 }
 
@@ -414,12 +455,17 @@ async function handleRecommend() {
 
 function selectRecommendUser(userId: string) {
   if (!selectedAssigneeIds.value.includes(userId)) {
-    if (sourceType.value === 'assigned') {
-      selectedAssigneeIds.value = [userId];
-    } else {
-      selectedAssigneeIds.value.push(userId);
-    }
+    selectedAssigneeIds.value.push(userId);
   }
+}
+
+/** 从指派对象中取用户 ID（兼容 user_id / id / 嵌套 user 三种形态） */
+function assigneeId(a: any): string {
+  return a?.id || a?.user_id || a?.user?.id || '';
+}
+/** 从指派对象中取用户姓名（兼容扁平与嵌套形态） */
+function assigneeName(a: any): string {
+  return a?.name || a?.user?.name || a?.user_id || '';
 }
 
 function getMemberCount(g: WorkGroupData): number {
@@ -717,17 +763,21 @@ const templateLabels: Record<string, string> = {
 
     <!-- ====== 新建任务模态框 ====== -->
     <Teleport to="body">
-      <div
-        v-if="showCreateModal"
-        class="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]"
-      >
+      <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="overlay-backdrop" @click="showCreateModal = false" />
         <div
-          class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-xl mx-4 animate-fade-in"
+          class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-3xl mx-4 animate-fade-in max-h-[90vh] flex flex-col"
         >
-          <div class="p-6">
+          <div class="p-6 overflow-y-auto flex-1">
             <div class="flex items-center justify-between mb-6">
-              <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">新建任务</h2>
+              <div>
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  📝 新建任务
+                </h2>
+                <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                  支持富文本编辑，内容可多行排版
+                </p>
+              </div>
               <button
                 class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
                 @click="showCreateModal = false"
@@ -747,13 +797,24 @@ const templateLabels: Record<string, string> = {
                 </svg>
               </button>
             </div>
-            <form class="space-y-4" @submit.prevent="handleSubmit" @keydown.enter.prevent>
-              <input v-model="newTitle" class="input-field" placeholder="任务标题" autofocus />
-              <textarea
-                v-model="newContent"
-                class="input-field h-32 resize-none"
-                placeholder="任务内容..."
+            <form class="space-y-4" @submit.prevent="handleSubmit">
+              <input
+                v-model="newTitle"
+                class="input-field"
+                placeholder="任务标题"
+                autofocus
+                @keydown.enter.prevent
               />
+              <div>
+                <label class="block text-xs font-medium text-slate-500 mb-1.5"
+                  >任务内容（支持富文本）</label
+                >
+                <RichTextEditor
+                  v-model="newContent"
+                  placeholder="请输入任务内容..."
+                  :min-height="200"
+                />
+              </div>
               <div>
                 <label class="block text-xs font-medium text-slate-500 mb-1"
                   >使用模板（可选）</label
@@ -806,12 +867,14 @@ const templateLabels: Record<string, string> = {
               </div>
               <div v-if="sourceType !== 'self'">
                 <span class="text-xs text-slate-500 mb-1.5 block">{{
-                  sourceType === 'assigned' ? '选择负责人' : '选择协作人员'
+                  sourceType === 'assigned'
+                    ? '选择指派人员（可多选，支持一键全选部门/小组）'
+                    : '选择协作人员（可多选）'
                 }}</span
                 ><UserPicker
                   v-model="selectedAssigneeIds"
-                  :multiple="sourceType === 'collaboration'"
-                  :max="sourceType === 'assigned' ? 1 : 20"
+                  :multiple="true"
+                  :max="50"
                   :drop-up="true"
                 />
                 <div
@@ -898,19 +961,31 @@ const templateLabels: Record<string, string> = {
       </div>
     </Teleport>
 
-    <!-- ====== 详情侧滑面板 ====== -->
+    <!-- ====== 详情编辑模态框（居中） ====== -->
     <Teleport to="body">
-      <div v-if="showDetailPanel && selectedNote">
+      <div
+        v-if="showDetailPanel && selectedNote"
+        class="fixed inset-0 z-50 flex items-center justify-center"
+      >
         <div class="overlay-backdrop" @click="closeDetail" />
-        <div class="slide-panel">
-          <div class="p-6 h-full flex flex-col">
+        <div
+          class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-3xl mx-4 animate-fade-in max-h-[90vh] flex flex-col"
+        >
+          <div class="p-6 overflow-y-auto flex-1">
             <div class="flex items-center justify-between mb-6">
               <div class="flex items-center gap-2">
-                <h2 class="text-lg font-semibold text-slate-900">任务详情</h2>
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  📝 任务详情
+                </h2>
                 <span
                   v-if="selectedNote.color_status === 'red'"
                   class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-tag"
                   >盯办中</span
+                >
+                <span
+                  v-if="selectedNote.color_status === 'blue'"
+                  class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-tag"
+                  >协作</span
                 >
               </div>
               <button
@@ -932,16 +1007,21 @@ const templateLabels: Record<string, string> = {
                 </svg>
               </button>
             </div>
-            <div class="flex-1 overflow-auto space-y-5">
+            <div class="space-y-5">
               <div>
                 <span class="text-xs text-slate-400 mb-1 block">标题</span
-                ><input v-model="editingTitle" class="input-field text-base font-semibold" />
+                ><input
+                  v-model="editingTitle"
+                  class="input-field text-base font-semibold"
+                  @keydown.enter.prevent
+                />
               </div>
               <div>
-                <span class="text-xs text-slate-400 mb-1 block">内容</span
-                ><textarea
+                <span class="text-xs text-slate-400 mb-1 block">内容（支持富文本）</span>
+                <RichTextEditor
                   v-model="editingContent"
-                  class="input-field min-h-[180px] resize-y text-sm"
+                  placeholder="请输入任务内容..."
+                  :min-height="220"
                 />
               </div>
               <div>
@@ -970,9 +1050,21 @@ const templateLabels: Record<string, string> = {
                 </div>
                 <div class="flex justify-between text-xs" v-if="selectedNote.assignees?.length">
                   <span class="text-slate-400">负责人</span
-                  ><span class="text-slate-700 dark:text-slate-300">{{
-                    selectedNote.assignees.map((a) => a.name).join('、')
-                  }}</span>
+                  ><span
+                    class="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 flex-wrap justify-end"
+                  >
+                    <template v-for="a in selectedNote.assignees" :key="a.id">
+                      <span>{{ a.name }}</span>
+                      <button
+                        v-if="a.id !== auth.user?.id"
+                        class="text-blue-500 hover:text-blue-600 hover:underline shrink-0"
+                        title="发起聊天"
+                        @click="notifStore.openChat(a.id)"
+                      >
+                        联系
+                      </button>
+                    </template>
+                  </span>
                 </div>
                 <div class="flex justify-between text-xs">
                   <span class="text-slate-400">创建时间</span
@@ -988,35 +1080,32 @@ const templateLabels: Record<string, string> = {
                 </div>
               </div>
             </div>
-            <div class="pt-4 border-t border-slate-100 dark:border-slate-700 mt-4 space-y-3">
-              <div class="flex gap-2">
-                <button
-                  class="flex-1 py-2.5 btn-primary text-sm disabled:opacity-50"
-                  :disabled="saving"
-                  @click="handleSaveDetail"
-                >
-                  {{ saving ? '保存中...' : '保存' }}
-                </button>
-                <button
-                  class="flex-1 py-2.5 text-sm bg-green-500 text-white rounded-btn hover:bg-green-600 transition-smooth disabled:opacity-50"
-                  :disabled="completing"
-                  @click="
-                    completing = true;
-                    handleComplete(selectedNote!);
-                  "
-                >
-                  {{ completing ? '归档中...' : '完成并归档' }}
-                </button>
-                <button
-                  v-if="selectedNote.color_status !== 'red'"
-                  class="flex-1 py-2.5 text-sm bg-red-50 text-red-600 rounded-btn hover:bg-red-100 transition-smooth"
-                  @click="handleRemind(selectedNote!)"
-                >
-                  盯办
-                </button>
-              </div>
-              <button class="w-full py-2 btn-secondary text-sm" @click="closeDetail">关闭</button>
+          </div>
+          <div class="pt-4 border-t border-slate-100 dark:border-slate-700 p-6 space-y-3">
+            <div class="flex gap-2">
+              <button
+                class="flex-1 py-2.5 btn-primary text-sm disabled:opacity-50"
+                :disabled="saving"
+                @click="handleSaveDetail"
+              >
+                {{ saving ? '保存中...' : '保存' }}
+              </button>
+              <button
+                class="flex-1 py-2.5 text-sm bg-green-500 text-white rounded-btn hover:bg-green-600 transition-smooth disabled:opacity-50"
+                :disabled="completing"
+                @click="handleComplete(selectedNote!)"
+              >
+                {{ completing ? '归档中...' : '完成并归档' }}
+              </button>
+              <button
+                v-if="selectedNote.color_status !== 'red'"
+                class="flex-1 py-2.5 text-sm bg-red-50 text-red-600 rounded-btn hover:bg-red-100 transition-smooth"
+                @click="handleRemind(selectedNote!)"
+              >
+                盯办
+              </button>
             </div>
+            <button class="w-full py-2 btn-secondary text-sm" @click="closeDetail">关闭</button>
           </div>
         </div>
       </div>
@@ -1191,5 +1280,13 @@ const templateLabels: Record<string, string> = {
         </div>
       </div>
     </Teleport>
+
+    <!-- 任务反馈填报弹窗 -->
+    <FeedbackModal
+      :visible="feedbackVisible"
+      :note="feedbackNote"
+      @update:visible="feedbackVisible = $event"
+      @submit="submitFeedback"
+    />
   </div>
 </template>

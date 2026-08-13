@@ -15,10 +15,11 @@ import (
 
 type NoteService struct {
 	noteRepo *repository.NoteRepository
+	notifSvc *NotificationService
 }
 
-func NewNoteService(noteRepo *repository.NoteRepository) *NoteService {
-	return &NoteService{noteRepo: noteRepo}
+func NewNoteService(noteRepo *repository.NoteRepository, notifSvc *NotificationService) *NoteService {
+	return &NoteService{noteRepo: noteRepo, notifSvc: notifSvc}
 }
 
 type CreateNoteRequest struct {
@@ -195,6 +196,17 @@ func (s *NoteService) Create(userID, role, deptID string, req CreateNoteRequest)
 
 	_ = s.recordLedger(note.ID.String(), userID, "create", "任务创建", "", "")
 
+	// 通知被指派者：任务已指派给你
+	if s.notifSvc != nil {
+		title := "您有新任务"
+		content := "「" + note.Title + "」已指派给您，请及时处理"
+		for _, a := range req.Assignees {
+			if a.UserID != userID {
+				_ = s.notifSvc.Notify(a.UserID, userID, &note.ID, "task_assigned", title, content)
+			}
+		}
+	}
+
 	return s.noteRepo.FindByID(note.ID.String())
 }
 
@@ -265,8 +277,9 @@ func (s *NoteService) Complete(id, userID, role string, req CompleteNoteRequest)
 	}
 
 	isGroupNote := note.GroupID != nil
+	isAssignee, _ := s.noteRepo.IsAssignee(id, userID)
 	if !isGroupNote && note.SourceType == "assigned" && note.OwnerID.String() != userID &&
-		role != "super_admin" && role != "dept_admin" {
+		!isAssignee && role != "super_admin" && role != "dept_admin" {
 		return nil, apperrors.ErrPermissionDenied
 	}
 
@@ -280,7 +293,52 @@ func (s *NoteService) Complete(id, userID, role string, req CompleteNoteRequest)
 		return nil, err
 	}
 
+	// 回写被指派人的反馈内容到 note_assignees
+	if req.FeedbackContent != "" {
+		_ = s.noteRepo.UpdateAssigneeFeedback(note.ID.String(), userID, req.FeedbackContent)
+	}
+
 	_ = s.recordLedger(id, userID, "complete", "任务办结归档", req.FeedbackContent, "")
+
+	// 通知任务发起人（被指派者完成任务时）
+	if s.notifSvc != nil && note.CreatorID.String() != userID {
+		notifType := "task_completed"
+		title := "任务已完成"
+		content := req.FeedbackContent
+		if content == "" {
+			content = "您指派的任务已完成归档"
+		}
+		_ = s.notifSvc.Notify(note.CreatorID.String(), userID, &note.ID, notifType, title, content)
+	}
+
+	return s.noteRepo.FindByID(id)
+}
+
+// Feedback 被指派人对已完成的任务补充反馈填报，并通知任务发起人
+func (s *NoteService) Feedback(id, userID, content string) (*models.Note, error) {
+	note, err := s.noteRepo.FindByID(id)
+	if err != nil || note == nil {
+		return nil, apperrors.ErrNoteNotFound
+	}
+	if content == "" {
+		return nil, apperrors.ErrInvalidChatContent
+	}
+
+	// 仅任务发起人 / 被指派人可提交反馈
+	isAssignee, _ := s.noteRepo.IsAssignee(id, userID)
+	if note.CreatorID.String() != userID && !isAssignee {
+		return nil, apperrors.ErrPermissionDenied
+	}
+
+	if err := s.noteRepo.UpdateAssigneeFeedback(note.ID.String(), userID, content); err != nil {
+		return nil, err
+	}
+
+	_ = s.recordLedger(id, userID, "feedback", "任务反馈填报", content, "")
+
+	if s.notifSvc != nil && note.CreatorID.String() != userID {
+		_ = s.notifSvc.Notify(note.CreatorID.String(), userID, &note.ID, "task_feedback", "任务反馈", content)
+	}
 
 	return s.noteRepo.FindByID(id)
 }
@@ -318,6 +376,16 @@ func (s *NoteService) Remind(id, userID string, req RemindRequest) (*models.Note
 
 	_ = s.noteRepo.CreateReminder(reminder)
 	_ = s.recordLedger(id, userID, "remind", "盯办提醒", req.Message, "")
+
+	// 通知被盯办人
+	if s.notifSvc != nil && req.TargetID != userID {
+		title := "任务催办提醒"
+		content := req.Message
+		if content == "" {
+			content = "「" + note.Title + "」有新的催办提醒，请尽快处理"
+		}
+		_ = s.notifSvc.Notify(req.TargetID, userID, &note.ID, "task_remind", title, content)
+	}
 
 	return s.noteRepo.FindByID(id)
 }

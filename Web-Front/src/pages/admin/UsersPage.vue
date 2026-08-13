@@ -168,6 +168,7 @@ async function handleSubmit() {
         email: (formEmail.value || '').trim(),
         dept_id: deptId,
         is_active: formIsActive.value,
+        password: formPassword.value.trim() || undefined,
       })
     } else {
       await createUser({

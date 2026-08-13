@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import type { Note } from '@/types';
+import { renderNoteContent } from '@/utils/richText';
 
 const props = withDefaults(
   defineProps<{
@@ -115,12 +116,13 @@ function toggleExpand() {
 
     <div
       :class="[
-        'text-sm text-slate-500 transition-all duration-300 overflow-hidden',
+        'text-sm text-slate-500 transition-all duration-300 overflow-hidden rich-content-display',
         expanded ? 'note-content-expanded' : 'note-content-mask',
         expanded ? '' : 'max-h-[72px]',
       ]"
     >
-      {{ note.content || '暂无内容' }}
+      <span v-if="!note.content" class="text-slate-300">暂无内容</span>
+      <span v-else v-html="renderNoteContent(note.content)"></span>
     </div>
 
     <button

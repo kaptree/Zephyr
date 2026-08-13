@@ -51,7 +51,7 @@ export function generateAIReport(period: 'week' | 'month' | 'year'): Promise<Api
 }
 
 export function listReports(query: ReportListQuery): Promise<ApiResponse<PaginatedData<WorkReportItem>>> {
-  return get('/api/v1/analytics/reports', query as Record<string, unknown>)
+  return get('/api/v1/analytics/reports', query as unknown as Record<string, unknown>)
 }
 
 export function getReport(id: string): Promise<ApiResponse<WorkReportItem>> {

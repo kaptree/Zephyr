@@ -29,6 +29,10 @@ export function completeNote(id: string, payload?: CompleteNotePayload) {
   return post<Note>(`/api/v1/notes/${id}/complete`, payload)
 }
 
+export function submitFeedback(id: string, content: string) {
+  return post<Note>(`/api/v1/notes/${id}/feedback`, { content })
+}
+
 export function remindNote(id: string, payload?: RemindPayload) {
   return post<Note>(`/api/v1/notes/${id}/remind`, payload)
 }

@@ -5,6 +5,7 @@ import type {
   NoteFilters,
   CreateNotePayload,
   UpdateNotePayload,
+  CompleteNotePayload,
   PaginatedData,
 } from '@/types';
 import * as noteService from '@/services/notes';
@@ -57,7 +58,9 @@ export const useNoteStore = defineStore('notes', () => {
     try {
       const res = await noteService.fetchNotes(filters.value);
       const paginated = res.data as unknown as PaginatedData<Note>;
-      activeNotes.value = (paginated.data || []).map(normalizeNote);
+      activeNotes.value = (paginated.data || []).map((raw) =>
+        normalizeNote(raw as unknown as BackendNote)
+      );
       totalCount.value = paginated.total || 0;
       currentPage.value = paginated.page || 1;
     } catch (e: unknown) {
@@ -78,7 +81,10 @@ export const useNoteStore = defineStore('notes', () => {
         page: currentPage.value + 1,
       });
       const paginated = res.data as unknown as PaginatedData<Note>;
-      activeNotes.value = [...activeNotes.value, ...(paginated.data || []).map(normalizeNote)];
+      activeNotes.value = [
+        ...activeNotes.value,
+        ...(paginated.data || []).map((raw) => normalizeNote(raw as unknown as BackendNote)),
+      ];
       currentPage.value = paginated.page || currentPage.value;
       totalCount.value = paginated.total || totalCount.value;
     } catch (e: unknown) {
@@ -127,6 +133,7 @@ export const useNoteStore = defineStore('notes', () => {
         existing || {
           id: tid,
           name: '',
+          sub_tag: '',
           color: '#64748B',
           scope: 'personal' as const,
           category: '',
@@ -145,8 +152,8 @@ export const useNoteStore = defineStore('notes', () => {
     }
   }
 
-  async function completeNote(id: string) {
-    await noteService.completeNote(id);
+  async function completeNote(id: string, payload?: CompleteNotePayload) {
+    await noteService.completeNote(id, payload);
     const index = activeNotes.value.findIndex((n) => n.id === id);
     if (index !== -1) {
       activeNotes.value.splice(index, 1);
@@ -185,7 +192,9 @@ export const useNoteStore = defineStore('notes', () => {
         status: 'archived',
       } as NoteFilters);
       const paginated = res.data as unknown as PaginatedData<Note>;
-      archivedNotes.value = (paginated.data || []).map(normalizeNote);
+      archivedNotes.value = (paginated.data || []).map((raw) =>
+        normalizeNote(raw as unknown as BackendNote)
+      );
       totalCount.value = paginated.total || 0;
     } finally {
       loading.value = false;
