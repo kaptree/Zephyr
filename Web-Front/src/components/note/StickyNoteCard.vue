@@ -33,6 +33,17 @@ const isBlue = computed(() => props.note.color_status === 'blue');
 const isGreen = computed(() => props.note.color_status === 'green');
 const isArchived = computed(() => props.archived || props.note.is_archived);
 
+// 被指派人的反馈填报内容（指派便签上同步展示，指派人与被指派人可见）
+const feedbackList = computed(() =>
+  (props.note.assignees || [])
+    .filter((a: any) => a.feedback_content)
+    .map((a: any) => ({
+      user_id: a.user_id || a.id || a.user?.id || '',
+      user_name: a.user?.name || a.name || a.user?.username || '被指派人',
+      content: a.feedback_content,
+    }))
+);
+
 const displayTags = computed(() => {
   const max = 2;
   const tags = (props.note.tags || []).map((t: any) => {
@@ -132,6 +143,34 @@ function toggleExpand() {
     >
       {{ expanded ? '收起' : '展开全文' }}
     </button>
+
+    <!-- 任务反馈区（指派便签同步显示） -->
+    <div
+      v-if="feedbackList.length"
+      class="mt-3 rounded-lg bg-white/70 dark:bg-slate-900/40 p-2.5 border border-green-300/50"
+    >
+      <p
+        class="text-[11px] font-semibold text-green-700 dark:text-green-400 mb-1 flex items-center gap-1"
+      >
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
+        任务反馈
+      </p>
+      <div
+        v-for="f in feedbackList"
+        :key="f.user_id"
+        class="text-xs text-slate-600 dark:text-slate-300 rich-content-display mb-1 last:mb-0"
+      >
+        <span class="font-medium text-slate-700 dark:text-slate-200">{{ f.user_name }}：</span>
+        <span v-html="renderNoteContent(f.content)" />
+      </div>
+    </div>
 
     <!-- 标签区 -->
     <div v-if="(note.tags || []).length" class="flex items-center gap-1.5 mt-3 flex-wrap">

@@ -51,7 +51,8 @@ func (r *NoteRepository) List(filter NoteFilter, scope NoteScope) ([]models.Note
 		Preload("Tags").
 		Preload("Creator").
 		Preload("Owner").
-		Preload("Department")
+		Preload("Department").
+		Preload("Assignees.User")
 
 	switch filter.Status {
 	case "archived":

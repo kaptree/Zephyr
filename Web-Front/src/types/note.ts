@@ -4,6 +4,17 @@ import type { UserBrief } from './user'
 export type NoteStatus = 'active' | 'completed' | 'archived'
 export type NoteSourceType = 'self' | 'assigned' | 'collaboration'
 
+/** 任务被指派人（含反馈填报信息） */
+export interface NoteAssignee {
+  note_id: string
+  user_id: string
+  user?: UserBrief
+  role_in_note: string
+  feedback_content?: string
+  feedback_at?: string
+  is_read: boolean
+}
+
 export interface Note {
   id: string
   title: string
@@ -14,7 +25,7 @@ export interface Note {
   creator_id: string
   is_archived: boolean
   tags: Tag[]
-  assignees: UserBrief[]
+  assignees: NoteAssignee[]
   group_id?: string
   dept_id?: string
   template_type?: string

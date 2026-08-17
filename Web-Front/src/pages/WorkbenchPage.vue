@@ -99,22 +99,62 @@ onMounted(() => {
   loadWorkTypeOptions();
   loadPresets();
   loadUserTemplates();
-  // 支持从通知中心跳转到指定任务
+  // 支持从通知中心跳转到指定任务（首次挂载时）
   const noteId = route.query.note as string | undefined;
-  if (noteId) {
-    noteStore.fetchNotes({ page: 1, page_size: 100 }).then(() => {
-      const target = noteStore.activeNotes.find((n) => n.id === noteId);
-      if (target) openDetail(target);
-      else {
-        import('@/services/notes').then(({ fetchNoteById }) => {
-          fetchNoteById(noteId).then((res) => {
-            openDetail(res.data as unknown as Note);
-          });
-        });
-      }
-    });
-  }
+  if (noteId) openNoteFromQuery(noteId);
 });
+
+// 通知中心「查看任务」跳转：监听 query.note 变化（同页面再次点击也能弹出便签）
+watch(
+  () => route.query.note,
+  (noteId) => {
+    if (noteId && typeof noteId === 'string') openNoteFromQuery(noteId);
+  }
+);
+
+function openNoteFromQuery(noteId: string) {
+  const target = noteStore.activeNotes.find((n) => n.id === noteId);
+  if (target) {
+    openDetail(target);
+    return;
+  }
+  import('@/services/notes').then(({ fetchNoteById }) => {
+    fetchNoteById(noteId)
+      .then((res) => {
+        openDetail(normalizeRawNote(res.data as unknown as Record<string, unknown>));
+      })
+      .catch(() => {
+        /* 任务不存在 */
+      });
+  });
+}
+
+// 后端 Note 原始结构归一化为前端 Note
+function normalizeRawNote(raw: Record<string, unknown>): Note {
+  return {
+    id: (raw.id as string) || '',
+    title: (raw.title as string) || '',
+    content: (raw.content as string) || '',
+    color_status: (raw.color_status as Note['color_status']) || 'yellow',
+    source_type: (raw.source_type as Note['source_type']) || 'self',
+    owner_id: (raw.owner_id as string) || '',
+    creator_id: (raw.creator_id as string) || '',
+    is_archived: !!raw.is_archived,
+    tags: (raw.tags || []) as Note['tags'],
+    assignees: (raw.assignees || []) as Note['assignees'],
+    group_id: raw.group_id as string | undefined,
+    dept_id: raw.dept_id as string | undefined,
+    template_type: raw.template_type as string | undefined,
+    due_time: raw.due_time as string | undefined,
+    completed_at: raw.completed_at as string | undefined,
+    archive_time: raw.archive_time as string | undefined,
+    remind_count: (raw.remind_count as number) || 0,
+    serial_no: raw.serial_no as string | undefined,
+    created_at: (raw.created_at as string) || new Date().toISOString(),
+    updated_at:
+      (raw.updated_at as string) || (raw.created_at as string) || new Date().toISOString(),
+  };
+}
 
 function handleTabClick(tab: string) {
   activeTab.value = tab;
@@ -1053,13 +1093,13 @@ const templateLabels: Record<string, string> = {
                   ><span
                     class="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 flex-wrap justify-end"
                   >
-                    <template v-for="a in selectedNote.assignees" :key="a.id">
-                      <span>{{ a.name }}</span>
+                    <template v-for="a in selectedNote.assignees" :key="a.user_id || (a as any).id">
+                      <span>{{ a.user?.name || (a as any).name }}</span>
                       <button
-                        v-if="a.id !== auth.user?.id"
+                        v-if="(a.user_id || (a as any).id) !== auth.user?.id"
                         class="text-blue-500 hover:text-blue-600 hover:underline shrink-0"
                         title="发起聊天"
-                        @click="notifStore.openChat(a.id)"
+                        @click="notifStore.openChat(a.user_id || (a as any).id)"
                       >
                         联系
                       </button>

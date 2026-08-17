@@ -28,7 +28,7 @@ const TYPE_COLOR: Record<string, string> = {
   system: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
 };
 
-const displayList = computed(() => store.notifications.slice(0, 20));
+const displayList = computed(() => store.notifications.slice(0, 10));
 
 function toggle() {
   open.value = !open.value;
@@ -38,7 +38,7 @@ function toggle() {
 function load() {
   loading.value = true;
   store
-    .fetchList({ page: 1, page_size: 20 })
+    .fetchList({ page: 1, page_size: 10 })
     .finally(() => {
       loading.value = false;
     });
@@ -65,6 +65,11 @@ function goToNote(n: NotificationItem) {
   if (n.note_id) {
     router.push({ path: '/workbench', query: { note: n.note_id } });
   }
+}
+
+function goToAll() {
+  open.value = false;
+  router.push('/notifications');
 }
 
 function formatTime(t?: string) {
@@ -147,37 +152,48 @@ onUnmounted(() => {
           </svg>
           <p class="text-sm text-slate-400">暂无通知</p>
         </div>
-        <div
-          v-for="n in displayList"
-          :key="n.id"
-          class="px-4 py-3 border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/40 cursor-pointer transition-smooth"
-          :class="{ 'bg-blue-50/60 dark:bg-blue-900/10': !n.is_read }"
-          @click="handleClickItem(n)"
-        >
-          <div class="flex items-start gap-2.5">
-            <span
-              class="mt-0.5 shrink-0 px-1.5 py-0.5 rounded text-[10px] leading-4 font-medium"
-              :class="TYPE_COLOR[n.type] || TYPE_COLOR.system"
-            >
-              {{ TYPE_LABEL[n.type] || '通知' }}
-            </span>
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center justify-between gap-2">
-                <p class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{{ n.title }}</p>
-                <span class="shrink-0 text-[10px] text-slate-400">{{ formatTime(n.created_at) }}</span>
+        <div v-else>
+          <div
+            v-for="n in displayList"
+            :key="n.id"
+            class="px-4 py-3 border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/40 cursor-pointer transition-smooth"
+            :class="{ 'bg-blue-50/60 dark:bg-blue-900/10': !n.is_read }"
+            @click="handleClickItem(n)"
+          >
+            <div class="flex items-start gap-2.5">
+              <span
+                class="mt-0.5 shrink-0 px-1.5 py-0.5 rounded text-[10px] leading-4 font-medium"
+                :class="TYPE_COLOR[n.type] || TYPE_COLOR.system"
+              >
+                {{ TYPE_LABEL[n.type] || '通知' }}
+              </span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{{ n.title }}</p>
+                  <span class="shrink-0 text-[10px] text-slate-400">{{ formatTime(n.created_at) }}</span>
+                </div>
+                <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400 line-clamp-2 break-all">
+                  {{ n.content }}
+                </p>
               </div>
-              <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400 line-clamp-2 break-all">
-                {{ n.content }}
-              </p>
+              <button
+                class="shrink-0 p-1 text-slate-300 hover:text-red-400 transition-smooth"
+                title="删除"
+                @click="handleDelete(n, $event)"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
             </div>
+          </div>
+          <!-- 查看全部 -->
+          <div class="px-4 py-2.5 border-t border-slate-100 dark:border-slate-700">
             <button
-              class="shrink-0 p-1 text-slate-300 hover:text-red-400 transition-smooth"
-              title="删除"
-              @click="handleDelete(n, $event)"
+              class="w-full py-1.5 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-smooth"
+              @click="goToAll"
             >
-              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
+              查看全部通知 →
             </button>
           </div>
         </div>

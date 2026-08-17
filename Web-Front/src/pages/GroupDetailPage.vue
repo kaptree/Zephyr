@@ -844,7 +844,10 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
                 >
                   <span class="text-slate-400">负责人</span
                   ><span class="text-slate-700 dark:text-slate-300">{{
-                    selectedDetailNote.assignees.map((a) => a.name).join('、')
+                    selectedDetailNote.assignees
+                      .map((a: any) => a.user?.name || a.name || '')
+                      .filter(Boolean)
+                      .join('、') || '—'
                   }}</span>
                 </div>
                 <div v-if="selectedDetailNote.serial_no" class="flex justify-between text-xs">
