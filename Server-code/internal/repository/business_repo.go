@@ -2,7 +2,6 @@ package repository
 
 import (
 	"labelpro-server/internal/models"
-	"sort"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -37,30 +36,32 @@ func (r *TagRepository) FindAll(scope string, parentID *uuid.UUID, category stri
 		return nil, err
 	}
 
-	var result []models.Tag
+	// 批量统计各标签的使用次数（不删除、不过滤未使用标签，保证新建标签不消失）
+	var ids []string
 	for i := range tags {
-		var count int64
-		r.db.Table("note_tags").Where("tag_id = ?", tags[i].ID).Count(&count)
-		tags[i].UsageCount = count
-		if count > 0 {
-			result = append(result, tags[i])
+		ids = append(ids, tags[i].ID.String())
+	}
+	type usageRow struct {
+		TagID string
+		Count int64
+	}
+	usage := make(map[string]int64, len(ids))
+	if len(ids) > 0 {
+		var rows []usageRow
+		r.db.Table("note_tags").
+			Select("tag_id, COUNT(*) AS count").
+			Where("tag_id IN ?", ids).
+			Group("tag_id").
+			Scan(&rows)
+		for _, row := range rows {
+			usage[row.TagID] = row.Count
 		}
 	}
-
 	for i := range tags {
-		if tags[i].UsageCount == 0 {
-			r.db.Delete(&models.Tag{}, "id = ?", tags[i].ID)
-		}
+		tags[i].UsageCount = usage[tags[i].ID.String()]
 	}
 
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].UsageCount != result[j].UsageCount {
-			return result[i].UsageCount > result[j].UsageCount
-		}
-		return result[i].Name < result[j].Name
-	})
-
-	return result, nil
+	return tags, nil
 }
 
 func (r *TagRepository) FindByID(id string) (*models.Tag, error) {
@@ -80,14 +81,32 @@ func (r *TagRepository) Update(tag *models.Tag) error {
 	return r.db.Save(tag).Error
 }
 
+// Delete 删除标签并级联清理任务关联（保持标签一致性）：
+// 若为一级标签，连同其子标签（二级）一并删除；
+// 所有被删除标签在 note_tags 中的关联同步清理，任务上不再残留该标签
 func (r *TagRepository) Delete(id string) error {
-	return r.db.Delete(&models.Tag{}, "id = ?", id).Error
-}
+	tagID, err := uuid.Parse(id)
+	if err != nil {
+		return err
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// 子标签（二级）id 列表
+		var childIDs []string
+		if err := tx.Model(&models.Tag{}).Where("parent_id = ?", tagID).Pluck("id", &childIDs).Error; err != nil {
+			return err
+		}
+		deleteIDs := append(childIDs, id)
 
-func (r *TagRepository) IsInUse(id string) (bool, error) {
-	var count int64
-	err := r.db.Table("note_tags").Where("tag_id = ?", id).Count(&count).Error
-	return count > 0, err
+		// 清理所有任务上关联的该标签（含子标签）
+		if err := tx.Exec("DELETE FROM note_tags WHERE tag_id IN ?", deleteIDs).Error; err != nil {
+			return err
+		}
+		// 删除子标签与自身
+		if err := tx.Where("parent_id = ?", tagID).Delete(&models.Tag{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&models.Tag{}, "id = ?", tagID).Error
+	})
 }
 
 type TemplateRepository struct {

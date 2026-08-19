@@ -1,4 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap');
+/* 字体已本地化：Inter 由 @fontsource/inter 打包提供（见 main.ts），
+   中文等超出 Inter 覆盖范围的字符自动回退系统字体（Windows 微软雅黑 / macOS 苹方），
+   不再从互联网（Google Fonts）加载，保证内网部署无外部依赖、加载不受外网影响 */
 
 @tailwind base;
 @tailwind components;
@@ -12,7 +14,7 @@
   }
 
   html {
-    font-family: "Inter", "Noto Sans SC", -apple-system, sans-serif;
+    font-family: "Inter", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -140,6 +142,10 @@
 
   .watermark-archived {
     @apply absolute bottom-2 right-2 text-xs text-slate-300 font-medium rotate-[-15deg] select-none pointer-events-none;
+  }
+
+  .dark .watermark-archived {
+    @apply text-slate-400;
   }
 
   .status-dot {

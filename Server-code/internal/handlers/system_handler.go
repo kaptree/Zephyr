@@ -10,6 +10,7 @@ import (
 	"labelpro-server/internal/middleware"
 	"labelpro-server/internal/models"
 	"labelpro-server/internal/repository"
+	"labelpro-server/internal/services"
 	"labelpro-server/internal/utils"
 
 	"github.com/gin-gonic/gin"
@@ -112,6 +113,7 @@ func (h *SystemHandler) ListAIConfigs(c *gin.Context) {
 // POST /api/v1/system/ai-configs - Create AI config
 func (h *SystemHandler) CreateAIConfig(c *gin.Context) {
 	var body struct {
+		ProviderType string `json:"provider_type"`
 		ProviderName string `json:"provider_name" binding:"required"`
 		APIEndpoint  string `json:"api_endpoint" binding:"required"`
 		APIKey       string `json:"api_key" binding:"required"`
@@ -121,6 +123,18 @@ func (h *SystemHandler) CreateAIConfig(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		utils.BadRequest(c, "请填写完整的AI配置信息")
+		return
+	}
+
+	// 连通后才能保存：创建前强制测试连通性
+	providerType := services.NormalizeProviderType(body.ProviderType)
+	result, testErr := services.TestAIConnection(providerType, body.APIEndpoint, body.APIKey, body.ModelName)
+	if testErr != nil || !result.Success {
+		msg := "连通性测试未通过"
+		if result != nil && result.Message != "" {
+			msg = "连通性测试未通过：" + result.Message
+		}
+		utils.BadRequest(c, msg)
 		return
 	}
 
@@ -137,6 +151,7 @@ func (h *SystemHandler) CreateAIConfig(c *gin.Context) {
 
 	config := &models.AIConfig{
 		ID:           uuid.New(),
+		ProviderType: providerType,
 		ProviderName: body.ProviderName,
 		APIEndpoint:  body.APIEndpoint,
 		APIKey:       encryptedKey,
@@ -159,11 +174,33 @@ func (h *SystemHandler) CreateAIConfig(c *gin.Context) {
 	utils.Created(c, config)
 }
 
+// POST /api/v1/system/ai-configs/test - 一键测试 AI 服务连通性（不落库）
+func (h *SystemHandler) TestAIConfig(c *gin.Context) {
+	var body struct {
+		ProviderType string `json:"provider_type"`
+		APIEndpoint  string `json:"api_endpoint" binding:"required"`
+		APIKey       string `json:"api_key" binding:"required"`
+		ModelName    string `json:"model_name"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		utils.BadRequest(c, "请填写API端点和密钥")
+		return
+	}
+
+	result, _ := services.TestAIConnection(services.NormalizeProviderType(body.ProviderType), body.APIEndpoint, body.APIKey, body.ModelName)
+	if !result.Success {
+		utils.BadRequest(c, result.Message)
+		return
+	}
+	utils.Success(c, result)
+}
+
 // PUT /api/v1/system/ai-configs/:id - Update AI config
 func (h *SystemHandler) UpdateAIConfig(c *gin.Context) {
 	id := c.Param("id")
 
 	var body struct {
+		ProviderType string `json:"provider_type"`
 		ProviderName string `json:"provider_name"`
 		APIEndpoint  string `json:"api_endpoint"`
 		APIKey       string `json:"api_key"`
@@ -176,7 +213,51 @@ func (h *SystemHandler) UpdateAIConfig(c *gin.Context) {
 		return
 	}
 
+	// 获取现有配置（用于未修改 key 时取解密密钥做连通性测试）
+	existing, _ := h.repo.GetAIConfig(id)
+	if existing == nil {
+		utils.NotFound(c, "AI配置不存在")
+		return
+	}
+
+	// 组装待保存参数用于连通性测试
+	providerType := services.NormalizeProviderType(body.ProviderType)
+	if providerType == "openai" && existing.ProviderType != "" {
+		providerType = services.NormalizeProviderType(existing.ProviderType)
+	}
+	endpoint := body.APIEndpoint
+	if endpoint == "" {
+		endpoint = existing.APIEndpoint
+	}
+	apiKey := body.APIKey
+	if apiKey == "" {
+		decrypted, decErr := utils.DecryptAES(existing.APIKey)
+		if decErr != nil {
+			utils.InternalError(c, "密钥解密失败")
+			return
+		}
+		apiKey = decrypted
+	}
+	modelName := body.ModelName
+	if modelName == "" {
+		modelName = existing.ModelName
+	}
+
+	// 连通后才能保存：更新前强制测试连通性
+	result, testErr := services.TestAIConnection(providerType, endpoint, apiKey, modelName)
+	if testErr != nil || !result.Success {
+		msg := "连通性测试未通过"
+		if result != nil && result.Message != "" {
+			msg = "连通性测试未通过：" + result.Message
+		}
+		utils.BadRequest(c, msg)
+		return
+	}
+
 	updates := make(map[string]interface{})
+	if body.ProviderType != "" {
+		updates["provider_type"] = providerType
+	}
 	if body.ProviderName != "" {
 		updates["provider_name"] = body.ProviderName
 	}

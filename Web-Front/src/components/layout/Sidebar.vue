@@ -25,6 +25,7 @@ const menuItems: MenuItem[] = [
   { icon: 'clipboard', label: '工作台', path: '/workbench' },
   { icon: 'archive', label: '归档查询', path: '/workbench/archive' },
   { icon: 'chart', label: '工作成效分析', path: '/analytics' },
+  { icon: 'bug', label: 'Bug 反馈', path: '/issues' },
   {
     icon: 'users',
     label: '部门管理',
@@ -128,6 +129,7 @@ function navigate(path: string) {
               <template v-if="item.icon === 'clipboard'">📋</template>
               <template v-else-if="item.icon === 'archive'">📁</template>
               <template v-else-if="item.icon === 'chart'">📈</template>
+              <template v-else-if="item.icon === 'bug'">🐛</template>
               <template v-else-if="item.icon === 'users'">🏢</template>
               <template v-else-if="item.icon === 'user'">👤</template>
               <template v-else-if="item.icon === 'tag'">🏷️</template>

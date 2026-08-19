@@ -42,6 +42,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	ledgerRepo := repository.NewLedgerRepository(database.DB)
 	sysRepo := repository.NewSystemRepository(database.DB)
 	presetRepo := repository.NewPresetGroupRepository(database.DB)
+	issueRepo := repository.NewIssueRepository(database.DB)
 	middleware.SetOperationLogRepo(sysRepo)
 
 	authService := services.NewAuthService(userRepo, cfg)
@@ -58,6 +59,11 @@ func Setup(cfg *config.Config) *gin.Engine {
 
 	noteService := services.NewNoteService(noteRepo, notifSvc)
 
+	// 启动到期提醒调度器（任务截止前自动发送通知提醒）
+	if cfg.Scheduler.AutoRemindEnabled {
+		noteService.StartDueRemindScheduler(cfg.Scheduler.AutoRemindIntervalMinutes)
+	}
+
 	authHandler := handlers.NewAuthHandler(authService)
 	userHandler := handlers.NewUserHandler(userService, groupRepo)
 	deptHandler := handlers.NewDepartmentHandler(deptRepo)
@@ -70,6 +76,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	sysHandler := handlers.NewSystemHandler(sysRepo)
 	analyticsHandler := handlers.NewAnalyticsHandler(noteRepo, sysRepo)
 	presetHandler := handlers.NewPresetGroupHandler(presetRepo)
+	issueHandler := handlers.NewIssueHandler(issueRepo)
 	uploadHandler := handlers.NewUploadHandler()
 	notificationHandler := handlers.NewNotificationHandler(notifSvc)
 
@@ -223,9 +230,21 @@ func Setup(cfg *config.Config) *gin.Engine {
 			reminders.POST("/:id/acknowledge", notificationHandler.AcknowledgeReminder)
 		}
 
+		issues := api.Group("/issues")
+		{
+			issues.GET("", issueHandler.List)
+			issues.POST("", issueHandler.Create)
+			issues.GET("/:id", issueHandler.Get)
+			issues.POST("/:id/comments", issueHandler.AddComment)
+			issues.PUT("/:id/status", issueHandler.UpdateStatus)
+		}
+
 		analytics := api.Group("/analytics")
 		{
 			analytics.GET("/personal-stats", analyticsHandler.PersonalStats)
+			analytics.GET("/team-stats", analyticsHandler.TeamStats)
+			analytics.POST("/team-report", analyticsHandler.GenerateTeamReport)
+			analytics.GET("/ai-configs", analyticsHandler.ListAIConfigsForReport)
 			analytics.POST("/ai-report", analyticsHandler.GenerateAIReport)
 			analytics.GET("/reports", analyticsHandler.ListReports)
 			analytics.GET("/reports/:id", analyticsHandler.GetReport)
@@ -244,6 +263,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 			system.PUT("/config", sysHandler.UpdateConfig)
 			system.GET("/ai-configs", sysHandler.ListAIConfigs)
 			system.POST("/ai-configs", sysHandler.CreateAIConfig)
+			system.POST("/ai-configs/test", sysHandler.TestAIConfig)
 			system.PUT("/ai-configs/:id", sysHandler.UpdateAIConfig)
 			system.DELETE("/ai-configs/:id", sysHandler.DeleteAIConfig)
 			system.GET("/config-files", sysHandler.ListConfigFiles)

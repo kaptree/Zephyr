@@ -96,6 +96,10 @@ const roleLabels: Record<string, string> = {
 };
 
 const actionLabels: Record<string, string> = {
+  // 历史数据的通用兜底翻译
+  create: '新建',
+  update: '更新',
+  delete: '删除',
   login: '用户登录',
   logout: '用户登出',
   refresh_token: '刷新令牌',
@@ -105,6 +109,9 @@ const actionLabels: Record<string, string> = {
   remind_note: '盯办提醒',
   restore_note: '恢复任务',
   delete_note: '删除任务',
+  feedback_note: '提交任务反馈',
+  upload_attachment: '上传附件',
+  delete_attachment: '删除附件',
   create_tag: '创建标签',
   update_tag: '更新标签',
   delete_tag: '删除标签',
@@ -116,14 +123,42 @@ const actionLabels: Record<string, string> = {
   delete_user: '删除用户',
   create_group: '创建工作组',
   update_group: '更新工作组',
+  delete_group: '删除工作组',
+  add_group_member: '添加工作组成员',
+  update_group_member: '更新工作组成员',
+  remove_group_member: '移除工作组成员',
+  create_group_note: '工作组创建任务',
+  generate_group_report: '生成工作组报告',
+  delete_group_report: '删除工作组报告',
   create_template: '创建模板',
   update_template: '更新模板',
+  delete_template: '删除模板',
+  create_preset: '创建预设组',
+  update_preset: '更新预设组',
+  delete_preset: '删除预设组',
+  generate_team_report: '生成团队报告',
+  generate_ai_report: '生成AI报告',
+  generate_daily_report: '生成日报',
+  generate_weekly_report: '生成周报',
+  generate_monthly_report: '生成月报',
+  save_report_template: '保存报告模板',
+  delete_report: '删除报告',
+  mark_all_read: '全部标记已读',
+  mark_read: '标记通知已读',
+  delete_notification: '删除通知',
+  send_message: '发送聊天消息',
+  mark_conversation_read: '标记会话已读',
+  acknowledge_reminder: '确认到期提醒',
   update_system_config: '更新系统配置',
+  test_ai_config: '测试AI配置连通',
   create_ai_config: '创建AI配置',
   update_ai_config: '更新AI配置',
   delete_ai_config: '删除AI配置',
   update_config_file: '编辑配置文件',
   send_command: '下发指令',
+  create_issue: '创建问题反馈',
+  add_issue_comment: '反馈问题评论',
+  update_issue_status: '关闭/重开问题',
 };
 
 function statusClass(code: number): string {
@@ -297,6 +332,11 @@ onMounted(() => {
                 <th
                   class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400"
                 >
+                  详情
+                </th>
+                <th
+                  class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400"
+                >
                   IP地址
                 </th>
               </tr>
@@ -353,6 +393,12 @@ onMounted(() => {
                   >
                     {{ log.status_code }}
                   </span>
+                </td>
+                <td
+                  class="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300 max-w-[220px]"
+                  :title="log.detail"
+                >
+                  <span class="line-clamp-1">{{ log.detail || '-' }}</span>
                 </td>
                 <td class="px-4 py-2.5 text-xs text-slate-400 dark:text-slate-500 font-mono">
                   {{ log.ip_address }}

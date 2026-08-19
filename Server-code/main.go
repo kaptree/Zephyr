@@ -76,10 +76,19 @@ func main() {
 		&models.ReportTemplate{},
 		&models.Notification{},
 		&models.ChatMessage{},
+		&models.Issue{},
+		&models.IssueComment{},
 	); err != nil {
 		logger.Fatal("Failed to auto migrate database", zap.Error(err))
 	}
 	logger.Info("Database migration completed")
+
+	// 一次性数据修正：回填历史团队报告的 category 字段（幂等，仅修正存量数据）
+	if err := database.DB.Exec(`UPDATE work_reports SET category = 'team'
+		WHERE (category IS NULL OR category = '' OR category = 'personal')
+		  AND (title LIKE '%团队工作成效%' OR title LIKE '周报 - %' OR title LIKE '月报 - %' OR title LIKE '团队报告 - %')`).Error; err != nil {
+		logger.Warn("Failed to backfill report category", zap.Error(err))
+	}
 
 	database.DB.FirstOrCreate(&models.ReportTemplate{
 		ID:   "default",

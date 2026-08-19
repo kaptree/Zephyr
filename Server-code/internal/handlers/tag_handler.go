@@ -114,13 +114,9 @@ func (h *TagHandler) Update(c *gin.Context) {
 	utils.Success(c, tag)
 }
 
+// Delete 删除标签：级联清理所有任务上的该标签关联（含子标签），保持标签一致性
 func (h *TagHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
-	inUse, _ := h.tagRepo.IsInUse(id)
-	if inUse {
-		utils.BadRequest(c, "标签正在使用中，无法删除")
-		return
-	}
 	if err := h.tagRepo.Delete(id); err != nil {
 		utils.InternalError(c, "删除标签失败")
 		return

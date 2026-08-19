@@ -14,6 +14,7 @@ import (
 	"labelpro-server/internal/middleware"
 	"labelpro-server/internal/models"
 	"labelpro-server/internal/repository"
+	"labelpro-server/internal/services"
 	"labelpro-server/internal/utils"
 
 	"github.com/gin-gonic/gin"
@@ -756,13 +757,14 @@ func (h *WorkGroupHandler) GenerateReport(c *gin.Context) {
 
 	configs, cfgErr := h.sysRepo.ListAIConfigs()
 	if cfgErr == nil && len(configs) > 0 {
-		var activeEndpoint, activeAPIKey, activeModel string
+		var activeProviderType, activeEndpoint, activeAPIKey, activeModel string
 		for _, cfg := range configs {
 			if cfg.IsActive {
 				decryptedKey, decErr := utils.DecryptAES(cfg.APIKey)
 				if decErr != nil {
 					continue
 				}
+				activeProviderType = cfg.ProviderType
 				activeEndpoint = cfg.APIEndpoint
 				activeAPIKey = decryptedKey
 				activeModel = cfg.ModelName
@@ -774,7 +776,7 @@ func (h *WorkGroupHandler) GenerateReport(c *gin.Context) {
 				activeModel = "gpt-3.5-turbo"
 			}
 			prompt := buildGroupReportPrompt(group.Name, memberNames, totalNotes, completedCount, noteList)
-			aiReport, aiErr := callAIService(activeEndpoint, activeAPIKey, activeModel, prompt)
+			aiReport, aiErr := services.CallAIService(activeProviderType, activeEndpoint, activeAPIKey, activeModel, prompt)
 			if aiErr == nil {
 				reportContent = aiReport
 				reportType = "ai"
@@ -796,6 +798,7 @@ func (h *WorkGroupHandler) GenerateReport(c *gin.Context) {
 		Period:       "all",
 		PeriodLabel:  "全部",
 		ReportType:   reportType,
+		Category:     "group",
 		Title:        title,
 		Content:      reportContent,
 		StatsSummary: string(notesJSON),

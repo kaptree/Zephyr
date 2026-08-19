@@ -212,16 +212,18 @@ function openProfile(user: UserRow) {
 
 function getRoleClass(role: string) {
   const map: Record<string, string> = {
-    super_admin: 'bg-amber-100 text-amber-700',
-    dept_admin: 'bg-blue-100 text-blue-700',
-    group_leader: 'bg-green-100 text-green-700',
-    user: 'bg-slate-100 text-slate-600',
+    super_admin: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+    dept_admin: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+    group_leader: 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300',
+    user: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
   }
-  return map[role] || 'bg-slate-100 text-slate-600'
+  return map[role] || 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
 }
 
 function getStatusClass(active: boolean) {
-  return active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+  return active
+    ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300'
+    : 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300'
 }
 
 const presets = ref<PresetGroup[]>([])
@@ -311,7 +313,7 @@ onMounted(async () => {
 <template>
   <div>
     <div class="flex items-center justify-between mb-6">
-      <h2 class="text-lg font-semibold text-slate-900">人员库管理</h2>
+      <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">人员库管理</h2>
       <button class="btn-primary text-sm" @click="openCreate">新建人员</button>
     </div>
 
@@ -324,31 +326,31 @@ onMounted(async () => {
       <table v-else class="w-full">
         <thead>
           <tr class="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-            <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">姓名</th>
-            <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">用户名</th>
-            <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">部门</th>
-            <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">岗位/技能标签</th>
-            <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">角色</th>
-            <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">参与类型</th>
-            <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">状态</th>
-            <th class="text-right px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">操作</th>
+            <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">姓名</th>
+            <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">用户名</th>
+            <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">部门</th>
+            <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">岗位/技能标签</th>
+            <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">角色</th>
+            <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">参与类型</th>
+            <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">状态</th>
+            <th class="text-right px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">操作</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-50">
-          <tr v-for="user in users" :key="user.id" class="hover:bg-slate-50/50 transition-smooth">
+        <tbody class="divide-y divide-slate-50 dark:divide-slate-700/60">
+          <tr v-for="user in users" :key="user.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-700/40 transition-smooth">
             <td class="px-4 py-3">
               <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-medium text-blue-600">
+                <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-xs font-medium text-blue-600 dark:text-blue-300">
                   {{ user.name.charAt(0) }}
                 </div>
                 <div>
-                  <div class="text-sm font-medium text-slate-900">{{ user.name }}</div>
-                  <div class="text-xs text-slate-400" v-if="user.rank">{{ user.rank }}</div>
+                  <div class="text-sm font-medium text-slate-900 dark:text-slate-100">{{ user.name }}</div>
+                  <div class="text-xs text-slate-400 dark:text-slate-500" v-if="user.rank">{{ user.rank }}</div>
                 </div>
               </div>
             </td>
-            <td class="px-4 py-3 text-sm text-slate-600 font-mono">{{ user.username }}</td>
-            <td class="px-4 py-3 text-sm text-slate-600">{{ user.dept_name }}</td>
+            <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300 font-mono">{{ user.username }}</td>
+            <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{{ user.dept_name }}</td>
             <td class="px-4 py-3">
               <div class="flex flex-wrap gap-1">
                 <span v-if="user.position" class="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 font-medium">
@@ -361,7 +363,7 @@ onMounted(async () => {
                 >
                   {{ skill }}
                 </span>
-                <span v-if="!user.position && !user.skills" class="text-xs text-slate-300">-</span>
+                <span v-if="!user.position && !user.skills" class="text-xs text-slate-300 dark:text-slate-400">-</span>
               </div>
             </td>
             <td class="px-4 py-3">
@@ -379,7 +381,7 @@ onMounted(async () => {
                 >
                   {{ WORK_TYPE_LABELS[stat.work_type] || stat.work_type }} {{ stat.group_count }}次
                 </span>
-                <span v-if="!user.work_type_stats?.length" class="text-xs text-slate-300">暂无</span>
+                <span v-if="!user.work_type_stats?.length" class="text-xs text-slate-300 dark:text-slate-400">暂无</span>
               </div>
             </td>
             <td class="px-4 py-3">
@@ -389,9 +391,9 @@ onMounted(async () => {
             </td>
             <td class="px-4 py-3 text-right">
               <div class="flex items-center justify-end gap-1">
-                <button class="text-xs px-2 py-1 bg-purple-50 text-purple-600 rounded hover:bg-purple-100 transition-smooth" @click="openProfile(user)">档案</button>
-                <button class="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-smooth" @click="openEdit(user)">编辑</button>
-                <button class="text-xs px-2 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-smooth" @click="handleDelete(user)">删除</button>
+                <button class="text-xs px-2 py-1 bg-purple-50 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 rounded hover:bg-purple-100 dark:hover:bg-purple-900/60 transition-smooth" @click="openProfile(user)">档案</button>
+                <button class="text-xs px-2 py-1 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-smooth" @click="openEdit(user)">编辑</button>
+                <button class="text-xs px-2 py-1 bg-red-50 dark:bg-red-900/40 text-red-600 dark:text-red-300 rounded hover:bg-red-100 dark:hover:bg-red-900/60 transition-smooth" @click="handleDelete(user)">删除</button>
               </div>
             </td>
           </tr>
@@ -402,39 +404,39 @@ onMounted(async () => {
     <!-- 组预设管理 -->
     <div class="mt-6">
       <div class="flex items-center justify-between mb-3">
-        <h3 class="text-base font-semibold text-slate-900">📋 组预设管理</h3>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">📋 组预设管理</h3>
         <button class="btn-primary text-xs !py-1.5 !px-3" @click="openPresetCreate">新建预设组</button>
       </div>
-      <div v-if="presetLoading" class="text-xs text-slate-400 py-2">加载中...</div>
-      <div v-else-if="presets.length === 0" class="text-xs text-slate-400 py-4 bg-slate-50 rounded-card text-center">
+      <div v-if="presetLoading" class="text-xs text-slate-400 dark:text-slate-500 py-2">加载中...</div>
+      <div v-else-if="presets.length === 0" class="text-xs text-slate-400 dark:text-slate-500 py-4 bg-slate-50 dark:bg-slate-800/50 rounded-card text-center">
         暂无预设组，点击「新建预设组」创建常用人员组合，新建专项工作组时可直接选用
       </div>
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div
           v-for="preset in presets"
           :key="preset.id"
-          class="bg-white border border-slate-100 rounded-card p-4 hover:border-blue-200 transition-smooth"
+          class="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-card p-4 hover:border-blue-200 dark:hover:border-blue-700 transition-smooth"
         >
           <div class="flex items-start justify-between mb-2">
             <div>
-              <h4 class="text-sm font-medium text-slate-900">{{ preset.name }}</h4>
-              <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 font-medium mt-0.5 inline-block">
+              <h4 class="text-sm font-medium text-slate-900 dark:text-slate-100">{{ preset.name }}</h4>
+              <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 font-medium mt-0.5 inline-block">
                 {{ presetTypeLabels[preset.template_type] || preset.template_type }}
               </span>
             </div>
             <button
-              class="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-500 rounded hover:bg-red-100"
+              class="text-[10px] px-1.5 py-0.5 bg-red-50 dark:bg-red-900/40 text-red-500 dark:text-red-300 rounded hover:bg-red-100 dark:hover:bg-red-900/60"
               @click="handleDeletePreset(preset.id)"
             >
               删除
             </button>
           </div>
-          <p v-if="preset.description" class="text-xs text-slate-400 mb-2 line-clamp-1">{{ preset.description }}</p>
+          <p v-if="preset.description" class="text-xs text-slate-400 dark:text-slate-500 mb-2 line-clamp-1">{{ preset.description }}</p>
           <div class="flex flex-wrap gap-1">
             <span
               v-for="m in (preset.members || [])"
               :key="m.user_id"
-              class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600"
+              class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
             >
               {{ m.user?.name || m.user_id }}
             </span>
@@ -450,15 +452,15 @@ onMounted(async () => {
         <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-lg mx-4 p-6 animate-fade-in">
           <div class="flex items-center justify-between mb-5">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-sm font-medium text-blue-600">
+              <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-sm font-medium text-blue-600 dark:text-blue-300">
                 {{ profileUser.name.charAt(0) }}
               </div>
               <div>
-                <h3 class="text-base font-semibold text-slate-900">{{ profileUser.name }}</h3>
-                <p class="text-xs text-slate-400">{{ profileUser.username }} · {{ profileUser.dept_name }}</p>
+                <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ profileUser.name }}</h3>
+                <p class="text-xs text-slate-400 dark:text-slate-500">{{ profileUser.username }} · {{ profileUser.dept_name }}</p>
               </div>
             </div>
-            <button class="p-1 rounded-lg hover:bg-slate-100" @click="showProfile = false">
+            <button class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="showProfile = false">
               <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
@@ -536,7 +538,7 @@ onMounted(async () => {
       <div v-if="showModal" class="fixed inset-0 z-50 flex items-start justify-center pt-[8vh]">
         <div class="overlay-backdrop" @click="showModal = false" />
         <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-lg mx-4 p-6 animate-fade-in">
-          <h3 class="text-base font-semibold text-slate-900 mb-4">{{ editingUserId ? '编辑人员' : '新建人员' }}</h3>
+          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100 mb-4">{{ editingUserId ? '编辑人员' : '新建人员' }}</h3>
 
           <form @submit.prevent="handleSubmit" class="space-y-3 max-h-[70vh] overflow-y-auto pr-1 scrollbar-thin">
             <div class="grid grid-cols-2 gap-3">
@@ -607,11 +609,11 @@ onMounted(async () => {
               <span class="text-xs text-slate-500">账号状态</span>
               <label class="flex items-center gap-1.5 cursor-pointer">
                 <input v-model="formIsActive" type="checkbox" class="w-4 h-4 text-blue-500 rounded" />
-                <span class="text-xs text-slate-700">{{ formIsActive ? '正常' : '禁用' }}</span>
+                <span class="text-xs text-slate-700 dark:text-slate-200">{{ formIsActive ? '正常' : '禁用' }}</span>
               </label>
             </div>
 
-            <p v-if="formError" class="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-btn">{{ formError }}</p>
+            <p v-if="formError" class="text-xs text-red-500 bg-red-50 dark:bg-red-900/30 px-3 py-2 rounded-btn">{{ formError }}</p>
 
             <div class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
               <button type="button" class="btn-secondary text-xs !py-1.5 !px-4" @click="showModal = false">取消</button>
@@ -629,7 +631,7 @@ onMounted(async () => {
       <div v-if="showPresetModal" class="fixed inset-0 z-50 flex items-start justify-center pt-[8vh]">
         <div class="overlay-backdrop" @click="showPresetModal = false" />
         <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-md mx-4 p-6 animate-fade-in">
-          <h3 class="text-base font-semibold text-slate-900 mb-4">📋 新建预设组</h3>
+          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100 mb-4">📋 新建预设组</h3>
           <form @submit.prevent="handleCreatePreset" class="space-y-3">
             <div>
               <span class="text-xs text-slate-500 mb-1 block">预设组名称</span>
@@ -651,11 +653,11 @@ onMounted(async () => {
             </div>
             <div>
               <span class="text-xs text-slate-500 mb-1 block">选择成员（{{ presetMemberIds.length }}人选）</span>
-              <div class="max-h-40 overflow-y-auto border border-slate-200 rounded-btn p-2 space-y-0.5">
+              <div class="max-h-40 overflow-y-auto border border-slate-200 dark:border-slate-600 rounded-btn p-2 space-y-0.5">
                 <label
                   v-for="user in visibleUsers"
                   :key="user.id"
-                  class="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 cursor-pointer"
+                  class="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer"
                 >
                   <input
                     v-model="presetMemberIds"
@@ -663,12 +665,12 @@ onMounted(async () => {
                     :value="user.id"
                     class="w-4 h-4 text-blue-500 rounded"
                   />
-                  <span class="text-sm text-slate-700">{{ user.name }}</span>
-                  <span class="text-xs text-slate-400">{{ user.dept_name }}</span>
+                  <span class="text-sm text-slate-700 dark:text-slate-200">{{ user.name }}</span>
+                  <span class="text-xs text-slate-400 dark:text-slate-500">{{ user.dept_name }}</span>
                 </label>
               </div>
             </div>
-            <p v-if="presetError" class="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-btn">{{ presetError }}</p>
+            <p v-if="presetError" class="text-xs text-red-500 bg-red-50 dark:bg-red-900/30 px-3 py-2 rounded-btn">{{ presetError }}</p>
             <div class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
               <button type="button" class="btn-secondary text-xs !py-1.5 !px-4" @click="showPresetModal = false">取消</button>
               <button type="submit" class="btn-primary text-xs !py-1.5 !px-4" :disabled="presetSubmitting">

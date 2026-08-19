@@ -1,5 +1,8 @@
+export type AIProviderType = 'openai' | 'deepseek' | 'qwen' | 'zhipu' | 'dify' | 'custom'
+
 export interface AIConfigItem {
   id: string
+  provider_type: AIProviderType
   provider_name: string
   api_endpoint: string
   api_key_masked: string
@@ -11,12 +14,20 @@ export interface AIConfigItem {
 }
 
 export interface AIConfigForm {
+  provider_type?: AIProviderType
   provider_name: string
   api_endpoint: string
   api_key: string
   model_name: string
   description: string
   is_active?: boolean
+}
+
+export interface AIConnectionTestResult {
+  success: boolean
+  message: string
+  latency_ms: number
+  detail?: string
 }
 
 export interface ConfigFileItem {

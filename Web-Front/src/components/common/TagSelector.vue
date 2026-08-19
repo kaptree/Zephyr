@@ -25,6 +25,34 @@ const allTags = ref<Tag[]>([]);
 const loading = ref(false);
 const loadError = ref('');
 
+// 候选标签颜色：创建新标签时随机挑选，倾向当前出现较少的颜色，避免同色标签堆积
+const TAG_COLORS = [
+  '#EF4444',
+  '#F97316',
+  '#EAB308',
+  '#22C55E',
+  '#14B8A6',
+  '#3B82F6',
+  '#8B5CF6',
+  '#EC4899',
+  '#78716C',
+  '#64748B',
+  '#94A3B8',
+  '#475569',
+];
+
+function randomTagColor(existingColors: string[] = []): string {
+  const countMap = new Map<string, number>();
+  for (const c of TAG_COLORS) countMap.set(c, 0);
+  for (const c of existingColors) {
+    if (countMap.has(c)) countMap.set(c, (countMap.get(c) || 0) + 1);
+  }
+  let min = Infinity;
+  for (const n of countMap.values()) min = Math.min(min, n);
+  const candidates = TAG_COLORS.filter((c) => countMap.get(c) === min);
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
 const triggerRef = ref<HTMLElement | null>(null);
 const panelRef = ref<HTMLElement | null>(null);
 const panelStyle = ref({ top: '0px', left: '0px', minWidth: '288px' });
@@ -170,7 +198,7 @@ async function handleCreateTag(subTag?: string) {
     } = {
       name,
       sub_tag: subTag || '',
-      color: '#3B82F6',
+      color: randomTagColor(allTags.value.map((t) => t.color)),
       category: '自定义',
       scope: 'personal',
     };

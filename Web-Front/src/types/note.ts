@@ -30,6 +30,8 @@ export interface Note {
   dept_id?: string
   template_type?: string
   due_time?: string
+  work_time_seconds?: number
+  due_remind_at?: string
   completed_at?: string
   archive_time?: string
   remind_count: number
@@ -64,6 +66,7 @@ export interface CreateNotePayload {
   tags: string[]
   source_type: NoteSourceType
   due_time?: string
+  work_time_seconds?: number
   owner_id?: string
   template_type?: string
   assignees?: string[]

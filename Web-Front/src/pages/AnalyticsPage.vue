@@ -7,8 +7,18 @@ import {
   deleteReport,
   fetchReportTemplate,
   saveReportTemplate,
+  fetchTeamStats,
+  generateTeamReport,
+  listReportAIConfigs,
 } from '@/services/analytics';
-import type { PersonalStatsData, WorkReportItem, ReportTemplateData } from '@/services/analytics';
+import type {
+  PersonalStatsData,
+  WorkReportItem,
+  ReportTemplateData,
+  TeamStatsData,
+  TeamMemberStat,
+  AIConfigBrief,
+} from '@/services/analytics';
 
 type Period = 'week' | 'month' | 'year';
 
@@ -23,7 +33,7 @@ const reportError = ref('');
 const reportGenerated = ref(false);
 const reportType = ref('');
 
-const viewTab = ref<'stats' | 'history'>('stats');
+const viewTab = ref<'stats' | 'history' | 'team'>('stats');
 const reports = ref<WorkReportItem[]>([]);
 const reportsLoading = ref(false);
 const reportsTotal = ref(0);
@@ -36,6 +46,214 @@ const reportsFilter = ref({
   date_to: '',
 });
 const selectedReport = ref<WorkReportItem | null>(null);
+
+// ===== 团队报告模块（★ 新增） =====
+type TeamPeriod = 'week' | 'month' | 'custom';
+const teamPeriod = ref<TeamPeriod>('week');
+const teamDateFrom = ref('');
+const teamDateTo = ref('');
+const teamStats = ref<TeamStatsData | null>(null);
+const teamLoading = ref(false);
+const teamError = ref('');
+const selectedUserIds = ref<string[]>([]); // 自定义勾选成员（空 = 全部）
+const teamMembersExpanded = ref(false); // 成员成效明细默认收起，点击展开
+const aiModels = ref<AIConfigBrief[]>([]);
+const selectedModelId = ref('');
+const teamReportLoading = ref(false);
+const teamReportContent = ref('');
+const teamReportType = ref('');
+const teamReportGenerated = ref(false);
+const teamReportError = ref('');
+
+function teamRangeForPeriod(p: TeamPeriod): { from: string; to: string } {
+  const now = new Date();
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  if (p === 'month') {
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { from: fmt(first), to: fmt(now) };
+  }
+  // week：本周一至今天
+  const day = now.getDay() || 7;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day + 1);
+  return { from: fmt(monday), to: fmt(now) };
+}
+
+async function loadTeamStats() {
+  teamLoading.value = true;
+  teamError.value = '';
+  try {
+    const params: { date_from?: string; date_to?: string } = {};
+    if (teamDateFrom.value) params.date_from = teamDateFrom.value;
+    if (teamDateTo.value) params.date_to = teamDateTo.value;
+    // 始终拉取全部可见成员，勾选由前端本地过滤（保证可自由连续勾选多人）
+    const res = await fetchTeamStats(params);
+    teamStats.value = res.data as TeamStatsData;
+    if (!teamDateFrom.value && !teamDateTo.value && teamStats.value) {
+      teamDateFrom.value = teamStats.value.date_from;
+      teamDateTo.value = teamStats.value.date_to;
+    }
+  } catch {
+    teamError.value = '加载团队统计数据失败';
+    teamStats.value = null;
+  } finally {
+    teamLoading.value = false;
+  }
+}
+
+// ===== 成员勾选（组建自定义团队） =====
+const teamMemberList = computed(() => teamStats.value?.members || []);
+
+function toggleTeamMember(id: string) {
+  const idx = selectedUserIds.value.indexOf(id);
+  if (idx >= 0) selectedUserIds.value.splice(idx, 1);
+  else selectedUserIds.value.push(id);
+  teamReportGenerated.value = false;
+  teamReportContent.value = '';
+}
+
+function selectAllMembers() {
+  selectedUserIds.value = teamMemberList.value.map((m) => m.user_id);
+  teamReportGenerated.value = false;
+  teamReportContent.value = '';
+}
+
+function clearSelectedMembers() {
+  selectedUserIds.value = [];
+  teamReportGenerated.value = false;
+  teamReportContent.value = '';
+}
+
+// 勾选后的团队汇总（本地过滤计算，供汇总卡片展示）
+const teamSummaryStats = computed(() => {
+  const all = teamStats.value;
+  if (!all) return null;
+  let members = all.members;
+  if (selectedUserIds.value.length > 0) {
+    const set = new Set(selectedUserIds.value);
+    members = all.members.filter((m) => set.has(m.user_id));
+  }
+  let totalCreated = 0;
+  let totalCompleted = 0;
+  for (const m of members) {
+    totalCreated += m.total_created;
+    totalCompleted += m.total_completed;
+  }
+  const rate = totalCreated > 0 ? (totalCompleted / totalCreated) * 100 : 0;
+  return {
+    memberCount: members.length,
+    totalCreated,
+    totalCompleted,
+    completionRate: rate,
+  };
+});
+
+function switchTeamPeriod(p: TeamPeriod) {
+  teamPeriod.value = p;
+  teamReportGenerated.value = false;
+  teamReportContent.value = '';
+  if (p === 'custom') return; // 自定义：等待日期输入后点击查询
+  const range = teamRangeForPeriod(p);
+  teamDateFrom.value = range.from;
+  teamDateTo.value = range.to;
+  loadTeamStats();
+}
+
+function applyTeamRange() {
+  if (!teamDateFrom.value || !teamDateTo.value) {
+    showToast('error', '请选择完整的时间范围');
+    return;
+  }
+  teamReportGenerated.value = false;
+  teamReportContent.value = '';
+  loadTeamStats();
+}
+
+async function loadAIModels() {
+  try {
+    const res = await listReportAIConfigs();
+    aiModels.value = (res.data as unknown as AIConfigBrief[]) || [];
+  } catch {
+    aiModels.value = [];
+  }
+}
+
+async function handleGenerateTeamReport() {
+  teamReportLoading.value = true;
+  teamReportError.value = '';
+  teamReportContent.value = '';
+  try {
+    const res = await generateTeamReport({
+      period: teamPeriod.value === 'custom' ? 'custom' : teamPeriod.value,
+      date_from: teamDateFrom.value || undefined,
+      date_to: teamDateTo.value || undefined,
+      ai_config_id: selectedModelId.value || undefined,
+      user_ids: selectedUserIds.value.length > 0 ? selectedUserIds.value : undefined,
+    });
+    const data = res.data as unknown as {
+      report: string;
+      report_type: string;
+      report_id: string;
+    };
+    teamReportContent.value = data.report || '';
+    teamReportType.value = data.report_type || '';
+    teamReportGenerated.value = true;
+    showToast('success', '团队报告生成成功，已保存到历史记录');
+    loadReports();
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : '团队报告生成失败';
+    teamReportError.value = msg;
+    showToast('error', msg);
+  } finally {
+    teamReportLoading.value = false;
+  }
+}
+
+function formatTeamHours(v: number): string {
+  if (v <= 0) return '-';
+  if (v < 1) return (v * 60).toFixed(0) + ' 分钟';
+  return v.toFixed(1) + ' 小时';
+}
+
+function copyTeamReport() {
+  if (!teamReportContent.value) return;
+  navigator.clipboard.writeText(teamReportContent.value);
+  showToast('success', '报告已复制到剪贴板');
+}
+
+function downloadTeamReport() {
+  if (!teamReportContent.value) return;
+  const blob = new Blob([teamReportContent.value], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `团队报告_${new Date().toISOString().slice(0, 10)}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const renderedTeamReport = computed(() => {
+  const content = teamReportContent.value;
+  if (!content) return '';
+  return content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(
+      /^## (.+)$/gm,
+      '<h3 class="text-base font-semibold mt-4 mb-2 text-slate-800 dark:text-slate-200">$1</h3>'
+    )
+    .replace(
+      /^### (.+)$/gm,
+      '<h4 class="text-sm font-semibold mt-3 mb-1 text-slate-700 dark:text-slate-300">$1</h4>'
+    )
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+    .replace(
+      /^\| (.+) \|$/gm,
+      '<div class="text-xs text-slate-600 dark:text-slate-400 my-0.5">$1</div>'
+    )
+    .replace(/^- (.+)$/gm, '<li class="ml-4 text-sm text-slate-600 dark:text-slate-400">$1</li>')
+    .replace(/\n/g, '<br>');
+});
 
 const showTemplateModal = ref(false);
 const templateLoading = ref(false);
@@ -255,6 +473,8 @@ function downloadReport() {
 onMounted(() => {
   loadStats();
   loadReports();
+  loadTeamStats();
+  loadAIModels();
 });
 </script>
 
@@ -274,6 +494,7 @@ onMounted(() => {
         <button
           v-for="tab in [
             { key: 'stats', label: '📊 数据统计' },
+            { key: 'team', label: '👥 团队报告' },
             { key: 'history', label: '📋 报告历史' },
           ]"
           :key="tab.key"
@@ -283,7 +504,7 @@ onMounted(() => {
               ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 shadow-sm'
               : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800',
           ]"
-          @click="viewTab = tab.key as 'stats' | 'history'"
+          @click="viewTab = tab.key as 'stats' | 'history' | 'team'"
         >
           {{ tab.label }}
         </button>
@@ -566,6 +787,319 @@ onMounted(() => {
         </template>
       </template>
 
+      <!-- ===================== 团队报告 Tab（★ 新增） ===================== -->
+      <template v-if="viewTab === 'team'">
+        <!-- 时间范围 + 生成控制 -->
+        <div
+          class="mb-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40"
+        >
+          <div class="flex flex-wrap items-center gap-3">
+            <div
+              class="flex items-center gap-1 bg-white dark:bg-slate-700 rounded-lg p-1 border border-slate-200 dark:border-slate-600"
+            >
+              <button
+                v-for="opt in [
+                  { key: 'week', label: '本周' },
+                  { key: 'month', label: '本月' },
+                  { key: 'custom', label: '自定义' },
+                ]"
+                :key="opt.key"
+                :class="[
+                  'px-3 py-1.5 rounded-md text-sm font-medium transition-smooth',
+                  teamPeriod === opt.key
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-600',
+                ]"
+                @click="switchTeamPeriod(opt.key as TeamPeriod)"
+              >
+                {{ opt.label }}
+              </button>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-slate-500">从</label>
+              <input
+                v-model="teamDateFrom"
+                type="date"
+                class="input-field !py-1.5 !text-xs !w-auto"
+              />
+              <label class="text-xs text-slate-500">至</label>
+              <input
+                v-model="teamDateTo"
+                type="date"
+                class="input-field !py-1.5 !text-xs !w-auto"
+              />
+              <button
+                class="text-xs px-3 py-1.5 rounded-btn bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-500 transition-smooth"
+                @click="applyTeamRange()"
+              >
+                查询
+              </button>
+            </div>
+          </div>
+          <div
+            class="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-slate-200 dark:border-slate-600/60"
+          >
+            <label class="text-xs text-slate-500 shrink-0">🤖 生成模型</label>
+            <select v-model="selectedModelId" class="input-field !py-1.5 !text-xs !w-auto">
+              <option value="">不使用AI（模板生成）</option>
+              <option v-for="m in aiModels" :key="m.id" :value="m.id">
+                {{ m.provider_name }}{{ m.model_name ? ' · ' + m.model_name : '' }}
+              </option>
+            </select>
+            <button
+              class="text-sm px-4 py-2 rounded-btn bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600 transition-smooth disabled:opacity-50 flex items-center gap-1.5"
+              :disabled="teamReportLoading"
+              @click="handleGenerateTeamReport()"
+            >
+              <span
+                v-if="teamReportLoading"
+                class="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"
+              ></span>
+              {{
+                teamReportLoading
+                  ? '生成中...'
+                  : '📄 生成' + (teamPeriod === 'month' ? '月报' : '周报')
+              }}
+            </button>
+            <span class="text-[11px] text-slate-400">
+              {{ selectedModelId ? '使用所选模型智能生成' : '未选择模型，将使用模板生成' }}
+            </span>
+          </div>
+          <p v-if="teamReportError" class="text-xs text-red-500 mt-2">{{ teamReportError }}</p>
+        </div>
+
+        <!-- 成员成效统计表 -->
+        <div v-if="teamLoading" class="flex items-center justify-center py-16">
+          <div
+            class="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent"
+          ></div>
+        </div>
+        <template v-else-if="teamStats">
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            <div
+              class="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800"
+            >
+              <p class="text-[11px] font-medium text-blue-500 dark:text-blue-400 mb-1">团队成员</p>
+              <p class="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                {{ teamSummaryStats?.memberCount ?? 0 }}
+              </p>
+            </div>
+            <div
+              class="p-4 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800"
+            >
+              <p class="text-[11px] font-medium text-indigo-500 dark:text-indigo-400 mb-1">
+                创建任务
+              </p>
+              <p class="text-2xl font-bold text-indigo-700 dark:text-indigo-300">
+                {{ teamSummaryStats?.totalCreated ?? 0 }}
+              </p>
+            </div>
+            <div
+              class="p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800"
+            >
+              <p class="text-[11px] font-medium text-green-500 dark:text-green-400 mb-1">
+                完成任务
+              </p>
+              <p class="text-2xl font-bold text-green-700 dark:text-green-300">
+                {{ teamSummaryStats?.totalCompleted ?? 0 }}
+              </p>
+            </div>
+            <div
+              class="p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800"
+            >
+              <p class="text-[11px] font-medium text-amber-500 dark:text-amber-400 mb-1">
+                整体完成率
+              </p>
+              <p class="text-2xl font-bold text-amber-700 dark:text-amber-300">
+                {{ (teamSummaryStats?.completionRate ?? 0).toFixed(1) }}%
+              </p>
+            </div>
+          </div>
+
+          <div
+            class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 overflow-hidden"
+          >
+            <div
+              class="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-smooth"
+              @click="teamMembersExpanded = !teamMembersExpanded"
+            >
+              <span
+                class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2"
+              >
+                <span
+                  class="inline-flex items-center justify-center w-5 h-5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 transition-transform"
+                  :class="teamMembersExpanded ? 'rotate-90' : ''"
+                >
+                  ▶
+                </span>
+                👥 成员成效明细
+                <span v-if="!teamMembersExpanded" class="text-[11px] font-normal text-slate-400">
+                  {{
+                    selectedUserIds.length > 0
+                      ? `（已选 ${selectedUserIds.length} 人组建团队）`
+                      : '（全部成员）'
+                  }}
+                  · 点击展开
+                </span>
+              </span>
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-slate-400">
+                  {{ teamStats.date_from }} ~ {{ teamStats.date_to }}
+                </span>
+                <span class="text-[11px] text-blue-500 dark:text-blue-400">
+                  {{ teamMembersExpanded ? '收起 ▲' : '展开 ▼' }}
+                </span>
+              </div>
+            </div>
+            <div
+              v-show="teamMembersExpanded"
+              class="px-4 py-2.5 border-b border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 flex flex-wrap items-center gap-2"
+            >
+              <span class="text-xs font-medium text-slate-600 dark:text-slate-300">
+                {{
+                  selectedUserIds.length === 0
+                    ? '👥 当前统计全部成员'
+                    : `✅ 已勾选 ${selectedUserIds.length} 人组建团队`
+                }}
+              </span>
+              <div class="flex gap-1.5 ml-auto">
+                <button
+                  class="text-[11px] px-2 py-1 rounded-md bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 hover:bg-blue-200 transition-smooth"
+                  @click="selectAllMembers()"
+                >
+                  全选
+                </button>
+                <button
+                  class="text-[11px] px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-smooth"
+                  @click="clearSelectedMembers()"
+                >
+                  清空（全部成员）
+                </button>
+              </div>
+            </div>
+            <div v-show="teamMembersExpanded" class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr
+                    class="text-left text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60"
+                  >
+                    <th class="px-3 py-2.5 w-10"></th>
+                    <th class="px-4 py-2.5 font-medium">成员</th>
+                    <th class="px-4 py-2.5 font-medium">部门</th>
+                    <th class="px-4 py-2.5 font-medium text-center">创建任务</th>
+                    <th class="px-4 py-2.5 font-medium text-center">完成任务</th>
+                    <th class="px-4 py-2.5 font-medium text-center">完成率</th>
+                    <th class="px-4 py-2.5 font-medium text-center">平均完成耗时</th>
+                    <th class="px-4 py-2.5 font-medium text-center">被盯办</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="m in teamStats.members"
+                    :key="m.user_id"
+                    :class="[
+                      'border-b border-slate-100 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer transition-smooth',
+                      selectedUserIds.includes(m.user_id)
+                        ? 'bg-blue-50/60 dark:bg-blue-900/20'
+                        : '',
+                    ]"
+                    @click="toggleTeamMember(m.user_id)"
+                  >
+                    <td class="px-3 py-2.5 text-center" @click.stop>
+                      <input
+                        type="checkbox"
+                        class="w-4 h-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
+                        :checked="selectedUserIds.includes(m.user_id)"
+                        @change="toggleTeamMember(m.user_id)"
+                      />
+                    </td>
+                    <td class="px-4 py-2.5 text-slate-700 dark:text-slate-300 font-medium">
+                      {{ m.user_name }}
+                      <span class="text-[10px] text-slate-400 ml-1">@{{ m.username }}</span>
+                    </td>
+                    <td class="px-4 py-2.5 text-slate-500 dark:text-slate-400">
+                      {{ m.dept_name || '-' }}
+                    </td>
+                    <td class="px-4 py-2.5 text-center text-slate-600 dark:text-slate-300">
+                      {{ m.total_created }}
+                    </td>
+                    <td class="px-4 py-2.5 text-center text-slate-600 dark:text-slate-300">
+                      {{ m.total_completed }}
+                    </td>
+                    <td class="px-4 py-2.5 text-center">
+                      <span
+                        class="px-2 py-0.5 rounded-full text-xs font-medium"
+                        :class="
+                          m.total_created === 0
+                            ? 'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                            : m.completion_rate >= 80
+                              ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400'
+                              : m.completion_rate >= 50
+                                ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'
+                                : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
+                        "
+                      >
+                        {{ m.total_created === 0 ? '-' : m.completion_rate.toFixed(1) + '%' }}
+                      </span>
+                    </td>
+                    <td class="px-4 py-2.5 text-center text-slate-600 dark:text-slate-300">
+                      {{ formatTeamHours(m.avg_completion_hours) }}
+                    </td>
+                    <td class="px-4 py-2.5 text-center text-slate-600 dark:text-slate-300">
+                      {{ m.remind_received }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 团队报告展示 -->
+          <div
+            v-if="teamReportGenerated && teamReportContent"
+            class="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 overflow-hidden"
+          >
+            <div
+              class="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between"
+            >
+              <span
+                class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2"
+              >
+                📄 {{ teamReportType === 'ai' ? 'AI 智能生成' : '模板生成' }}团队报告
+                <span
+                  class="text-[10px] px-1.5 py-0.5 rounded-full"
+                  :class="
+                    teamReportType === 'ai'
+                      ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400'
+                      : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                  "
+                >
+                  {{ teamReportType === 'ai' ? 'AI' : '模板' }}
+                </span>
+              </span>
+              <div class="flex gap-2">
+                <button
+                  class="text-xs px-2.5 py-1 rounded-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-smooth"
+                  @click="copyTeamReport()"
+                >
+                  复制
+                </button>
+                <button
+                  class="text-xs px-2.5 py-1 rounded-btn bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 hover:bg-blue-200 transition-smooth"
+                  @click="downloadTeamReport()"
+                >
+                  下载
+                </button>
+              </div>
+            </div>
+            <div class="p-4 max-h-[420px] overflow-y-auto markdown-body">
+              <div v-html="renderedTeamReport"></div>
+            </div>
+          </div>
+        </template>
+        <p v-else-if="teamError" class="text-sm text-red-500">{{ teamError }}</p>
+      </template>
+
       <!-- ===================== 报告历史 Tab ===================== -->
       <template v-if="viewTab === 'history'">
         <!-- Report filters -->
@@ -644,15 +1178,35 @@ onMounted(() => {
                   {{ formatTime(report.created_at) }}
                 </p>
               </div>
-              <span
-                :class="[
-                  'text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ml-2',
-                  report.report_type === 'ai'
-                    ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
-                    : 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400',
-                ]"
-                >{{ report.report_type === 'ai' ? 'AI' : '模板' }}</span
-              >
+              <div class="flex items-center gap-1 shrink-0 ml-2">
+                <span
+                  :class="[
+                    'text-[10px] px-1.5 py-0.5 rounded font-medium',
+                    report.category === 'team'
+                      ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
+                      : report.category === 'group'
+                        ? 'bg-cyan-100 dark:bg-cyan-900/50 text-cyan-600 dark:text-cyan-400'
+                        : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400',
+                  ]"
+                >
+                  {{
+                    report.category === 'team'
+                      ? '团队'
+                      : report.category === 'group'
+                        ? '工作组'
+                        : '个人'
+                  }}
+                </span>
+                <span
+                  :class="[
+                    'text-[10px] px-1.5 py-0.5 rounded font-medium',
+                    report.report_type === 'ai'
+                      ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
+                      : 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400',
+                  ]"
+                  >{{ report.report_type === 'ai' ? 'AI' : '模板' }}</span
+                >
+              </div>
             </div>
             <div
               class="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 mb-2"
@@ -729,6 +1283,24 @@ onMounted(() => {
                 {{ formatTime(selectedReport.created_at) }}
                 ·
                 {{ periodLabels[selectedReport.period] || selectedReport.period_label }}
+                ·
+                <span
+                  :class="
+                    selectedReport.category === 'team'
+                      ? 'text-purple-500'
+                      : selectedReport.category === 'group'
+                        ? 'text-cyan-500'
+                        : 'text-blue-500'
+                  "
+                >
+                  {{
+                    selectedReport.category === 'team'
+                      ? '团队报告'
+                      : selectedReport.category === 'group'
+                        ? '工作组报告'
+                        : '个人报告'
+                  }}
+                </span>
                 ·
                 <span
                   :class="

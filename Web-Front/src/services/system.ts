@@ -3,6 +3,7 @@ import type { ApiResponse, PaginatedData } from '@/types/api'
 import type {
   AIConfigItem,
   AIConfigForm,
+  AIConnectionTestResult,
   ConfigFileItem,
   ConfigFileContent,
   ConfigFileHistoryItem,
@@ -32,6 +33,15 @@ export function updateAIConfig(id: string, data: Partial<AIConfigForm>): Promise
 
 export function deleteAIConfig(id: string): Promise<ApiResponse<null>> {
   return del(`/api/v1/system/ai-configs/${id}`)
+}
+
+export function testAIConnection(data: {
+  provider_type?: string
+  api_endpoint: string
+  api_key: string
+  model_name?: string
+}): Promise<ApiResponse<AIConnectionTestResult>> {
+  return post('/api/v1/system/ai-configs/test', data)
 }
 
 export function listConfigFiles(): Promise<ApiResponse<ConfigFileItem[]>> {

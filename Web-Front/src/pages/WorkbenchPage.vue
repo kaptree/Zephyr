@@ -36,6 +36,20 @@ const selectedAssigneeIds = ref<string[]>([]);
 const creating = ref(false);
 const createError = ref('');
 
+// 工作时间选项（秒）：指派任务时限，后端据此自动计算截止时间
+const workTimeOptions = [
+  { label: '不限制', value: 0 },
+  { label: '1 小时', value: 3600 },
+  { label: '2 小时', value: 7200 },
+  { label: '4 小时', value: 14400 },
+  { label: '8 小时（1天班）', value: 28800 },
+  { label: '1 天', value: 86400 },
+  { label: '2 天', value: 172800 },
+  { label: '3 天', value: 259200 },
+  { label: '7 天', value: 604800 },
+];
+const workTimeSeconds = ref(0);
+
 const editingTitle = ref('');
 const editingContent = ref('');
 const selectedEditingTagIds = ref<string[]>([]);
@@ -186,6 +200,7 @@ function openCreateModal() {
   selectedTagIds.value = [];
   selectedAssigneeIds.value = [];
   sourceType.value = 'self';
+  workTimeSeconds.value = 0;
   createError.value = '';
   showCreateModal.value = true;
 }
@@ -222,6 +237,8 @@ async function handleSubmit() {
       tags: selectedTagIds.value,
       source_type: sourceType.value,
     };
+    if (sourceType.value !== 'self' && workTimeSeconds.value > 0)
+      payload.work_time_seconds = workTimeSeconds.value;
     if (sourceType.value !== 'self')
       payload.assignees = selectedAssigneeIds.value.map((id) => ({ user_id: id }));
     if (sourceType.value === 'assigned' && selectedAssigneeIds.value.length > 0)
@@ -244,6 +261,8 @@ async function handleSubmit() {
       }
     }
     showCreateModal.value = false;
+    // 局部刷新任务面板，立即展示最新任务（含倒计时）
+    noteStore.fetchNotes();
   } catch (e: unknown) {
     createError.value =
       (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
@@ -300,6 +319,8 @@ async function submitFeedback(content: string) {
   completing.value = true;
   try {
     await noteStore.completeNote(note.id, { feedback_content: content });
+    // 完成任务后局部刷新，任务面板同步最新状态（完成/归档/倒计时移除）
+    noteStore.fetchNotes();
     if (showDetailPanel.value && selectedNote.value?.id === note.id) closeDetail();
   } finally {
     completing.value = false;
@@ -590,11 +611,11 @@ const templateLabels: Record<string, string> = {
     <!-- Error -->
     <div
       v-if="noteStore.error"
-      class="mb-6 px-4 py-3 bg-red-50 border border-red-200 rounded-card text-sm text-red-600 flex items-center justify-between"
+      class="mb-6 px-4 py-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-card text-sm text-red-600 dark:text-red-300 flex items-center justify-between"
     >
       <span>{{ noteStore.error }}</span>
       <button
-        class="text-xs text-red-500 underline hover:text-red-700 ml-4"
+        class="text-xs text-red-500 dark:text-red-300 underline hover:text-red-700 dark:hover:text-red-200 ml-4"
         @click="noteStore.fetchNotes()"
       >
         重试
@@ -861,7 +882,7 @@ const templateLabels: Record<string, string> = {
                 >
                 <select
                   v-model="selectedTemplateId"
-                  class="w-full text-sm border rounded p-2"
+                  class="w-full text-sm border border-slate-200 dark:border-slate-600 rounded p-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
                   @change="onTemplateSelect"
                 >
                   <option value="">不使用模板</option>
@@ -917,6 +938,17 @@ const templateLabels: Record<string, string> = {
                   :max="50"
                   :drop-up="true"
                 />
+                <div class="mt-3 flex items-center gap-3">
+                  <label class="text-xs text-slate-500 shrink-0">⏱ 工作时间</label>
+                  <select v-model="workTimeSeconds" class="input-field !py-1.5 !text-sm !w-auto">
+                    <option v-for="opt in workTimeOptions" :key="opt.value" :value="opt.value">
+                      {{ opt.label }}
+                    </option>
+                  </select>
+                  <span class="text-[11px] text-slate-400"
+                    >任务下发后开始倒计时，到期前自动提醒</span
+                  >
+                </div>
                 <div
                   class="mt-3 p-3 rounded-lg border border-dashed border-blue-200 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10"
                 >

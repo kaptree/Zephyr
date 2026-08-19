@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
+import { useDarkMode } from '@/composables/useDarkMode';
 import { fetchNoteStats, fetchHeatmap } from '@/services/notes';
 import { fetchNotes } from '@/services/notes';
 import { updateUser } from '@/services/admin';
 import type { NoteFilters } from '@/types';
 
 const auth = useAuthStore();
+const { isDark } = useDarkMode();
 
 const loading = ref(true);
 const loadError = ref('');
@@ -32,83 +34,90 @@ const yearOptions = computed(() => {
   return years;
 });
 const selectedYear = ref(thisYear);
-const hoveredCell = ref<{ date: string; count: number } | null>(null);
+const hoveredCell = ref<HeatCell | null>(null);
 
+// ===== 活动热力图（GitHub 风格）=====
+// 固定 7 行网格（周一 → 周日），每列一周，首尾不足周用透明格占位，保证列整齐
 interface HeatCell {
   date: string;
-  dayOfWeek: number;
-  week: number;
   count: number;
   level: number;
+  inYear: boolean; // 是否属于所选年份（首尾跨年占位格为 false）
 }
 
-function generateHeatData(): HeatCell[] {
-  const cells: HeatCell[] = [];
+// 本地时区日期字符串（与后端 DATE(completed_at) 对齐，避免 toISOString 的 UTC 偏移）
+function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+const heatMap = computed<HeatCell[][]>(() => {
   const year = selectedYear.value;
-  const start = new Date(year, 0, 1);
-  const end = new Date(year, 11, 31);
-  let w = 0;
-  let prevDow = -1;
+  const byDate = new Map<string, number>();
+  // 兼容后端可能返回的 ISO 格式（如 "2026-05-07T00:00:00Z"），统一取前 10 位
+  for (const t of trendData.value) byDate.set(String(t.date).slice(0, 10), t.count);
+
+  // 起点：1月1日所在周的周一（前面可能跨到上一年 12 月）
+  const jan1 = new Date(year, 0, 1);
+  const mondayOffset = (jan1.getDay() + 6) % 7; // 周一=0
+  const start = new Date(year, 0, 1 - mondayOffset);
+
+  // 终点：12月31日所在周的周日（后面可能跨到次年 1 月）
+  const dec31 = new Date(year, 11, 31);
+  const sundayOffset = (7 - dec31.getDay()) % 7; // 周日=0
+  const end = new Date(year, 11, 31 + sundayOffset);
+
+  const cols: HeatCell[][] = [];
+  let col: HeatCell[] = [];
   for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dow = d.getDay();
-    if (dow <= prevDow) w++;
-    prevDow = dow;
-    const dateStr = d.toISOString().slice(0, 10);
-    const trendPoint = trendData.value.find((t) => t.date === dateStr);
-    const count = trendPoint?.count || 0;
+    const dateStr = localDateStr(d);
+    const count = byDate.get(dateStr) || 0;
     let level = 0;
     if (count > 0) level = 1;
-    if (count > 2) level = 2;
-    if (count > 5) level = 3;
-    if (count > 10) level = 4;
-    cells.push({ date: dateStr, dayOfWeek: dow, week: w, count, level });
-  }
-  return cells;
-}
-
-const heatData = computed(() => generateHeatData());
-
-const weekGroups = computed(() => {
-  const groups: HeatCell[][] = [];
-  const data = heatData.value;
-  let cur: HeatCell[] = [];
-  let curWeek = -1;
-  for (const cell of data) {
-    if (cell.week !== curWeek) {
-      if (cur.length) groups.push(cur);
-      cur = [];
-      curWeek = cell.week;
+    if (count >= 2) level = 2;
+    if (count >= 5) level = 3;
+    if (count >= 10) level = 4;
+    col.push({ date: dateStr, count, level, inYear: d.getFullYear() === year });
+    if (d.getDay() === 0) {
+      cols.push(col);
+      col = [];
     }
-    cur.push(cell);
   }
-  if (cur.length) groups.push(cur);
-  return groups;
+  if (col.length) cols.push(col);
+  return cols;
 });
 
 const monthLabels = computed(() => {
   const labels: { col: number; label: string }[] = [];
-  const groups = weekGroups.value;
-  if (groups.length === 0) return labels;
+  const cols = heatMap.value;
   let prevMonth = -1;
-  groups.forEach((week, colIdx) => {
-    const d = new Date(week[0]?.date || '');
-    const m = d.getMonth();
-    if (m !== prevMonth) {
-      labels.push({ col: colIdx, label: `${m + 1}月` });
+  cols.forEach((col, colIdx) => {
+    const first = col.find((c) => c.inYear) || col[0];
+    const [y, m] = (first?.date || '').split('-').map(Number);
+    if (y && m !== prevMonth) {
+      labels.push({ col: colIdx, label: `${m}月` });
       prevMonth = m;
     }
   });
   return labels;
 });
 
-function getCellColor(level: number): string {
-  const colors = ['#F1F5F9', '#93C5FD', '#60A5FA', '#3B82F6', '#1D4ED8'];
-  return colors[level] || colors[0];
+// 色阶：浅色模式与暗色模式分开配色，保证暗色下不刺眼
+const lightColors = ['#EFF4F9', '#BFDBFE', '#93C5FD', '#60A5FA', '#2563EB'];
+const darkColors = ['#1E293B', '#1E3A8A', '#1D4ED8', '#3B82F6', '#93C5FD'];
+
+function getCellColor(level: number, inYear = true): string {
+  if (!inYear) return 'transparent';
+  const palette = isDark.value ? darkColors : lightColors;
+  return palette[level] || palette[0];
 }
 
 function getCellTitle(cell: HeatCell): string {
-  if (cell.count === 0) return `${cell.date} · 无活动`;
-  return `${cell.date} · ${cell.count} 条任务`;
+  if (!cell.inYear) return '';
+  if (cell.count === 0) return `${cell.date} · 无归档活动`;
+  return `${cell.date} · 归档 ${cell.count} 条任务`;
 }
 
 onMounted(loadData);
@@ -297,18 +306,21 @@ async function handleSaveProfile() {
                 <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}年</option>
               </select>
               <div class="hidden sm:flex items-center gap-1">
-                <div class="w-3 h-3 rounded-[2px]" style="background-color: #f1f5f9" title="0" />
-                <div class="w-3 h-3 rounded-[2px]" style="background-color: #93c5fd" title="1-2" />
-                <div class="w-3 h-3 rounded-[2px]" style="background-color: #60a5fa" title="3-5" />
-                <div class="w-3 h-3 rounded-[2px]" style="background-color: #3b82f6" title="6-10" />
-                <div class="w-3 h-3 rounded-[2px]" style="background-color: #1d4ed8" title="10+" />
+                <span class="text-[9px] text-slate-400 dark:text-slate-500 mr-1">少</span>
+                <div
+                  v-for="lv in 5"
+                  :key="lv"
+                  class="w-3 h-3 rounded-[2px]"
+                  :style="{ backgroundColor: getCellColor(lv - 1) }"
+                />
+                <span class="text-[9px] text-slate-400 dark:text-slate-500 ml-1">多</span>
               </div>
             </div>
           </div>
 
           <div class="flex gap-1">
-            <!-- 星期标签 -->
-            <div class="flex flex-col gap-1 pt-3 mr-1">
+            <!-- 星期标签（固定 7 行：周一 → 周日） -->
+            <div class="flex flex-col gap-[2px] pt-3 mr-1">
               <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">一</span>
               <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3" />
               <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">三</span>
@@ -320,15 +332,12 @@ async function handleSaveProfile() {
 
             <div class="flex-1 overflow-x-auto scrollbar-thin">
               <!-- 月份标签 -->
-              <div class="flex gap-1 mb-1" :style="{ paddingLeft: '0px' }">
-                <div v-if="monthLabels.length === 0" class="flex-1" />
+              <div class="flex gap-[2px] mb-1 h-3">
                 <template v-for="(ml, idx) in monthLabels" :key="idx">
-                  <div v-if="idx === 0" :style="{ width: '0px', flexShrink: 0 }" />
                   <div
-                    v-else
+                    class="shrink-0"
                     :style="{
-                      width: `${(ml.col - monthLabels[idx - 1].col) * 14}px`,
-                      flexShrink: 0,
+                      width: `${(idx === 0 ? ml.col : ml.col - monthLabels[idx - 1].col) * 14}px`,
                     }"
                   />
                   <span
@@ -338,14 +347,15 @@ async function handleSaveProfile() {
                 </template>
               </div>
 
-              <!-- 色块网格 -->
+              <!-- 色块网格：固定每列 7 格，跨年占位透明 -->
               <div class="flex gap-[2px]">
-                <div v-for="(week, wi) in weekGroups" :key="wi" class="flex flex-col gap-[2px]">
+                <div v-for="(col, ci) in heatMap" :key="ci" class="flex flex-col gap-[2px]">
                   <div
-                    v-for="(cell, di) in week"
-                    :key="di"
-                    class="w-3 h-3 rounded-[2px] transition-colors duration-150 cursor-pointer hover:ring-1 hover:ring-slate-400"
-                    :style="{ backgroundColor: getCellColor(cell.level) }"
+                    v-for="(cell, ri) in col"
+                    :key="ri"
+                    class="w-3 h-3 rounded-[2px] transition-colors duration-150"
+                    :class="cell.inYear ? 'cursor-pointer hover:ring-1 hover:ring-slate-400 dark:hover:ring-slate-500' : 'cursor-default'"
+                    :style="{ backgroundColor: getCellColor(cell.level, cell.inYear) }"
                     :title="getCellTitle(cell)"
                     @mouseenter="hoveredCell = cell"
                     @mouseleave="hoveredCell = null"

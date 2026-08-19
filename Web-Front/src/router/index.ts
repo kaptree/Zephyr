@@ -88,6 +88,25 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   {
+    path: '/issues',
+    component: () => import('@/layouts/AdminLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        name: 'Issues',
+        component: () => import('@/pages/IssuesPage.vue'),
+        meta: { title: 'Bug 反馈' },
+      },
+      {
+        path: ':id',
+        name: 'IssueDetail',
+        component: () => import('@/pages/IssueDetailPage.vue'),
+        meta: { title: '问题详情' },
+      },
+    ],
+  },
+  {
     path: '/admin',
     component: () => import('@/layouts/AdminLayout.vue'),
     meta: { requiresAuth: true },

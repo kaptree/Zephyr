@@ -103,16 +103,13 @@ func (r *NoteRepository) List(filter NoteFilter, scope NoteScope) ([]models.Note
 	}
 
 	switch scope.Role {
-	case "super_admin":
 	case "dept_admin":
+		// 部门管理员：仅本部门（含子部门）任务可见
 		subDeptIDs, _ := r.getSubDeptIDs(scope.DepartmentID)
 		query = query.Where("notes.department_id IN ?", subDeptIDs)
-	case "group_leader":
-		query = query.Where(
-			"notes.creator_id = ? OR notes.owner_id = ? OR notes.id IN (SELECT note_id FROM note_assignees WHERE user_id = ?)",
-			scope.UserID, scope.UserID, scope.UserID,
-		)
 	default:
+		// super_admin / group_leader / 普通用户统一按「与自己相关」过滤：
+		// 创建人 / 负责人 / 被指派人，防止管理员看到所有人员的任务
 		query = query.Where(
 			"notes.creator_id = ? OR notes.owner_id = ? OR notes.id IN (SELECT note_id FROM note_assignees WHERE user_id = ?)",
 			scope.UserID, scope.UserID, scope.UserID,
@@ -296,22 +293,39 @@ func (r *NoteRepository) GetNoteCreatorID(noteID string) (string, error) {
 	return n.CreatorID.String(), nil
 }
 
-func (r *NoteRepository) CheckUserAccess(noteID, userID string) (bool, error) {
+// CheckUserAccess 判断用户是否有权访问该任务：
+//   - 创建人 / 负责人 / 被指派人 始终可访问
+//   - dept_admin（部门管理员）可访问本部门（含子部门）的任务，与列表可见范围保持一致
+func (r *NoteRepository) CheckUserAccess(noteID, userID, role, deptID string) (bool, error) {
+	var note models.Note
+	if err := r.db.Select("creator_id", "owner_id", "department_id").First(&note, "id = ?", noteID).Error; err != nil {
+		return false, err
+	}
+
+	if note.CreatorID.String() == userID || note.OwnerID.String() == userID {
+		return true, nil
+	}
+
 	var count int64
-	err := r.db.Model(&models.Note{}).
-		Where("id = ? AND (creator_id = ? OR owner_id = ?)", noteID, userID, userID).
-		Count(&count).Error
-	if err != nil {
+	if err := r.db.Model(&models.NoteAssignee{}).
+		Where("note_id = ? AND user_id = ?", noteID, userID).
+		Count(&count).Error; err != nil {
 		return false, err
 	}
 	if count > 0 {
 		return true, nil
 	}
 
-	err = r.db.Model(&models.NoteAssignee{}).
-		Where("note_id = ? AND user_id = ?", noteID, userID).
-		Count(&count).Error
-	return count > 0, err
+	if role == "dept_admin" && deptID != "" && note.DepartmentID != nil {
+		subDeptIDs, _ := r.getSubDeptIDs(deptID)
+		for _, sid := range subDeptIDs {
+			if note.DepartmentID.String() == sid {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
 }
 
 func (r *NoteRepository) getSubDeptIDs(deptID string) ([]string, error) {
@@ -553,11 +567,11 @@ func (r *NoteRepository) HeatmapByYear(userID string, year int) ([]NoteDayStat, 
 	startDate := time.Date(year, 1, 1, 0, 0, 0, 0, time.Local)
 	endDate := time.Date(year, 12, 31, 0, 0, 0, 0, time.Local)
 	err := r.db.Model(&models.Note{}).
-		Select("DATE(completed_at) as date, COUNT(*) as count").
+		Select("TO_CHAR(completed_at, 'YYYY-MM-DD') as date, COUNT(*) as count").
 		Where("owner_id = ?", userID).
 		Where("is_archived = ?", true).
 		Where("completed_at >= ? AND completed_at <= ?", startDate, endDate).
-		Group("DATE(completed_at)").Order("date ASC").
+		Group("TO_CHAR(completed_at, 'YYYY-MM-DD')").Order("date ASC").
 		Find(&stats).Error
 	return stats, err
 }
@@ -567,15 +581,161 @@ func (r *NoteRepository) HeatmapByYearAndDept(year int, deptID string) ([]NoteDa
 	startDate := time.Date(year, 1, 1, 0, 0, 0, 0, time.Local)
 	endDate := time.Date(year, 12, 31, 0, 0, 0, 0, time.Local)
 	query := r.db.Model(&models.Note{}).
-		Select("DATE(notes.completed_at) as date, COUNT(*) as count").
+		Select("TO_CHAR(notes.completed_at, 'YYYY-MM-DD') as date, COUNT(*) as count").
 		Joins("LEFT JOIN users ON users.id = notes.owner_id").
 		Where("notes.is_archived = ?", true).
 		Where("notes.completed_at >= ? AND notes.completed_at <= ?", startDate, endDate)
 	if deptID != "" {
 		query = query.Where("users.department_id = ?", deptID)
 	}
-	err := query.Group("DATE(notes.completed_at)").Order("date ASC").Find(&stats).Error
+	err := query.Group("TO_CHAR(notes.completed_at, 'YYYY-MM-DD')").Order("date ASC").Find(&stats).Error
 	return stats, err
+}
+
+// ==================== 团队工作成效统计 ====================
+
+type TeamMemberStat struct {
+	UserID             string  `json:"user_id"`
+	UserName           string  `json:"user_name"`
+	Username           string  `json:"username"`
+	DeptName           string  `json:"dept_name"`
+	TotalCreated       int64   `json:"total_created"`
+	TotalCompleted     int64   `json:"total_completed"`
+	CompletionRate     float64 `json:"completion_rate"`
+	AvgCompletionHours float64 `json:"avg_completion_hours"`
+	RemindReceived     int64   `json:"remind_received"`
+}
+
+type TeamStatsResult struct {
+	Members        []TeamMemberStat `json:"members"`
+	TotalCreated   int64            `json:"total_created"`
+	TotalCompleted int64            `json:"total_completed"`
+	CompletionRate float64          `json:"completion_rate"`
+	MemberCount    int              `json:"member_count"`
+}
+
+// GetTeamStats 团队工作成效统计（按时间范围）
+// deptID 为当前用户部门；role=super_admin 查看全部部门，其他角色查看本部门（含子部门）成员
+// userIDs 非空时仅在可见成员范围内过滤指定成员（用于自定义勾选组建团队）
+func (r *NoteRepository) GetTeamStats(since, now time.Time, deptID, role string, userIDs []string) (*TeamStatsResult, error) {
+	var deptIDs []string
+	allDepts := role == "super_admin"
+	if !allDepts && deptID != "" {
+		deptIDs, _ = r.getSubDeptIDs(deptID)
+		if len(deptIDs) == 0 {
+			deptIDs = []string{deptID}
+		}
+	}
+
+	// 成员列表
+	userQuery := r.db.Model(&models.User{}).
+		Select("users.id AS user_id, users.name AS user_name, users.username AS username, COALESCE(departments.name, '') AS dept_name").
+		Joins("LEFT JOIN departments ON departments.id = users.department_id").
+		Where("users.is_active = ?", true)
+	if !allDepts {
+		userQuery = userQuery.Where("users.department_id IN ?", deptIDs)
+	}
+	var users []TeamMemberStat
+	if err := userQuery.Order("dept_name ASC, user_name ASC").Scan(&users).Error; err != nil {
+		return nil, err
+	}
+
+	// 自定义勾选成员：仅在可见范围内过滤指定成员
+	if len(userIDs) > 0 {
+		selected := make(map[string]bool, len(userIDs))
+		for _, id := range userIDs {
+			selected[id] = true
+		}
+		filtered := make([]TeamMemberStat, 0, len(users))
+		for _, u := range users {
+			if selected[u.UserID] {
+				filtered = append(filtered, u)
+			}
+		}
+		users = filtered
+	}
+
+	// 创建任务数（creator 维度）
+	var createdRows []struct {
+		UserID string `gorm:"column:user_id"`
+		Cnt    int64  `gorm:"column:cnt"`
+	}
+	r.db.Model(&models.Note{}).
+		Select("creator_id AS user_id, COUNT(*) AS cnt").
+		Where("created_at >= ? AND created_at <= ?", since, now).
+		Group("creator_id").Scan(&createdRows)
+
+	// 完成任务数（owner 维度）
+	var completedRows []struct {
+		UserID string `gorm:"column:user_id"`
+		Cnt    int64  `gorm:"column:cnt"`
+	}
+	r.db.Model(&models.Note{}).
+		Select("owner_id AS user_id, COUNT(*) AS cnt").
+		Where("completed_at >= ? AND completed_at <= ? AND is_archived = ?", since, now, true).
+		Group("owner_id").Scan(&completedRows)
+
+	// 平均完成耗时（小时）
+	var avgRows []struct {
+		UserID string  `gorm:"column:user_id"`
+		Avg    float64 `gorm:"column:avg"`
+	}
+	r.db.Model(&models.Note{}).
+		Select("owner_id AS user_id, AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) / 3600) AS avg").
+		Where("completed_at >= ? AND completed_at <= ? AND is_archived = ? AND completed_at IS NOT NULL", since, now, true).
+		Group("owner_id").Scan(&avgRows)
+
+	// 被盯办次数
+	var remindedRows []struct {
+		UserID string `gorm:"column:user_id"`
+		Cnt    int64  `gorm:"column:cnt"`
+	}
+	r.db.Model(&models.Reminder{}).
+		Select("target_id AS user_id, COUNT(*) AS cnt").
+		Where("created_at >= ? AND created_at <= ?", since, now).
+		Group("target_id").Scan(&remindedRows)
+
+	createdMap := map[string]int64{}
+	for _, v := range createdRows {
+		createdMap[v.UserID] = v.Cnt
+	}
+	completedMap := map[string]int64{}
+	for _, v := range completedRows {
+		completedMap[v.UserID] = v.Cnt
+	}
+	avgMap := map[string]float64{}
+	for _, v := range avgRows {
+		avgMap[v.UserID] = v.Avg
+	}
+	remindedMap := map[string]int64{}
+	for _, v := range remindedRows {
+		remindedMap[v.UserID] = v.Cnt
+	}
+
+	var totalCreated, totalCompleted int64
+	for i := range users {
+		u := &users[i]
+		u.TotalCreated = createdMap[u.UserID]
+		u.TotalCompleted = completedMap[u.UserID]
+		u.AvgCompletionHours = avgMap[u.UserID]
+		u.RemindReceived = remindedMap[u.UserID]
+		if u.TotalCreated > 0 {
+			u.CompletionRate = float64(u.TotalCompleted) / float64(u.TotalCreated) * 100
+		}
+		totalCreated += u.TotalCreated
+		totalCompleted += u.TotalCompleted
+	}
+
+	result := &TeamStatsResult{
+		Members:        users,
+		TotalCreated:   totalCreated,
+		TotalCompleted: totalCompleted,
+		MemberCount:    len(users),
+	}
+	if totalCreated > 0 {
+		result.CompletionRate = float64(totalCompleted) / float64(totalCreated) * 100
+	}
+	return result, nil
 }
 
 var _ = strings.TrimSpace

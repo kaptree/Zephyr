@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import {
   getSystemConfig,
   updateSystemConfig,
@@ -7,6 +7,7 @@ import {
   createAIConfig,
   updateAIConfig,
   deleteAIConfig,
+  testAIConnection,
   listConfigFiles,
   getConfigFile,
   updateConfigFile,
@@ -15,6 +16,7 @@ import {
 } from '@/services/system'
 import type {
   AIConfigItem,
+  AIProviderType,
   ConfigFileItem,
   ConfigFileContent,
   ConfigFileHistoryItem,
@@ -133,12 +135,31 @@ async function saveConfigField() {
 }
 
 // ===== AI服务配置 Tab =====
+// 常见 AI 服务商预设（含 Dify）
+const AI_PROVIDER_PRESETS: { type: AIProviderType; label: string; endpointPlaceholder: string; endpointPrefix?: string; modelPlaceholder: string; hint: string }[] = [
+  { type: 'openai', label: 'OpenAI', endpointPlaceholder: 'https://api.openai.com/v1', modelPlaceholder: 'gpt-4o', hint: 'OpenAI 官方 API' },
+  { type: 'deepseek', label: 'DeepSeek', endpointPlaceholder: 'https://api.deepseek.com/v1', modelPlaceholder: 'deepseek-chat', hint: 'DeepSeek API（OpenAI 兼容）' },
+  { type: 'qwen', label: '通义千问（阿里云）', endpointPlaceholder: 'https://dashscope.aliyuncs.com/compatible-mode/v1', modelPlaceholder: 'qwen-plus', hint: '阿里云百炼兼容模式' },
+  { type: 'zhipu', label: '智谱 GLM', endpointPlaceholder: 'https://open.bigmodel.cn/api/paas/v4', modelPlaceholder: 'glm-4-plus', hint: '智谱 AI（OpenAI 兼容）' },
+  { type: 'dify', label: 'Dify', endpointPlaceholder: 'https://api.dify.ai/v1', modelPlaceholder: '（Dify 无需模型名称）', hint: 'Dify 应用服务端 API，测试走 /info 接口' },
+  { type: 'custom', label: '自定义（OpenAI 兼容）', endpointPlaceholder: 'https://your-api.com/v1', modelPlaceholder: 'your-model', hint: '其他 OpenAI 兼容服务商' },
+]
+
 const aiConfigs = ref<AIConfigItem[]>([])
 const aiLoading = ref(false)
 const aiToast = ref<{ type: 'success' | 'error'; message: string } | null>(null)
 const showAIForm = ref(false)
 const editingAIId = ref<string>('')
-const aiForm = ref({
+const aiForm = ref<{
+  provider_type: AIProviderType
+  provider_name: string
+  api_endpoint: string
+  api_key: string
+  model_name: string
+  description: string
+  is_active: boolean
+}>({
+  provider_type: 'openai',
   provider_name: '',
   api_endpoint: '',
   api_key: '',
@@ -147,6 +168,13 @@ const aiForm = ref({
   is_active: true,
 })
 const deletingAIId = ref<string>('')
+const aiTesting = ref(false)
+const aiTested = ref(false)
+const aiTestOk = ref(false)
+const aiTestMsg = ref('')
+const aiSaving = ref(false)
+
+const currentProvider = computed(() => AI_PROVIDER_PRESETS.find((p) => p.type === aiForm.value.provider_type))
 
 function showAIToast(type: 'success' | 'error', message: string) {
   aiToast.value = { type, message }
@@ -165,9 +193,9 @@ async function loadAIConfigs() {
   }
 }
 
-function openCreateAIForm() {
-  editingAIId.value = ''
+function resetAIForm() {
   aiForm.value = {
+    provider_type: 'openai',
     provider_name: '',
     api_endpoint: '',
     api_key: '',
@@ -175,12 +203,35 @@ function openCreateAIForm() {
     description: '',
     is_active: true,
   }
+  aiTested.value = false
+  aiTestOk.value = false
+  aiTestMsg.value = ''
+}
+
+function onProviderTypeChange() {
+  const preset = currentProvider.value
+  if (preset) {
+    aiForm.value.provider_name = preset.label
+    // 仅当端点为空时填入预设端点，避免覆盖用户已填内容
+    if (!aiForm.value.api_endpoint) aiForm.value.api_endpoint = ''
+  }
+  // 服务商或配置变化后，之前的测试结果失效
+  aiTested.value = false
+  aiTestOk.value = false
+  aiTestMsg.value = ''
+}
+
+function openCreateAIForm() {
+  editingAIId.value = ''
+  resetAIForm()
   showAIForm.value = true
 }
 
 function openEditAIForm(item: AIConfigItem) {
   editingAIId.value = item.id
+  const preset = AI_PROVIDER_PRESETS.find((p) => p.type === item.provider_type)
   aiForm.value = {
+    provider_type: item.provider_type || 'openai',
     provider_name: item.provider_name,
     api_endpoint: item.api_endpoint,
     api_key: '',
@@ -188,12 +239,46 @@ function openEditAIForm(item: AIConfigItem) {
     description: item.description || '',
     is_active: item.is_active,
   }
+  if (preset && !item.provider_name) aiForm.value.provider_name = preset.label
+  aiTested.value = false
+  aiTestOk.value = false
+  aiTestMsg.value = ''
   showAIForm.value = true
 }
 
 function closeAIForm() {
   showAIForm.value = false
   editingAIId.value = ''
+}
+
+// 一键测试连通性
+async function handleTestConnection() {
+  if (!aiForm.value.api_endpoint || !aiForm.value.api_key) {
+    showAIToast('error', '请先填写API端点和密钥')
+    return
+  }
+  aiTesting.value = true
+  aiTestMsg.value = ''
+  try {
+    const res = await testAIConnection({
+      provider_type: aiForm.value.provider_type,
+      api_endpoint: aiForm.value.api_endpoint,
+      api_key: aiForm.value.api_key,
+      model_name: aiForm.value.model_name,
+    })
+    aiTested.value = true
+    aiTestOk.value = true
+    aiTestMsg.value = `连通成功（${res.data.latency_ms}ms）`
+    showAIToast('success', aiTestMsg.value)
+  } catch (e: unknown) {
+    aiTested.value = true
+    aiTestOk.value = false
+    const err = e as { friendlyMessage?: string }
+    aiTestMsg.value = err.friendlyMessage || '连接失败'
+    showAIToast('error', aiTestMsg.value)
+  } finally {
+    aiTesting.value = false
+  }
 }
 
 async function saveAIForm() {
@@ -205,10 +290,17 @@ async function saveAIForm() {
     showAIToast('error', '请填写API密钥')
     return
   }
+  // 连通后才能保存
+  if (!aiTested.value || !aiTestOk.value) {
+    showAIToast('error', '请先点击「测试连通」并确认连通成功后，才能保存')
+    return
+  }
 
+  aiSaving.value = true
   try {
     if (editingAIId.value) {
       await updateAIConfig(editingAIId.value, {
+        provider_type: aiForm.value.provider_type,
         provider_name: aiForm.value.provider_name,
         api_endpoint: aiForm.value.api_endpoint,
         api_key: aiForm.value.api_key || undefined,
@@ -224,7 +316,9 @@ async function saveAIForm() {
     closeAIForm()
     await loadAIConfigs()
   } catch {
-    showAIToast('error', '保存AI配置失败')
+    showAIToast('error', '保存AI配置失败，请确认服务连通性')
+  } finally {
+    aiSaving.value = false
   }
 }
 
@@ -509,13 +603,15 @@ onMounted(() => {
           </h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">服务商名称 *</label>
-              <input
-                v-model="aiForm.provider_name"
-                type="text"
+              <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">服务商 *</label>
+              <select
+                v-model="aiForm.provider_type"
                 class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                placeholder="如：OpenAI / 阿里云通义千问"
-              />
+                @change="onProviderTypeChange"
+              >
+                <option v-for="p in AI_PROVIDER_PRESETS" :key="p.type" :value="p.type">{{ p.label }}</option>
+              </select>
+              <p v-if="currentProvider" class="mt-1 text-[11px] text-slate-400">{{ currentProvider.hint }}</p>
             </div>
             <div>
               <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">API端点 *</label>
@@ -523,7 +619,7 @@ onMounted(() => {
                 v-model="aiForm.api_endpoint"
                 type="text"
                 class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                placeholder="https://api.openai.com/v1"
+                :placeholder="currentProvider?.endpointPlaceholder || 'https://api.example.com/v1'"
               />
             </div>
             <div>
@@ -534,16 +630,16 @@ onMounted(() => {
                 v-model="aiForm.api_key"
                 type="password"
                 class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                :placeholder="editingAIId ? '留空则不修改密钥' : 'sk-...'"
+                :placeholder="editingAIId ? '留空则不修改密钥' : 'sk-... 或 app-...'"
               />
             </div>
             <div>
-              <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">模型名称</label>
+              <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">模型名称{{ aiForm.provider_type === 'dify' ? '（Dify 可留空）' : '' }}</label>
               <input
                 v-model="aiForm.model_name"
                 type="text"
                 class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                placeholder="gpt-4"
+                :placeholder="currentProvider?.modelPlaceholder || 'gpt-4'"
               />
             </div>
             <div class="sm:col-span-2">
@@ -563,11 +659,30 @@ onMounted(() => {
               <span class="text-xs text-slate-500 dark:text-slate-400">启用</span>
             </div>
           </div>
+          <!-- 连通性测试 -->
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              class="px-4 py-1.5 text-xs font-medium text-white bg-violet-500 hover:bg-violet-600 rounded-btn transition-smooth disabled:opacity-50"
+              :disabled="aiTesting"
+              @click="handleTestConnection()"
+            >
+              {{ aiTesting ? '测试中...' : '⚡ 一键测试连通' }}
+            </button>
+            <span v-if="aiTestMsg" :class="[
+              'text-xs px-2 py-1 rounded',
+              aiTestOk ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400' : 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400'
+            ]">
+              {{ aiTestMsg }}
+            </span>
+            <span v-if="aiTested && !aiTestOk" class="text-xs text-slate-400">测试未通过，无法保存</span>
+          </div>
           <div class="flex items-center gap-2 mt-4">
             <button
-              class="px-4 py-1.5 text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-btn transition-smooth"
+              class="px-4 py-1.5 text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-btn transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="aiSaving || !aiTested || !aiTestOk"
+              :title="(!aiTested || !aiTestOk) ? '请先测试连通成功后保存' : ''"
               @click="saveAIForm()"
-            >保存</button>
+            >{{ aiSaving ? '保存中...' : '保存' }}</button>
             <button
               class="px-4 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-btn transition-smooth"
               @click="closeAIForm()"

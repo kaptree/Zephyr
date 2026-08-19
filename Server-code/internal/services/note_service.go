@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -31,6 +32,7 @@ type CreateNoteRequest struct {
 	TemplateID   string               `json:"template_id"`
 	OwnerID      string               `json:"owner_id"`
 	DueTime      *time.Time           `json:"due_time"`
+	WorkTimeSeconds int               `json:"work_time_seconds"`
 	Assignees    []AssigneeRequest    `json:"assignees"`
 	GroupConfig  *GroupConfigRequest  `json:"group_config"`
 	CanvasConfig *CanvasConfigRequest `json:"canvas_config"`
@@ -140,16 +142,24 @@ func (s *NoteService) Create(userID, role, deptID string, req CreateNoteRequest)
 		initialColorStatus = "blue"
 	}
 
+	// 工作时间选项：未显式指定截止时间时，按工作时间自动计算截止时间
+	dueTime := req.DueTime
+	if req.WorkTimeSeconds > 0 && dueTime == nil {
+		t := now.Add(time.Duration(req.WorkTimeSeconds) * time.Second)
+		dueTime = &t
+	}
+
 	note := &models.Note{
-		Title:        req.Title,
-		Content:      req.Content,
-		ColorStatus:  initialColorStatus,
-		SourceType:   sourceType,
-		TemplateType: req.TemplateType,
-		CreatorID:    creatorID,
-		OwnerID:      ownerID,
-		DepartmentID: deptUUID,
-		DueTime:      req.DueTime,
+		Title:           req.Title,
+		Content:         req.Content,
+		ColorStatus:     initialColorStatus,
+		SourceType:      sourceType,
+		TemplateType:    req.TemplateType,
+		CreatorID:       creatorID,
+		OwnerID:         ownerID,
+		DepartmentID:    deptUUID,
+		DueTime:         dueTime,
+		WorkTimeSeconds: req.WorkTimeSeconds,
 	}
 
 	if note.TemplateType == "" {
@@ -219,6 +229,12 @@ func (s *NoteService) GetByID(id string) (*models.Note, error) {
 		return nil, apperrors.ErrNoteNotFound
 	}
 	return note, nil
+}
+
+// CanAccess 判断用户是否有权访问该任务（创建人 / 负责人 / 被指派人，
+// 部门管理员含本部门及子部门），用于详情查看、编辑、删除、导出、恢复等接口的统一越权拦截
+func (s *NoteService) CanAccess(id, userID, role, deptID string) (bool, error) {
+	return s.noteRepo.CheckUserAccess(id, userID, role, deptID)
 }
 
 func (s *NoteService) List(filter repository.NoteFilter, scope repository.NoteScope) ([]models.Note, int64, error) {
@@ -472,4 +488,75 @@ func (s *NoteService) GetStats(days int, deptID string, status string) (*NoteSta
 		ActiveNotes: active,
 		Trend:       trend,
 	}, nil
+}
+
+// ==================== 到期提醒调度 ====================
+
+// dueRemindThreshold 到期提醒阈值：距截止时间不足该时长时发送提醒（与配置注释「到期前2小时」一致）
+const dueRemindThreshold = 2 * time.Hour
+
+// CheckDueReminders 扫描即将到期（剩余不足阈值）且尚未提醒过的未完成任务，向相关人发送到期提醒通知
+func (s *NoteService) CheckDueReminders() error {
+	var notes []models.Note
+	now := time.Now()
+	deadline := now.Add(dueRemindThreshold)
+
+	if err := database.DB.
+		Preload("Assignees.User").
+		Where("due_time IS NOT NULL AND completed_at IS NULL AND is_archived = ? AND due_remind_at IS NULL AND due_time <= ?", false, deadline).
+		Find(&notes).Error; err != nil {
+		return err
+	}
+
+	for i := range notes {
+		n := &notes[i]
+		if n.DueTime == nil {
+			continue
+		}
+
+		// 收集通知对象：任务负责人 + 所有被指派人（去重）
+		targets := make(map[string]bool)
+		if n.OwnerID != uuid.Nil {
+			targets[n.OwnerID.String()] = true
+		}
+		if n.CreatorID != uuid.Nil {
+			targets[n.CreatorID.String()] = true
+		}
+		for _, a := range n.Assignees {
+			if a.UserID != uuid.Nil {
+				targets[a.UserID.String()] = true
+			}
+		}
+
+		dueFmt := n.DueTime.Format("2006-01-02 15:04")
+		title := "【任务到期提醒】" + n.Title
+		content := fmt.Sprintf("任务「%s」将于 %s 截止，剩余时间不足 2 小时，请尽快处理。", n.Title, dueFmt)
+		noteID := n.ID
+		for uid := range targets {
+			_ = s.notifSvc.Notify(uid, "", &noteID, "task_due", title, content)
+		}
+
+		// 标记已提醒，避免重复发送
+		markedAt := time.Now()
+		_ = database.DB.Model(n).Update("due_remind_at", markedAt)
+	}
+	return nil
+}
+
+// StartDueRemindScheduler 启动到期提醒调度器（按配置间隔扫描，默认10分钟）
+func (s *NoteService) StartDueRemindScheduler(intervalMinutes int) {
+	if intervalMinutes <= 0 {
+		intervalMinutes = 10
+	}
+	interval := time.Duration(intervalMinutes) * time.Minute
+	go func() {
+		// 启动后先执行一次，再按间隔循环
+		for {
+			if err := s.CheckDueReminders(); err != nil {
+				// 静默失败，下一周期重试
+				_ = err
+			}
+			time.Sleep(interval)
+		}
+	}()
 }

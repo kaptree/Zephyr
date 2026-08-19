@@ -24,6 +24,21 @@ func NewNoteHandler(noteService *services.NoteService) *NoteHandler {
 	return &NoteHandler{noteService: noteService}
 }
 
+// requireNoteAccess 校验当前用户对任务是否有访问权限
+// （创建人/负责人/被指派人；部门管理员含本部门及子部门），
+// 无权限统一返回 404，避免泄露任务是否存在
+func (h *NoteHandler) requireNoteAccess(c *gin.Context, id string) bool {
+	userID := middleware.GetUserID(c)
+	role := middleware.GetUserRole(c)
+	deptID := middleware.GetUserDeptID(c)
+	ok, err := h.noteService.CanAccess(id, userID, role, deptID)
+	if err != nil || !ok {
+		utils.NotFound(c, "任务不存在")
+		return false
+	}
+	return true
+}
+
 func (h *NoteHandler) ListNotes(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
@@ -72,6 +87,9 @@ func (h *NoteHandler) ListNotes(c *gin.Context) {
 
 func (h *NoteHandler) GetNote(c *gin.Context) {
 	id := c.Param("id")
+	if !h.requireNoteAccess(c, id) {
+		return
+	}
 	note, err := h.noteService.GetByID(id)
 	if err != nil {
 		if err == apperrors.ErrNoteNotFound {
@@ -116,6 +134,9 @@ func (h *NoteHandler) CreateNote(c *gin.Context) {
 func (h *NoteHandler) UpdateNote(c *gin.Context) {
 	id := c.Param("id")
 	userID := middleware.GetUserID(c)
+	if !h.requireNoteAccess(c, id) {
+		return
+	}
 
 	var req services.UpdateNoteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -194,6 +215,9 @@ func (h *NoteHandler) Feedback(c *gin.Context) {
 func (h *NoteHandler) RemindNote(c *gin.Context) {
 	id := c.Param("id")
 	userID := middleware.GetUserID(c)
+	if !h.requireNoteAccess(c, id) {
+		return
+	}
 
 	var req services.RemindRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -216,6 +240,9 @@ func (h *NoteHandler) RemindNote(c *gin.Context) {
 
 func (h *NoteHandler) DeleteNote(c *gin.Context) {
 	id := c.Param("id")
+	if !h.requireNoteAccess(c, id) {
+		return
+	}
 	soft := c.DefaultQuery("soft", "true") != "false"
 
 	if err := h.noteService.Delete(id, !soft); err != nil {
@@ -229,6 +256,9 @@ func (h *NoteHandler) DeleteNote(c *gin.Context) {
 func (h *NoteHandler) RestoreNote(c *gin.Context) {
 	id := c.Param("id")
 	userID := middleware.GetUserID(c)
+	if !h.requireNoteAccess(c, id) {
+		return
+	}
 
 	note, err := h.noteService.Restore(id, userID)
 	if err != nil {
@@ -267,6 +297,9 @@ func (h *NoteHandler) Heatmap(c *gin.Context) {
 
 func (h *NoteHandler) ExportNote(c *gin.Context) {
 	id := c.Param("id")
+	if !h.requireNoteAccess(c, id) {
+		return
+	}
 	note, err := h.noteService.GetByID(id)
 	if err != nil {
 		if err == apperrors.ErrNoteNotFound {

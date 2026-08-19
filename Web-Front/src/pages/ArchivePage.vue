@@ -125,7 +125,7 @@ function groupNotesByMonth(notes: Note[]) {
       />
       <button class="btn-primary text-sm !py-2" @click="handleSearch">搜索</button>
       <button
-        class="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 transition-smooth"
+        class="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-smooth"
         @click="handleClear"
       >
         清空
@@ -134,12 +134,12 @@ function groupNotesByMonth(notes: Note[]) {
 
     <!-- 视图切换 -->
     <div class="flex items-center justify-between mb-6">
-      <span class="text-xs text-slate-400">共 {{ noteStore.totalCount }} 条归档记录</span>
-      <div class="flex bg-slate-100 rounded-btn p-0.5">
+      <span class="text-xs text-slate-400 dark:text-slate-500">共 {{ noteStore.totalCount }} 条归档记录</span>
+      <div class="flex bg-slate-100 dark:bg-slate-800 rounded-btn p-0.5">
         <button
           :class="[
             'px-4 py-1.5 rounded-md text-sm font-medium transition-smooth',
-            viewMode === 'timeline' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500',
+            viewMode === 'timeline' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-500 dark:text-slate-400',
           ]"
           @click="viewMode = 'timeline'"
         >
@@ -148,7 +148,7 @@ function groupNotesByMonth(notes: Note[]) {
         <button
           :class="[
             'px-4 py-1.5 rounded-md text-sm font-medium transition-smooth',
-            viewMode === 'card' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500',
+            viewMode === 'card' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-500 dark:text-slate-400',
           ]"
           @click="viewMode = 'card'"
         >
@@ -170,8 +170,8 @@ function groupNotesByMonth(notes: Note[]) {
       v-else-if="noteStore.archivedNotes.length === 0"
       class="flex flex-col items-center justify-center py-24"
     >
-      <div class="w-24 h-24 bg-slate-100 rounded-3xl flex items-center justify-center mb-6">
-        <svg class="w-12 h-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div class="w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mb-6">
+        <svg class="w-12 h-12 text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path
             stroke-linecap="round"
             stroke-linejoin="round"
@@ -180,8 +180,8 @@ function groupNotesByMonth(notes: Note[]) {
           />
         </svg>
       </div>
-      <p class="text-slate-400 text-sm">暂无归档任务</p>
-      <p class="text-slate-300 text-xs mt-1">在工作台完成任务后，会自动归档到这里</p>
+      <p class="text-slate-400 dark:text-slate-500 text-sm">暂无归档任务</p>
+      <p class="text-slate-300 dark:text-slate-600 text-xs mt-1">在工作台完成任务后，会自动归档到这里</p>
     </div>
 
     <!-- 时间轴视图 -->
@@ -193,9 +193,9 @@ function groupNotesByMonth(notes: Note[]) {
         class="mb-8"
       >
         <div class="flex items-center gap-3 mb-4">
-          <div class="w-2.5 h-2.5 rounded-full bg-slate-300 -ml-[32px] ring-4 ring-white" />
-          <span class="text-sm font-semibold text-slate-700">{{ group.month }}</span>
-          <span class="text-xs text-slate-400">{{ group.notes.length }}条</span>
+          <div class="w-2.5 h-2.5 rounded-full bg-slate-300 -ml-[32px] ring-4 ring-white dark:ring-slate-950" />
+          <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ group.month }}</span>
+          <span class="text-xs text-slate-400 dark:text-slate-500">{{ group.notes.length }}条</span>
         </div>
         <div class="space-y-3">
           <div v-for="note in group.notes" :key="note.id" class="flex items-start gap-4">
@@ -226,7 +226,7 @@ function groupNotesByMonth(notes: Note[]) {
             </div>
             <div class="flex flex-col gap-1 shrink-0 pt-1">
               <button
-                class="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-smooth"
+                class="text-xs px-2 py-1 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-smooth"
                 @click="handleRestore(note)"
               >
                 恢复
@@ -259,13 +259,13 @@ function groupNotesByMonth(notes: Note[]) {
           <div class="p-6 h-full flex flex-col">
             <div class="flex items-center justify-between mb-6">
               <div class="flex items-center gap-2">
-                <h2 class="text-lg font-semibold text-slate-900">归档详情</h2>
-                <span class="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-tag"
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">归档详情</h2>
+                <span class="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded-tag"
                   >已归档</span
                 >
               </div>
               <button
-                class="p-1 rounded-lg hover:bg-slate-100 transition-smooth"
+                class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
                 @click="closeDetail"
               >
                 <svg
@@ -286,13 +286,13 @@ function groupNotesByMonth(notes: Note[]) {
 
             <div class="flex-1 overflow-auto space-y-5">
               <div>
-                <span class="text-xs text-slate-400 mb-1 block">标题</span>
-                <p class="text-sm font-semibold text-slate-900">{{ selectedNote.title }}</p>
+                <span class="text-xs text-slate-400 dark:text-slate-500 mb-1 block">标题</span>
+                <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ selectedNote.title }}</p>
               </div>
               <div>
-                <span class="text-xs text-slate-400 mb-1 block">内容</span>
-                <div class="text-sm text-slate-700 rich-content-display">
-                  <span v-if="!selectedNote.content" class="text-slate-300">暂无内容</span>
+                <span class="text-xs text-slate-400 dark:text-slate-500 mb-1 block">内容</span>
+                <div class="text-sm text-slate-700 dark:text-slate-300 rich-content-display">
+                  <span v-if="!selectedNote.content" class="text-slate-300 dark:text-slate-500">暂无内容</span>
                   <span v-else v-html="renderNoteContent(selectedNote.content)"></span>
                 </div>
               </div>
@@ -309,27 +309,27 @@ function groupNotesByMonth(notes: Note[]) {
                 class="bg-slate-50 dark:bg-slate-900 rounded-card p-4 space-y-2 text-xs transition-colors duration-300"
               >
                 <div class="flex justify-between">
-                  <span class="text-slate-400">创建时间</span
-                  ><span class="text-slate-700">{{
+                  <span class="text-slate-400 dark:text-slate-500">创建时间</span
+                  ><span class="text-slate-700 dark:text-slate-300">{{
                     selectedNote.created_at?.slice(0, 16).replace('T', ' ')
                   }}</span>
                 </div>
                 <div class="flex justify-between">
-                  <span class="text-slate-400">完成时间</span
-                  ><span class="text-slate-700">{{
+                  <span class="text-slate-400 dark:text-slate-500">完成时间</span
+                  ><span class="text-slate-700 dark:text-slate-300">{{
                     selectedNote.completed_at?.slice(0, 16).replace('T', ' ') || '—'
                   }}</span>
                 </div>
                 <div class="flex justify-between">
-                  <span class="text-slate-400">归档时间</span
-                  ><span class="text-slate-700">{{
+                  <span class="text-slate-400 dark:text-slate-500">归档时间</span
+                  ><span class="text-slate-700 dark:text-slate-300">{{
                     selectedNote.archive_time?.slice(0, 16).replace('T', ' ') || '—'
                   }}</span>
                 </div>
               </div>
             </div>
 
-            <div class="flex gap-3 pt-4 border-t border-slate-100 mt-4">
+            <div class="flex gap-3 pt-4 border-t border-slate-100 dark:border-slate-700 mt-4">
               <button
                 class="flex-1 py-2.5 btn-primary text-sm disabled:opacity-50"
                 :disabled="restoring"

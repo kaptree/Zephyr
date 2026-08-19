@@ -8,6 +8,7 @@ import (
 
 type AIConfig struct {
 	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	ProviderType string    `gorm:"type:varchar(30);default:'openai'" json:"provider_type"` // openai/deepseek/qwen/zhipu/dify/custom
 	ProviderName string    `gorm:"type:varchar(100);not null" json:"provider_name"`
 	APIEndpoint  string    `gorm:"type:varchar(500);not null" json:"api_endpoint"`
 	APIKey       string    `gorm:"type:varchar(500);not null" json:"-"`
@@ -84,6 +85,7 @@ type WorkReport struct {
 	Period       string     `gorm:"type:varchar(20);not null" json:"period"`
 	PeriodLabel  string     `gorm:"type:varchar(20)" json:"period_label"`
 	ReportType   string     `gorm:"type:varchar(20);default:'ai'" json:"report_type"`
+	Category     string     `gorm:"type:varchar(20);default:'personal'" json:"category"` // personal 个人 / team 团队 / group 工作组
 	Title        string     `gorm:"type:varchar(300)" json:"title"`
 	Content      string     `gorm:"type:text" json:"content"`
 	StatsSummary string     `gorm:"type:text" json:"stats_summary"`

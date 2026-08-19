@@ -27,6 +27,8 @@ type Note struct {
 	IsArchived   bool           `gorm:"default:false;index" json:"is_archived"`
 	ArchiveTime  *time.Time     `json:"archive_time"`
 	DueTime      *time.Time     `json:"due_time"`
+	WorkTimeSeconds int        `gorm:"default:0" json:"work_time_seconds"`
+	DueRemindAt  *time.Time     `json:"due_remind_at"`
 	CompletedAt  *time.Time     `json:"completed_at"`
 	RemindCount  int            `gorm:"default:0" json:"remind_count"`
 	LastRemindAt *time.Time     `json:"last_remind_at"`

@@ -1,0 +1,1 @@
+import{_ as e,g as t,v as n}from"./index-HBMHn35U.js";function r(e){return t(`/api/v1/issues`,e)}function i(e){return t(`/api/v1/issues/${e}`)}function a(t){return e(`/api/v1/issues`,t)}function o(t,n){return e(`/api/v1/issues/${t}/comments`,{content:n})}function s(e,t){return n(`/api/v1/issues/${e}/status`,{status:t})}export{s as a,r as i,a as n,i as r,o as t};

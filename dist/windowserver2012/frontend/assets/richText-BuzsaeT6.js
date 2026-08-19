@@ -1,0 +1,1 @@
+function e(e){let t=e||``;return t?/<\/?[a-z][\s\S]*>/i.test(t)?t:t.replace(/&/g,`&amp;`).replace(/</g,`&lt;`).replace(/>/g,`&gt;`).replace(/"/g,`&quot;`).replace(/'/g,`&#39;`).replace(/\n/g,`<br>`):``}export{e as t};

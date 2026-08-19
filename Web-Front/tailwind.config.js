@@ -27,7 +27,7 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['"Inter"', '"Noto Sans SC"', '-apple-system', 'sans-serif'],
+        sans: ['"Inter"', '"PingFang SC"', '"Microsoft YaHei"', '"Noto Sans CJK SC"', '-apple-system', 'sans-serif'],
       },
       borderRadius: {
         'card': '16px',

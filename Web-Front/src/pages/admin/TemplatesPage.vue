@@ -29,12 +29,12 @@ const TYPE_LABELS: Record<string, string> = {
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  default: 'bg-blue-50 text-blue-600',
-  data_analysis: 'bg-purple-50 text-purple-600',
-  special_project: 'bg-red-50 text-red-600',
-  emergency_canvas: 'bg-orange-50 text-orange-600',
-  collaborative_writing: 'bg-green-50 text-green-600',
-  custom: 'bg-slate-100 text-slate-600',
+  default: 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300',
+  data_analysis: 'bg-purple-50 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300',
+  special_project: 'bg-red-50 text-red-600 dark:bg-red-900/40 dark:text-red-300',
+  emergency_canvas: 'bg-orange-50 text-orange-600 dark:bg-orange-900/40 dark:text-orange-300',
+  collaborative_writing: 'bg-green-50 text-green-600 dark:bg-green-900/40 dark:text-green-300',
+  custom: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
 }
 
 async function loadTemplates() {
@@ -129,7 +129,7 @@ onMounted(loadTemplates)
 <template>
   <div>
     <div class="flex items-center justify-between mb-6">
-      <h2 class="text-lg font-semibold text-slate-900">模板库管理</h2>
+      <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">模板库管理</h2>
       <button
         class="text-sm px-4 py-2 bg-blue-600 text-white rounded-btn hover:bg-blue-700 transition-smooth"
         @click="openCreate"
@@ -138,9 +138,9 @@ onMounted(loadTemplates)
       </button>
     </div>
 
-    <div v-if="loading" class="text-center text-slate-400 py-20">加载中...</div>
+    <div v-if="loading" class="text-center text-slate-400 dark:text-slate-500 py-20">加载中...</div>
 
-    <div v-else-if="templates.length === 0" class="text-center text-slate-400 py-20">
+    <div v-else-if="templates.length === 0" class="text-center text-slate-400 dark:text-slate-500 py-20">
       暂无模板，点击上方按钮创建
     </div>
 
@@ -148,29 +148,29 @@ onMounted(loadTemplates)
       <div
         v-for="t in templates"
         :key="t.id"
-        class="bg-white rounded-card border border-slate-100 p-5 hover:shadow-note transition-smooth"
+        class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-5 hover:shadow-note transition-smooth"
       >
         <div class="flex items-start justify-between mb-2">
           <div class="flex items-center gap-2">
-            <h4 class="text-sm font-semibold text-slate-900">{{ t.name }}</h4>
-            <span v-if="t.is_system" class="text-xs px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded">系统</span>
+            <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ t.name }}</h4>
+            <span v-if="t.is_system" class="text-xs px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-300 rounded">系统</span>
           </div>
           <span class="text-xs px-2 py-0.5 rounded-tag" :class="TYPE_COLORS[t.type] || TYPE_COLORS.default">
             {{ TYPE_LABELS[t.type] || t.type }}
           </span>
         </div>
-        <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
-          <span class="text-xs text-slate-400">{{ parseFields(t.fields).length }} 个字段</span>
+        <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-50 dark:border-slate-700">
+          <span class="text-xs text-slate-400 dark:text-slate-400">{{ parseFields(t.fields).length }} 个字段</span>
           <div class="flex gap-2">
             <button
-              class="text-xs px-2.5 py-1 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-smooth"
+              class="text-xs px-2.5 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded hover:bg-slate-200 dark:hover:bg-slate-600 transition-smooth"
               @click="openEdit(t)"
             >
               编辑
             </button>
             <button
               v-if="!t.is_system"
-              class="text-xs px-2.5 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-smooth"
+              class="text-xs px-2.5 py-1 bg-red-50 dark:bg-red-900/40 text-red-600 dark:text-red-300 rounded hover:bg-red-100 dark:hover:bg-red-900/60 transition-smooth"
               @click="confirmDelete(t.id)"
             >
               删除
@@ -182,28 +182,28 @@ onMounted(loadTemplates)
 
     <!-- Create/Edit Modal -->
     <div v-if="showModal" class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showModal = false">
-      <div class="bg-white rounded-lg w-[480px] max-h-[80vh] overflow-y-auto p-6 shadow-xl">
-        <h3 class="text-base font-semibold text-slate-900 mb-4">
+      <div class="bg-white dark:bg-slate-800 rounded-lg w-[480px] max-h-[80vh] overflow-y-auto p-6 shadow-xl">
+        <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100 mb-4">
           {{ isEditing ? '编辑模板' : '新建模板' }}
         </h3>
         <div class="space-y-4">
           <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">模板名称 *</label>
+            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">模板名称 *</label>
             <input
               v-model="form.name"
-              class="w-full px-3 py-2 text-sm border border-slate-200 rounded-btn focus:outline-none focus:border-blue-400"
+              class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-btn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-400"
               placeholder="输入模板名称"
             />
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">模板类型</label>
-            <select v-model="form.type" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-btn focus:outline-none focus:border-blue-400">
+            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">模板类型</label>
+            <select v-model="form.type" class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-btn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-400">
               <option v-for="(label, key) in TYPE_LABELS" :key="key" :value="key">{{ label }}</option>
             </select>
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">布局样式</label>
-            <select v-model="form.layout" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-btn focus:outline-none focus:border-blue-400">
+            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">布局样式</label>
+            <select v-model="form.layout" class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-btn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-400">
               <option value="1">单栏</option>
               <option value="2">双栏</option>
               <option value="4">四宫格</option>
@@ -211,21 +211,21 @@ onMounted(loadTemplates)
             </select>
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">
+            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
               字段定义 (JSON)
-              <span class="text-slate-400 font-normal">— 示例：[{"name":"任务描述","type":"textarea","required":true,"order":1}]</span>
+              <span class="text-slate-400 dark:text-slate-500 font-normal">— 示例：[{"name":"任务描述","type":"textarea","required":true,"order":1}]</span>
             </label>
             <textarea
               v-model="form.fields"
               rows="6"
-              class="w-full px-3 py-2 text-xs border border-slate-200 rounded-btn focus:outline-none focus:border-blue-400 font-mono"
+              class="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-600 rounded-btn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-400 font-mono"
               placeholder='[{"name":"字段名","type":"text","required":true,"order":1}]'
             ></textarea>
           </div>
         </div>
         <div class="flex justify-end gap-2 mt-6">
           <button
-            class="text-sm px-4 py-2 bg-slate-100 text-slate-600 rounded-btn hover:bg-slate-200 transition-smooth"
+            class="text-sm px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-btn hover:bg-slate-200 dark:hover:bg-slate-600 transition-smooth"
             @click="showModal = false"
           >
             取消
@@ -243,12 +243,12 @@ onMounted(loadTemplates)
 
     <!-- Delete Confirm -->
     <div v-if="showDeleteConfirm" class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showDeleteConfirm = false">
-      <div class="bg-white rounded-lg w-[360px] p-6 shadow-xl">
-        <h3 class="text-base font-semibold text-slate-900 mb-2">确认删除</h3>
-        <p class="text-sm text-slate-500 mb-4">删除后不可恢复，确定要删除此模板吗？</p>
+      <div class="bg-white dark:bg-slate-800 rounded-lg w-[360px] p-6 shadow-xl">
+        <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100 mb-2">确认删除</h3>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">删除后不可恢复，确定要删除此模板吗？</p>
         <div class="flex justify-end gap-2">
           <button
-            class="text-sm px-4 py-2 bg-slate-100 text-slate-600 rounded-btn hover:bg-slate-200 transition-smooth"
+            class="text-sm px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-btn hover:bg-slate-200 dark:hover:bg-slate-600 transition-smooth"
             @click="showDeleteConfirm = false"
           >
             取消
