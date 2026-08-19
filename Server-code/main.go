@@ -11,6 +11,7 @@ import (
 
 	"labelpro-server/internal/config"
 	"labelpro-server/internal/database"
+	"labelpro-server/internal/handlers"
 	"labelpro-server/internal/logger"
 	"labelpro-server/internal/models"
 	"labelpro-server/internal/router"
@@ -84,10 +85,14 @@ func main() {
 		&models.Issue{},
 		&models.IssueComment{},
 		&models.ChatFilePolicy{},
+		&models.Emoticon{},
 	); err != nil {
 		logger.Fatal("Failed to auto migrate database", zap.Error(err))
 	}
 	logger.Info("Database migration completed")
+
+	// 幂等导入系统表情包（uploads/emoticons/system/{分类}/*）
+	handlers.EnsureSystemEmoticons()
 
 	// 初始化聊天文件传输策略（白名单/黑名单，默认黑名单拦截危险文件）
 	services.InitFilePolicyService(database.DB)

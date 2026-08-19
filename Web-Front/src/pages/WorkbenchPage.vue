@@ -139,6 +139,52 @@ const selectedIsCcOnly = computed(
     !(selectedNote.value.assignees || []).some((a: any) => (a.user_id || a.id) === auth.user?.id)
 );
 
+// 需求23：详情中指派任务的被指派人本人完成进度（全部完成后发起者才可归档）
+const selectedAssigneeMembers = computed(() =>
+  (selectedNote.value?.assignees || []).filter((a: any) => a.role_in_note !== 'initiator')
+);
+const selectedCompletedCount = computed(
+  () => selectedAssigneeMembers.value.filter((a: any) => a.is_completed).length
+);
+const selectedAllCompleted = computed(
+  () =>
+    selectedAssigneeMembers.value.length > 0 &&
+    selectedCompletedCount.value === selectedAssigneeMembers.value.length
+);
+const selectedViewerIsMemberAssignee = computed(
+  () =>
+    !!selectedNote.value &&
+    selectedNote.value.source_type === 'assigned' &&
+    !!selectedAssigneeMe.value &&
+    selectedAssigneeMe.value.role_in_note !== 'initiator'
+);
+const selectedMyCompleted = computed(() => !!selectedAssigneeMe.value?.is_completed);
+const selectedIsAdminViewer = computed(
+  () => auth.user?.role === 'super_admin' || auth.user?.role === 'dept_admin'
+);
+const selectedCompleteLabel = computed(() => {
+  const note = selectedNote.value;
+  if (!note) return '完成并归档';
+  if (note.source_type === 'assigned') {
+    if (selectedViewerIsMemberAssignee.value)
+      return selectedMyCompleted.value ? '已完成' : '提交完成';
+    if (selectedIsAssigner.value || selectedIsAdminViewer.value) {
+      return selectedAllCompleted.value
+        ? '归档任务'
+        : `归档（${selectedCompletedCount.value}/${selectedAssigneeMembers.value.length}）`;
+    }
+    return ''; // 抄送等无完成权限：隐藏按钮
+  }
+  return '完成并归档';
+});
+const selectedCompleteDisabled = computed(() => {
+  const note = selectedNote.value;
+  if (!note || note.source_type !== 'assigned') return false;
+  if (selectedViewerIsMemberAssignee.value) return false; // 已完成仍可再次提交反馈
+  if (selectedIsAssigner.value || selectedIsAdminViewer.value) return !selectedAllCompleted.value;
+  return true;
+});
+
 onMounted(() => {
   noteStore.fetchNotes();
   loadWorkGroups();
@@ -362,7 +408,31 @@ async function handleComplete(note: Note) {
     }
     return;
   }
-  // 完成任务时先弹反馈填报
+  // 需求23：指派任务 —— 发起者/管理员直接归档（后端校验所有被指派人已完成）
+  const myAssignee = (note.assignees || []).find((a: any) => (a.user_id || a.id) === auth.user?.id);
+  const viewerIsMemberAssignee =
+    note.source_type === 'assigned' && !!myAssignee && myAssignee.role_in_note !== 'initiator';
+  const viewerIsAssigner =
+    note.source_type === 'assigned' && !!auth.user && note.creator_id === auth.user.id;
+  if (
+    note.source_type === 'assigned' &&
+    !viewerIsMemberAssignee &&
+    (viewerIsAssigner || auth.user?.role === 'super_admin' || auth.user?.role === 'dept_admin')
+  ) {
+    completing.value = true;
+    try {
+      await noteStore.completeNote(note.id, {});
+      noteStore.fetchNotes();
+      if (showDetailPanel.value && selectedNote.value?.id === note.id) closeDetail();
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      alert(err?.response?.data?.message || '归档失败');
+    } finally {
+      completing.value = false;
+    }
+    return;
+  }
+  // 被指派人提交完成 / 非指派任务：先弹反馈填报
   feedbackNote.value = note;
   feedbackVisible.value = true;
 }
@@ -1257,6 +1327,16 @@ const templateLabels: Record<string, string> = {
                           class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500"
                           >未签收</span
                         >
+                        <span
+                          v-if="(a as any).is_completed && (a as any).role_in_note !== 'initiator'"
+                          class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-300"
+                          :title="
+                            (a as any).completed_at
+                              ? '完成于 ' + (a as any).completed_at.slice(0, 16).replace('T', ' ')
+                              : ''
+                          "
+                          >已完成</span
+                        >
                       </span>
                       <button
                         v-if="(a.user_id || (a as any).id) !== auth.user?.id"
@@ -1302,11 +1382,17 @@ const templateLabels: Record<string, string> = {
                 {{ saving ? '保存中...' : '保存' }}
               </button>
               <button
-                class="flex-1 py-2.5 text-sm bg-green-500 text-white rounded-btn hover:bg-green-600 transition-smooth disabled:opacity-50"
-                :disabled="completing"
+                v-if="selectedCompleteLabel"
+                class="flex-1 py-2.5 text-sm bg-green-500 text-white rounded-btn hover:bg-green-600 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="completing || selectedCompleteDisabled"
+                :title="
+                  selectedCompleteDisabled && !selectedAllCompleted
+                    ? '尚有被指派人未完成任务，暂不能归档'
+                    : ''
+                "
                 @click="handleComplete(selectedNote!)"
               >
-                {{ completing ? '归档中...' : '完成并归档' }}
+                {{ completing ? '提交中...' : selectedCompleteLabel }}
               </button>
               <button
                 v-if="!selectedIsCcOnly && selectedNote.color_status !== 'red'"

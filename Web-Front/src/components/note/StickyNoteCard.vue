@@ -104,6 +104,29 @@ const signedNames = computed(() =>
     .join('、')
 );
 
+// ===== 需求23：被指派人本人完成进度（全部完成后发起者才可归档）=====
+const completedCount = computed(
+  () => assigneeMembers.value.filter((a: any) => a.is_completed).length
+);
+const completedNames = computed(() =>
+  assigneeMembers.value
+    .filter((a: any) => a.is_completed)
+    .map((a: any) => a.user?.name || a.name || '')
+    .filter(Boolean)
+    .join('、')
+);
+const allCompleted = computed(
+  () => assigneeMembers.value.length > 0 && completedCount.value === assigneeMembers.value.length
+);
+const myCompleted = computed(() => !!myAssignee.value?.is_completed);
+// 当前用户是否为实际被指派人（非发起者）
+const viewerIsMemberAssignee = computed(
+  () => isAssigned.value && !!myAssignee.value && myAssignee.value.role_in_note !== 'initiator'
+);
+const isAdminViewer = computed(
+  () => auth.user?.role === 'super_admin' || auth.user?.role === 'dept_admin'
+);
+
 // 被指派人的反馈填报内容（指派便签上同步展示，指派人与被指派人可见）
 const feedbackList = computed(() =>
   (props.note.assignees || [])
@@ -364,6 +387,16 @@ const isDueUrgent = computed(() => {
             : '已签收 ' + signedCount + '/' + assigneeMembers.length
         }}
       </span>
+      <span
+        v-if="isAssigned && !isArchived && assigneeMembers.length && (isAssigner || isAdminViewer)"
+        class="text-xs font-medium"
+        :class="
+          allCompleted ? 'text-green-600 dark:text-green-400' : 'text-slate-400 dark:text-slate-500'
+        "
+        :title="completedNames ? '已完成：' + completedNames : '尚未有人完成'"
+      >
+        {{ allCompleted ? '全部完成' : '已完成 ' + completedCount + '/' + assigneeMembers.length }}
+      </span>
       <span v-if="note.due_time && !isArchived" class="text-xs text-slate-400 dark:text-slate-500">
         截止 {{ note.due_time.slice(0, 10) }}
       </span>
@@ -381,6 +414,39 @@ const isDueUrgent = computed(() => {
       class="flex gap-2 mt-3 pt-3 border-t border-slate-200/50 dark:border-slate-700/50"
     >
       <button
+        v-if="isAssigned && viewerIsMemberAssignee"
+        class="text-xs px-2.5 py-1 rounded-btn transition-smooth"
+        :class="
+          myCompleted
+            ? 'bg-green-200 text-green-800 dark:bg-green-900/60 dark:text-green-200 cursor-default'
+            : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:hover:bg-green-900'
+        "
+        @click.stop="$emit('complete', note)"
+      >
+        {{ myCompleted ? '已完成' : '提交完成' }}
+      </button>
+      <button
+        v-else-if="isAssigned && (isAssigner || isAdminViewer)"
+        class="text-xs px-2.5 py-1 rounded-btn transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
+        :class="
+          allCompleted
+            ? 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:hover:bg-green-900'
+            : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+        "
+        :disabled="!allCompleted"
+        :title="
+          allCompleted ? '' : '尚有 ' + (assigneeMembers.length - completedCount) + ' 人未完成'
+        "
+        @click.stop="$emit('complete', note)"
+      >
+        {{
+          allCompleted
+            ? '归档任务'
+            : '归档（' + completedCount + '/' + assigneeMembers.length + '）'
+        }}
+      </button>
+      <button
+        v-else-if="!isAssigned"
         class="text-xs px-2.5 py-1 rounded-btn bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:hover:bg-green-900 transition-smooth"
         @click.stop="$emit('complete', note)"
       >

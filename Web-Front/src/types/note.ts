@@ -15,6 +15,9 @@ export interface NoteAssignee {
   signed_at?: string
   feedback_content?: string
   feedback_at?: string
+  /** 被指派人本人是否已完成本人部分（需求23：全部完成后发起者才可归档） */
+  is_completed?: boolean
+  completed_at?: string
   is_read: boolean
 }
 

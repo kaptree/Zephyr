@@ -324,6 +324,20 @@ func (r *NoteRepository) GetAssigneeFeedback(noteID, userID string) (string, err
 	return a.FeedbackContent, nil
 }
 
+// UpdateAssigneeComplete 标记被指派人本人完成（并回写反馈内容）
+func (r *NoteRepository) UpdateAssigneeComplete(noteID, userID, feedback string) error {
+	now := time.Now()
+	return r.db.Model(&models.NoteAssignee{}).
+		Where("note_id = ? AND user_id = ?", noteID, userID).
+		Updates(map[string]interface{}{
+			"is_completed":     true,
+			"completed_at":     now,
+			"feedback_content": feedback,
+			"feedback_at":      now,
+			"is_read":          true,
+		}).Error
+}
+
 // UpdateAssigneeSign 更新被指派人的任务签收状态
 func (r *NoteRepository) UpdateAssigneeSign(noteID, userID string) error {
 	now := time.Now()

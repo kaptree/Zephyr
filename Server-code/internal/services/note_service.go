@@ -24,19 +24,19 @@ func NewNoteService(noteRepo *repository.NoteRepository, notifSvc *NotificationS
 }
 
 type CreateNoteRequest struct {
-	Title        string               `json:"title" binding:"required"`
-	Content      string               `json:"content"`
-	TagIDs       []string             `json:"tags"`
-	SourceType   string               `json:"source_type"`
-	TemplateType string               `json:"template_type"`
-	TemplateID   string               `json:"template_id"`
-	OwnerID      string               `json:"owner_id"`
-	DueTime      *time.Time           `json:"due_time"`
-	WorkTimeSeconds int               `json:"work_time_seconds"`
-	Assignees    []AssigneeRequest    `json:"assignees"`
-	CcUserIDs    []string             `json:"cc_user_ids"`
-	GroupConfig  *GroupConfigRequest  `json:"group_config"`
-	CanvasConfig *CanvasConfigRequest `json:"canvas_config"`
+	Title           string               `json:"title" binding:"required"`
+	Content         string               `json:"content"`
+	TagIDs          []string             `json:"tags"`
+	SourceType      string               `json:"source_type"`
+	TemplateType    string               `json:"template_type"`
+	TemplateID      string               `json:"template_id"`
+	OwnerID         string               `json:"owner_id"`
+	DueTime         *time.Time           `json:"due_time"`
+	WorkTimeSeconds int                  `json:"work_time_seconds"`
+	Assignees       []AssigneeRequest    `json:"assignees"`
+	CcUserIDs       []string             `json:"cc_user_ids"`
+	GroupConfig     *GroupConfigRequest  `json:"group_config"`
+	CanvasConfig    *CanvasConfigRequest `json:"canvas_config"`
 }
 
 type AssigneeRequest struct {
@@ -315,6 +315,27 @@ func (s *NoteService) Update(id, userID string, req UpdateNoteRequest) (*models.
 	return s.noteRepo.FindByID(id)
 }
 
+// memberAssigneeList 返回任务的实际被指派人（排除发起者 initiator）
+func memberAssigneeList(note *models.Note) []models.NoteAssignee {
+	var members []models.NoteAssignee
+	for _, a := range note.Assignees {
+		if a.RoleInNote != "initiator" {
+			members = append(members, a)
+		}
+	}
+	return members
+}
+
+// allAssigneesCompleted 判断任务的所有被指派人是否均已本人完成
+func allAssigneesCompleted(note *models.Note) bool {
+	for _, a := range memberAssigneeList(note) {
+		if !a.IsCompleted {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *NoteService) Complete(id, userID, role string, req CompleteNoteRequest) (*models.Note, error) {
 	note, err := s.noteRepo.FindByID(id)
 	if err != nil || note == nil {
@@ -327,8 +348,47 @@ func (s *NoteService) Complete(id, userID, role string, req CompleteNoteRequest)
 		!isAssignee && role != "super_admin" && role != "dept_admin" {
 		return nil, apperrors.ErrPermissionDenied
 	}
-	// 需求20：抄送人同样可以完成并归档任务（卡片提供「完成并归档」按钮）
 
+	// 需求23：指派任务 —— 被指派人各自完成本人部分并填报反馈；
+	// 仅当所有被指派人完成后，发起者才可归档，是否归档由发起者决定。
+	members := memberAssigneeList(note)
+	if note.SourceType == "assigned" && len(members) > 0 {
+		// 被指派人（非发起者）提交本人完成，不归档任务
+		if isAssignee && note.CreatorID.String() != userID {
+			if err := s.noteRepo.UpdateAssigneeComplete(note.ID.String(), userID, req.FeedbackContent); err != nil {
+				return nil, err
+			}
+			_ = s.recordLedger(id, userID, "complete", "本人任务完成", req.FeedbackContent, "")
+			// 通知任务发起人
+			if s.notifSvc != nil {
+				content := req.FeedbackContent
+				if content == "" {
+					content = "已完成本人负责的部分"
+				}
+				_ = s.notifSvc.Notify(note.CreatorID.String(), userID, &note.ID, "task_completed", "任务已完成", content)
+			}
+			return s.noteRepo.FindByID(id)
+		}
+		// 发起者（或管理员）归档：需所有被指派人已完成
+		if note.CreatorID.String() == userID || role == "super_admin" || role == "dept_admin" {
+			if !allAssigneesCompleted(note) {
+				return nil, apperrors.ErrAssigneesIncomplete
+			}
+			now := time.Now()
+			note.ColorStatus = "green"
+			note.IsArchived = true
+			note.ArchiveTime = &now
+			note.CompletedAt = &now
+			if err := s.noteRepo.Update(note); err != nil {
+				return nil, err
+			}
+			_ = s.recordLedger(id, userID, "complete", "任务办结归档", "", "")
+			return s.noteRepo.FindByID(id)
+		}
+		return nil, apperrors.ErrPermissionDenied
+	}
+
+	// 非指派任务 / 无实际被指派人的任务：完成即归档（原逻辑）
 	now := time.Now()
 	note.ColorStatus = "green"
 	note.IsArchived = true
@@ -378,6 +438,11 @@ func (s *NoteService) Feedback(id, userID, content string) (*models.Note, error)
 
 	if err := s.noteRepo.UpdateAssigneeFeedback(note.ID.String(), userID, content); err != nil {
 		return nil, err
+	}
+
+	// 进行中的指派任务：被指派人提交反馈即视为本人完成
+	if !note.IsArchived && note.SourceType == "assigned" && isAssignee && note.CreatorID.String() != userID {
+		_ = s.noteRepo.UpdateAssigneeComplete(note.ID.String(), userID, content)
 	}
 
 	_ = s.recordLedger(id, userID, "feedback", "任务反馈填报", content, "")

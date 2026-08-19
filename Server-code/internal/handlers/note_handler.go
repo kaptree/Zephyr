@@ -206,6 +206,10 @@ func (h *NoteHandler) CompleteNote(c *gin.Context) {
 			utils.Forbidden(c, "仅被指派人可以完成此任务")
 			return
 		}
+		if err == apperrors.ErrAssigneesIncomplete {
+			utils.BadRequest(c, "尚有被指派人未完成任务，暂不能归档")
+			return
+		}
 		utils.InternalError(c, "办结任务失败")
 		return
 	}

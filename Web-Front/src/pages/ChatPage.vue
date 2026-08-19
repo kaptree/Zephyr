@@ -129,6 +129,19 @@ function insertEmoji(e: string) {
   input.value += e;
 }
 
+// 发送图片表情（图片消息）
+async function sendEmoticon(path: string) {
+  if (!currentPeer.value || !path) return;
+  showEmoji.value = false;
+  await store.sendMessage(currentPeer.value, {
+    type: 'image',
+    file_name: '表情',
+    file_path: path,
+    mime_type: 'image/png',
+  });
+  scrollToBottom();
+}
+
 async function onFileSelected(e: Event) {
   const inputEl = e.target as HTMLInputElement;
   const file = inputEl.files?.[0];
@@ -436,7 +449,7 @@ onMounted(() => {
 
           <!-- emoji 面板 -->
           <div v-if="showEmoji" class="absolute bottom-full left-3 mb-2 z-20" @click.stop>
-            <EmojiPicker @select="insertEmoji" />
+            <EmojiPicker @select="insertEmoji" @send-image="sendEmoticon" />
           </div>
 
           <div class="flex items-end gap-2">

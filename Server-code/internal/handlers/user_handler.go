@@ -20,6 +20,21 @@ func NewUserHandler(userService *services.UserService, groupRepo *repository.Wor
 	return &UserHandler{userService: userService, groupRepo: groupRepo}
 }
 
+// applyDeptAdminScope 数据范围限制：
+// super_admin / company_leader 可见全部用户；部门管理员仅可见本部门成员。
+// 返回 false 表示当前角色无任何可见成员（如部门管理员未分配部门）。
+func (h *UserHandler) applyDeptAdminScope(c *gin.Context, filter *repository.UserFilter) bool {
+	if c.GetString("role") != "dept_admin" {
+		return true
+	}
+	user, err := h.userService.GetUser(c.GetString("user_id"))
+	if err != nil || user == nil || user.DepartmentID == nil {
+		return false
+	}
+	filter.DeptID = user.DepartmentID.String()
+	return true
+}
+
 func (h *UserHandler) ListUsers(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
@@ -36,6 +51,11 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 		Keyword:  c.Query("keyword"),
 		Page:     page,
 		PageSize: pageSize,
+	}
+
+	if !h.applyDeptAdminScope(c, &filter) {
+		utils.Paginated(c, []models.User{}, 0, page, pageSize)
+		return
 	}
 
 	users, total, err := h.userService.ListUsers(filter)
@@ -124,6 +144,10 @@ func (h *UserHandler) ListUsersWithStats(c *gin.Context) {
 		Keyword:  c.Query("keyword"),
 		Page:     page,
 		PageSize: pageSize,
+	}
+	if !h.applyDeptAdminScope(c, &filter) {
+		utils.Paginated(c, []models.User{}, 0, page, pageSize)
+		return
 	}
 	users, total, err := h.userService.ListUsers(filter)
 	if err != nil {

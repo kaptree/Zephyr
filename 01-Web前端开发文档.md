@@ -394,9 +394,14 @@ Web-Front/src/
 
 ### 6.12 EmojiPicker — 表情选择器（★ 新增）
 
-- 组件 `src/components/chat/EmojiPicker.vue`，`@select` 事件返回所选 emoji
+- 组件 `src/components/chat/EmojiPicker.vue`，`@select` 事件返回所选 emoji；`@send-image` 事件返回图片表情路径（直接发送图片消息）
 - 9 个分类 tab：「表情包」+ 笑脸/手势/动物/食物/活动/旅行/物品/符号，`8 列网格`、悬停高亮、面板 300px 宽、分类区 176px 高可滚动
 - 表情包为高频趣味 emoji 组合（😀😂🎉💪 等 40 个），纯 Unicode 实现，内网无外部资源依赖
+- **★ 图片表情（需求 #22）**：
+  - 动态加载系统分类 tab（熊猫头/狗狗/猫猫表情包，位于「表情包」之后）+ 个人「我的表情」，懒加载按需拉取 `GET /emoticons?category=`
+  - 图片网格（5 列缩略图），点击作为图片消息发送（type=image）
+  - 底部工具条：「➕ 上传表情」（所有用户，单文件）；「🗂 批量上传」（仅 super_admin，支持 `multiple` 多选或 `webkitdirectory` 文件夹，文件夹名自动作为分类）
+  - 悬停自己上传的表情显示红色「×」删除按钮
 
 ---
 

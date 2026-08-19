@@ -87,6 +87,7 @@ func main() {
 		&models.OperationLog{},
 		&models.WorkReport{},
 		&models.ReportTemplate{},
+		&models.Emoticon{},
 	); err != nil {
 		log.Fatalf("数据库迁移失败: %v", err)
 	}

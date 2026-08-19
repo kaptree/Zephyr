@@ -43,6 +43,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	sysRepo := repository.NewSystemRepository(database.DB)
 	presetRepo := repository.NewPresetGroupRepository(database.DB)
 	issueRepo := repository.NewIssueRepository(database.DB)
+	emoticonRepo := repository.NewEmoticonRepository(database.DB)
 	middleware.SetOperationLogRepo(sysRepo)
 
 	authService := services.NewAuthService(userRepo, cfg)
@@ -79,6 +80,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	issueHandler := handlers.NewIssueHandler(issueRepo)
 	uploadHandler := handlers.NewUploadHandler()
 	notificationHandler := handlers.NewNotificationHandler(notifSvc)
+	emoticonHandler := handlers.NewEmoticonHandler(emoticonRepo)
 
 	if cfg.WebSocket.Enabled && hub != nil {
 		r.GET("/ws/:note_id", ws.HandleWebSocket(hub))
@@ -226,6 +228,14 @@ func Setup(cfg *config.Config) *gin.Engine {
 			chat.GET("/:userId/messages", notificationHandler.ListMessages)
 			chat.POST("/:userId/messages", notificationHandler.SendMessage)
 			chat.POST("/:userId/read", notificationHandler.MarkConversationRead)
+		}
+
+		emoticons := api.Group("/emoticons")
+		{
+			emoticons.GET("", emoticonHandler.List)
+			emoticons.POST("", emoticonHandler.Upload)
+			emoticons.POST("/batch", middleware.RequireRoles("super_admin"), emoticonHandler.BatchUpload)
+			emoticons.DELETE("/:id", emoticonHandler.Delete)
 		}
 
 		reminders := api.Group("/reminders")
