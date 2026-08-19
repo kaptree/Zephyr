@@ -83,3 +83,9 @@ export interface OperationLogItem {
   ip_address: string
   created_at: string
 }
+
+export interface ChatFilePolicy {
+  allow_extensions: string
+  blocked_extensions: string
+  updated_at: string
+}

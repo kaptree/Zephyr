@@ -25,7 +25,7 @@ func NewNoteHandler(noteService *services.NoteService) *NoteHandler {
 }
 
 // requireNoteAccess 校验当前用户对任务是否有访问权限
-// （创建人/负责人/被指派人；部门管理员含本部门及子部门），
+// （创建人/负责人/被指派人/抄送人；部门管理员含本部门及子部门），
 // 无权限统一返回 404，避免泄露任务是否存在
 func (h *NoteHandler) requireNoteAccess(c *gin.Context, id string) bool {
 	userID := middleware.GetUserID(c)
@@ -37,6 +37,37 @@ func (h *NoteHandler) requireNoteAccess(c *gin.Context, id string) bool {
 		return false
 	}
 	return true
+}
+
+// requireParticipantAccess 校验当前用户是否为任务参与者（排除抄送人）：
+// 抄送人仅可查看任务，不能编辑/删除/完成/盯办等管理操作
+func (h *NoteHandler) requireParticipantAccess(c *gin.Context, id string) bool {
+	userID := middleware.GetUserID(c)
+	role := middleware.GetUserRole(c)
+	deptID := middleware.GetUserDeptID(c)
+	ok, err := h.noteService.CanManage(id, userID, role, deptID)
+	if err != nil || !ok {
+		utils.Forbidden(c, "您仅被抄送该任务，无权执行此操作")
+		return false
+	}
+	return true
+}
+
+// InspectUserNotes 查看指定用户的工作台任务（公司领导/super_admin 专用）
+// GET /api/v1/notes/users/:userId/workbench?status=active|archived|completed
+func (h *NoteHandler) InspectUserNotes(c *gin.Context) {
+	targetUserID := c.Param("userId")
+	if targetUserID == "" {
+		utils.BadRequest(c, "缺少用户 ID")
+		return
+	}
+	status := c.DefaultQuery("status", "active")
+	notes, total, err := h.noteService.ListUserNotesForInspect(targetUserID, status)
+	if err != nil {
+		utils.InternalError(c, "查询用户工作台失败")
+		return
+	}
+	utils.Paginated(c, notes, total, 1, len(notes))
 }
 
 func (h *NoteHandler) ListNotes(c *gin.Context) {
@@ -134,7 +165,7 @@ func (h *NoteHandler) CreateNote(c *gin.Context) {
 func (h *NoteHandler) UpdateNote(c *gin.Context) {
 	id := c.Param("id")
 	userID := middleware.GetUserID(c)
-	if !h.requireNoteAccess(c, id) {
+	if !h.requireNoteAccess(c, id) || !h.requireParticipantAccess(c, id) {
 		return
 	}
 
@@ -215,7 +246,7 @@ func (h *NoteHandler) Feedback(c *gin.Context) {
 func (h *NoteHandler) RemindNote(c *gin.Context) {
 	id := c.Param("id")
 	userID := middleware.GetUserID(c)
-	if !h.requireNoteAccess(c, id) {
+	if !h.requireNoteAccess(c, id) || !h.requireParticipantAccess(c, id) {
 		return
 	}
 
@@ -238,8 +269,34 @@ func (h *NoteHandler) RemindNote(c *gin.Context) {
 	utils.Success(c, note)
 }
 
+// SignNote 被指派人签收任务（POST /api/v1/notes/:id/sign）
+func (h *NoteHandler) SignNote(c *gin.Context) {
+	id := c.Param("id")
+	userID := middleware.GetUserID(c)
+	if !h.requireNoteAccess(c, id) {
+		return
+	}
+
+	note, err := h.noteService.Sign(id, userID)
+	if err != nil {
+		if err == apperrors.ErrNoteNotFound {
+			utils.NotFound(c, "任务不存在")
+			return
+		}
+		if err == apperrors.ErrPermissionDenied {
+			utils.Forbidden(c, "仅被指派人可签收该任务")
+			return
+		}
+		utils.InternalError(c, "任务签收失败")
+		return
+	}
+
+	utils.Success(c, note)
+}
+
 func (h *NoteHandler) DeleteNote(c *gin.Context) {
 	id := c.Param("id")
+	// 需求20：抄送人同样拥有「完成并归档 / 删除」能力，删除仅校验查看权限
 	if !h.requireNoteAccess(c, id) {
 		return
 	}

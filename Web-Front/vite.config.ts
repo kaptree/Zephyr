@@ -20,6 +20,10 @@ export default defineConfig({
         target: 'ws://127.0.0.1:8090',
         ws: true,
       },
+      '/uploads': {
+        target: 'http://127.0.0.1:8090',
+        changeOrigin: true,
+      },
     },
   },
 })

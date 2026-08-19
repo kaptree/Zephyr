@@ -6,6 +6,8 @@ import (
 	"labelpro-server/internal/middleware"
 	"labelpro-server/internal/services"
 	"labelpro-server/internal/utils"
+	"labelpro-server/internal/ws"
+	apperrors "labelpro-server/pkg/errors"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -92,6 +94,15 @@ func (h *NotificationHandler) Delete(c *gin.Context) {
 
 // ---------------- 聊天 ----------------
 
+// GET /api/v1/chat/online 当前在线用户 ID 列表
+func (h *NotificationHandler) ChatOnline(c *gin.Context) {
+	ids := []string{}
+	if ws.DefaultHub != nil {
+		ids = ws.DefaultHub.OnlineUserIDs()
+	}
+	utils.Success(c, gin.H{"online_ids": ids})
+}
+
 func (h *NotificationHandler) Conversations(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	list, err := h.svc.Conversations(userID)
@@ -122,8 +133,13 @@ func (h *NotificationHandler) ListMessages(c *gin.Context) {
 }
 
 type SendMessageRequest struct {
-	Content string `json:"content" binding:"required"`
-	NoteID  string `json:"note_id"`
+	Content  string `json:"content"`
+	Type     string `json:"type"` // text / image / file
+	NoteID   string `json:"note_id"`
+	FileName string `json:"file_name"`
+	FilePath string `json:"file_path"`
+	FileSize int64  `json:"file_size"`
+	MimeType string `json:"mime_type"`
 }
 
 func (h *NotificationHandler) SendMessage(c *gin.Context) {
@@ -132,7 +148,7 @@ func (h *NotificationHandler) SendMessage(c *gin.Context) {
 
 	var req SendMessageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.BadRequest(c, "消息内容不能为空")
+		utils.BadRequest(c, "请求参数错误")
 		return
 	}
 
@@ -143,8 +159,20 @@ func (h *NotificationHandler) SendMessage(c *gin.Context) {
 		}
 	}
 
-	msg, err := h.svc.SendMessage(userID, peerID, req.Content, noteID)
+	msg, err := h.svc.SendMessage(userID, peerID, services.ChatMessagePayload{
+		Type:     req.Type,
+		Content:  req.Content,
+		NoteID:   noteID,
+		FileName: req.FileName,
+		FilePath: req.FilePath,
+		FileSize: req.FileSize,
+		MimeType: req.MimeType,
+	})
 	if err != nil {
+		if err == apperrors.ErrInvalidChatContent {
+			utils.BadRequest(c, "消息内容不能为空")
+			return
+		}
 		utils.BadRequest(c, "发送消息失败")
 		return
 	}

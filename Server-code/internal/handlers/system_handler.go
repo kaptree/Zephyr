@@ -532,6 +532,50 @@ func (h *SystemHandler) GetOperationActions(c *gin.Context) {
 	utils.Success(c, actions)
 }
 
+// ---------------- 聊天文件传输策略 ----------------
+
+// GET /api/v1/system/chat-file-policy 获取聊天文件白名单/黑名单
+func (h *SystemHandler) GetChatFilePolicy(c *gin.Context) {
+	svc := services.GetFilePolicyService()
+	if svc == nil {
+		utils.InternalError(c, "聊天文件策略未初始化")
+		return
+	}
+	utils.Success(c, gin.H{
+		"allow_extensions":   svc.AllowExtensions(),
+		"blocked_extensions": svc.BlockedExtensions(),
+		"updated_at":         svc.UpdatedAt(),
+	})
+}
+
+type UpdateChatFilePolicyRequest struct {
+	AllowExtensions   string `json:"allow_extensions"`
+	BlockedExtensions string `json:"blocked_extensions"`
+}
+
+// PUT /api/v1/system/chat-file-policy 更新聊天文件白名单/黑名单（保存后立即热加载）
+func (h *SystemHandler) UpdateChatFilePolicy(c *gin.Context) {
+	var req UpdateChatFilePolicyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "请求参数格式错误")
+		return
+	}
+	svc := services.GetFilePolicyService()
+	if svc == nil {
+		utils.InternalError(c, "聊天文件策略未初始化")
+		return
+	}
+	before := svc.AllowExtensions() + " | " + svc.BlockedExtensions()
+	if err := svc.Update(req.AllowExtensions, req.BlockedExtensions); err != nil {
+		utils.InternalError(c, "保存聊天文件策略失败")
+		return
+	}
+	after := svc.AllowExtensions() + " | " + svc.BlockedExtensions()
+	h.saveAdminLog(c, middleware.GetUserID(c), c.GetString("username"),
+		"update_chat_file_policy", "chat_file_policy", "", "更新聊天文件传输策略", before, after)
+	utils.Success(c, gin.H{"success": true})
+}
+
 func (h *SystemHandler) saveAdminLog(c *gin.Context, adminID, adminName, action, resource, resourceID, detail, before, after string) {
 	log := &models.AdminLog{
 		ID:         uuid.New(),

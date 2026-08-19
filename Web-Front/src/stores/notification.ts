@@ -10,6 +10,7 @@ export const useNotificationStore = defineStore('notification', () => {
   const notifications = ref<NotificationItem[]>([]);
   const conversations = ref<ConversationItem[]>([]);
   const messages = ref<Record<string, ChatMessageItem[]>>({});
+  const onlineIds = ref<string[]>([]);
   const connected = ref(false);
   const socketEnabled = ref(false);
   const chatOpen = ref(false);
@@ -57,11 +58,30 @@ export const useNotificationStore = defineStore('notification', () => {
           handleNewNotification(data.notification as NotificationItem);
         } else if (data.event === 'chat:message' && data.message) {
           handleNewMessage(data.message as ChatMessageItem);
+        } else if (data.event === 'presence:update') {
+          handlePresence(data);
+        } else if (data.event === 'chat:read') {
+          handleChatRead(data);
         }
       } catch {
         /* ignore */
       }
     };
+  }
+
+  // 在线用户列表更新（聊天页显示对方在线/离线状态）
+  function handlePresence(data: { online_ids?: string[] }) {
+    onlineIds.value = data.online_ids || [];
+  }
+
+  // 已读回执：对方读了我的消息 → 将我发出的消息标记为已读
+  function handleChatRead(data: { reader_id: string }) {
+    const list = messages.value[data.reader_id];
+    if (!list) return;
+    const me = useAuthStore().user?.id;
+    list.forEach((m) => {
+      if (m.sender_id === me) m.is_read = true;
+    });
   }
 
   function handleNewNotification(n: NotificationItem) {
@@ -73,10 +93,10 @@ export const useNotificationStore = defineStore('notification', () => {
 
   function handleNewMessage(m: ChatMessageItem) {
     playChatSound();
-    // 若当前会话即接收方，直接追加
+    // 若当前会话列表已加载，追加并去重
     const list = messages.value[m.sender_id];
     if (list) {
-      list.push(m);
+      if (!list.some((x) => x.id === m.id)) list.push(m);
     }
     refreshConversations();
   }
@@ -126,15 +146,24 @@ export const useNotificationStore = defineStore('notification', () => {
 
   // ---------------- 聊天 ----------------
 
+  // 拉取当前在线用户列表（进入聊天页时调用）
+  async function fetchOnlineUsers() {
+    try {
+      const res = await notifService.fetchChatOnline();
+      onlineIds.value = (res.data as unknown as { online_ids: string[] }).online_ids || [];
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function isOnline(userId: string) {
+    return onlineIds.value.includes(userId);
+  }
+
   async function refreshConversations() {
     try {
       const res = await notifService.fetchConversations();
       const list = (res.data as unknown as ConversationItem[]) || [];
-      // 补充 peer 名称
-      const auth = useAuthStore();
-      list.forEach((c) => {
-        c.peer_name = c.peer_id === auth.user?.id ? auth.user?.name || auth.user?.username : `用户 ${c.peer_id.slice(0, 6)}`;
-      });
       conversations.value = list;
     } catch {
       /* ignore */
@@ -147,10 +176,18 @@ export const useNotificationStore = defineStore('notification', () => {
       (res.data as unknown as { data: ChatMessageItem[] }).data || [];
   }
 
-  async function sendMessage(peerId: string, content: string, noteId?: string) {
-    const msg = await notifService.sendChatMessage(peerId, content, noteId);
+  // 分页加载更早的消息（用于会话历史翻页）
+  async function fetchMessagesPage(peerId: string, page: number, pageSize: number) {
+    const res = await notifService.fetchChatMessages(peerId, { page, page_size: pageSize });
+    return res.data;
+  }
+
+  async function sendMessage(peerId: string, payload: notifService.SendChatPayload) {
+    const msg = await notifService.sendChatMessage(peerId, payload);
     const list = messages.value[peerId] || [];
-    list.push(msg.data as ChatMessageItem);
+    if (!list.some((x) => x.id === (msg.data as ChatMessageItem).id)) {
+      list.push(msg.data as ChatMessageItem);
+    }
     messages.value[peerId] = list;
     await refreshConversations();
     return msg.data as ChatMessageItem;
@@ -174,6 +211,7 @@ export const useNotificationStore = defineStore('notification', () => {
     notifications,
     conversations,
     messages,
+    onlineIds,
     connected,
     chatOpen,
     chatPeerId,
@@ -186,8 +224,11 @@ export const useNotificationStore = defineStore('notification', () => {
     markRead,
     markAllRead,
     remove,
+    fetchOnlineUsers,
+    isOnline,
     refreshConversations,
     loadMessages,
+    fetchMessagesPage,
     sendMessage,
     markConversationRead,
   };

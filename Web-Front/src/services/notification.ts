@@ -1,4 +1,4 @@
-import { get, post, del } from './api'
+import { get, post, postForm, del } from './api'
 import type {
   NotificationItem,
   ChatMessageItem,
@@ -39,15 +39,38 @@ export function fetchConversations() {
   return get<ConversationItem[]>('/api/v1/chat/conversations')
 }
 
+// 当前在线用户 ID 列表
+export function fetchChatOnline() {
+  return get<{ online_ids: string[] }>('/api/v1/chat/online')
+}
+
 export function fetchChatMessages(peerId: string, params?: { page?: number; page_size?: number }) {
   return get<PaginatedData<ChatMessageItem>>(`/api/v1/chat/${peerId}/messages`, params)
 }
 
-export function sendChatMessage(peerId: string, content: string, noteId?: string) {
-  return post<ChatMessageItem>(`/api/v1/chat/${peerId}/messages`, {
-    content,
-    note_id: noteId,
-  })
+// 聊天消息载荷（text / image / file）
+export interface SendChatPayload {
+  content?: string
+  type?: 'text' | 'image' | 'file'
+  note_id?: string
+  file_name?: string
+  file_path?: string
+  file_size?: number
+  mime_type?: string
+}
+
+export function sendChatMessage(peerId: string, payload: SendChatPayload) {
+  return post<ChatMessageItem>(`/api/v1/chat/${peerId}/messages`, payload)
+}
+
+// 聊天文件上传（返回文件元数据，之后随消息发送）
+export function uploadChatFile(file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return postForm<{ file_name: string; file_path: string; file_size: number; mime_type: string }>(
+    '/api/v1/chat/attachments',
+    formData
+  );
 }
 
 export function markConversationRead(peerId: string) {

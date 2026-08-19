@@ -3,6 +3,7 @@ import {
   ref,
   computed,
   onMounted,
+  onUnmounted,
   h,
   defineComponent,
   type PropType,
@@ -10,6 +11,9 @@ import {
 } from 'vue';
 import type { UserBrief, Department } from '@/types';
 import { getDepartments, getUsers } from '@/services/admin';
+import { useToast } from '@/composables/useToast';
+
+const { warning: toastWarning } = useToast();
 
 const props = withDefaults(
   defineProps<{
@@ -17,11 +21,17 @@ const props = withDefaults(
     multiple?: boolean;
     max?: number;
     dropUp?: boolean;
+    /** 不可选的用户（已在另一处被选择，如已在指派/抄送中），点击将提示且不会勾选 */
+    disabledIds?: string[];
+    /** 禁用用户的提示文案，如「已在抄送人员中」 */
+    disabledNote?: string;
   }>(),
   {
     multiple: true,
     max: 20,
     dropUp: false,
+    disabledIds: () => [],
+    disabledNote: '已被选择',
   }
 );
 
@@ -31,6 +41,7 @@ const emit = defineEmits<{
 
 const open = ref(false);
 const searchText = ref('');
+const rootEl = ref<HTMLElement | null>(null);
 const departments = ref<Department[]>([]);
 const users = ref<UserBrief[]>([]);
 const loading = ref(false);
@@ -73,9 +84,32 @@ async function loadData() {
   }
 }
 
-onMounted(loadData);
+onMounted(() => {
+  loadData();
+  // 点击组件外部空白处关闭下拉列表
+  document.addEventListener('click', onDocClick);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', onDocClick);
+});
+
+function onDocClick(e: MouseEvent) {
+  if (rootEl.value && !rootEl.value.contains(e.target as Node)) {
+    open.value = false;
+  }
+}
+
+function isDisabledUser(userId: string): boolean {
+  return props.disabledIds.includes(userId);
+}
 
 function toggleUser(userId: string) {
+  // 已在另一处选择（如已选为指派/抄送人员）的用户不允许重复选择
+  if (isDisabledUser(userId)) {
+    toastWarning(`该用户${props.disabledNote}，不能重复选择`);
+    return;
+  }
   const current = [...props.modelValue];
   const idx = current.indexOf(userId);
   if (idx >= 0) {
@@ -134,9 +168,9 @@ function collectDeptUserIds(deptId: string): string[] {
   return [...new Set(ids)];
 }
 
-/** 一键全选 / 取消全选某部门下的所有人 */
+/** 一键全选 / 取消全选某部门下的所有人（排除已在另一处选择的禁用用户） */
 function toggleSelectAllDept(deptId: string) {
-  const ids = collectDeptUserIds(deptId);
+  const ids = collectDeptUserIds(deptId).filter((id) => !isDisabledUser(id));
   if (ids.length === 0) return;
   const current = new Set(props.modelValue);
   const allSelected = ids.every((id) => current.has(id));
@@ -163,6 +197,8 @@ const DeptTreeItem: DefineComponent<{
   expandedSet: Set<string>;
   userList: UserBrief[];
   selectedIds: string[];
+  disabledIds: string[];
+  disabledNote: string;
 }> = defineComponent({
   name: 'DeptTreeItem',
   props: {
@@ -170,6 +206,8 @@ const DeptTreeItem: DefineComponent<{
     expandedSet: { type: Object as PropType<Set<string>>, required: true },
     userList: { type: Array as PropType<UserBrief[]>, required: true },
     selectedIds: { type: Array as PropType<string[]>, required: true },
+    disabledIds: { type: Array as PropType<string[]>, required: true },
+    disabledNote: { type: String, required: true },
   },
   emits: ['toggle-dept', 'toggle-user', 'select-all'],
   setup(props, { emit }) {
@@ -207,7 +245,7 @@ const DeptTreeItem: DefineComponent<{
           const isExpanded = props.expandedSet.has(dept.id);
           const directUsers = getDirect(dept.id);
           const hasChildren = dept.children && dept.children.length > 0;
-          const deptUserIds = collectDeptIds(dept);
+          const deptUserIds = collectDeptIds(dept).filter((id) => !props.disabledIds.includes(id));
           const allSel = deptUserIds.length > 0 && deptUserIds.every((id) => isSel(id));
 
           return h('div', { key: dept.id }, [
@@ -274,18 +312,27 @@ const DeptTreeItem: DefineComponent<{
                         expandedSet: props.expandedSet,
                         userList: props.userList,
                         selectedIds: props.selectedIds,
+                        disabledIds: props.disabledIds,
+                        disabledNote: props.disabledNote,
                         'onToggle-dept': onToggleDept,
                         'onToggle-user': onToggleUser,
                         'onSelect-all': onSelectAll,
                       })
                     : null,
 
-                  ...directUsers.map((user) =>
-                    h(
+                  ...directUsers.map((user) => {
+                    const isDisabled = props.disabledIds.includes(user.id);
+                    return h(
                       'button',
                       {
                         type: 'button',
-                        class: `w-full flex items-center gap-3 px-3 py-2 rounded-btn text-sm text-left transition-smooth ${isSel(user.id) ? 'bg-blue-50' : 'hover:bg-slate-50'}`,
+                        class: `w-full flex items-center gap-3 px-3 py-2 rounded-btn text-sm text-left transition-smooth ${
+                          isDisabled
+                            ? 'opacity-40 cursor-not-allowed'
+                            : isSel(user.id)
+                              ? 'bg-blue-50'
+                              : 'hover:bg-slate-50'
+                        }`,
                         onClick: () => onToggleUser(user.id),
                       },
                       [
@@ -305,12 +352,21 @@ const DeptTreeItem: DefineComponent<{
                               '组长'
                             )
                           : null,
-                        isSel(user.id)
-                          ? h('span', { class: 'text-xs text-[#3B82F6] ml-auto' }, '✓')
-                          : null,
+                        isDisabled
+                          ? h(
+                              'span',
+                              {
+                                class:
+                                  'text-[9px] px-1 bg-slate-200 text-slate-500 rounded shrink-0 ml-auto',
+                              },
+                              props.disabledNote
+                            )
+                          : isSel(user.id)
+                            ? h('span', { class: 'text-xs text-[#3B82F6] ml-auto' }, '✓')
+                            : null,
                       ]
-                    )
-                  ),
+                    );
+                  }),
 
                   !hasChildren && directUsers.length === 0
                     ? h('div', { class: 'px-3 py-2 text-xs text-slate-400' }, '暂无人员')
@@ -326,7 +382,7 @@ const DeptTreeItem: DefineComponent<{
 </script>
 
 <template>
-  <div class="relative">
+  <div ref="rootEl" class="relative">
     <div class="flex flex-wrap gap-1.5 mb-1.5">
       <span
         v-for="user in selectedUsers"
@@ -394,7 +450,11 @@ const DeptTreeItem: DefineComponent<{
             type="button"
             :class="[
               'w-full flex items-center gap-3 px-3 py-2.5 rounded-btn text-sm text-left transition-smooth',
-              isSelected(user.id) ? 'bg-blue-50' : 'hover:bg-slate-50',
+              isDisabledUser(user.id)
+                ? 'opacity-40 cursor-not-allowed'
+                : isSelected(user.id)
+                  ? 'bg-blue-50'
+                  : 'hover:bg-slate-50',
             ]"
             @click="toggleUser(user.id)"
           >
@@ -407,7 +467,12 @@ const DeptTreeItem: DefineComponent<{
               <div class="text-sm text-slate-900 truncate">{{ user.name }}</div>
               <div class="text-xs text-slate-400 truncate">{{ user.dept_name }}</div>
             </div>
-            <span v-if="isSelected(user.id)" class="text-xs text-[#3B82F6]">✓</span>
+            <span
+              v-if="isDisabledUser(user.id)"
+              class="text-[9px] px-1 bg-slate-200 text-slate-500 rounded shrink-0"
+              >{{ disabledNote }}</span
+            >
+            <span v-else-if="isSelected(user.id)" class="text-xs text-[#3B82F6]">✓</span>
           </button>
         </div>
         <DeptTreeItem
@@ -416,6 +481,8 @@ const DeptTreeItem: DefineComponent<{
           :expanded-set="expandedDepts"
           :user-list="users"
           :selected-ids="modelValue"
+          :disabled-ids="disabledIds"
+          :disabled-note="disabledNote"
           @toggle-dept="toggleDept"
           @toggle-user="toggleUser"
           @select-all="toggleSelectAllDept"

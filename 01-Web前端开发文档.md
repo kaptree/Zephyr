@@ -102,11 +102,13 @@ Web-Front/src/
 | `/login`                       | Login           | LoginPage          | 公开               | 登录页                      |
 | `/workbench`                   | Workbench       | WorkbenchPage      | 已登录             | ★ 核心页：任务墙 + 专项行动 |
 | `/workbench/archive`           | Archive         | ArchivePage        | 已登录             | 归档查询                    |
+| `/workbench/inspect`           | InspectWorkbench | InspectWorkbenchPage | inspect_user_workbench | ★ 用户工作台（公司领导/超管） |
 | `/workbench/collaboration/:id` | Collaboration   | CollaborationPage  | 已登录             | 协同编辑室                  |
 | `/workbench/groups/:id`        | WorkGroupDetail | GroupDetailPage    | 已登录             | ★ 专项行动详情              |
 | `/analytics`                   | Analytics       | AnalyticsPage      | 已登录             | 工作成效分析                |
 | `/issues`                      | Issues          | IssuesPage         | 已登录             | ★ Bug 反馈列表（GitHub Issues 风格） |
 | `/issues/:id`                  | IssueDetail     | IssueDetailPage    | 已登录             | ★ Bug 反馈详情 + 评论区     |
+| `/chat`                        | Chat            | ChatPage           | 已登录             | ★ 聊天（仿 QQ/微信：会话/通讯录 + emoji + 文件） |
 | `/screen/:id`                  | Screen          | ScreenPage         | 已登录             | 数据大屏                    |
 | `/admin/departments`           | Departments     | DepartmentsPage    | manage_departments | 部门管理                    |
 | `/admin/users`                 | Users           | UsersPage          | manage_users       | 人员管理                    |
@@ -123,6 +125,20 @@ Web-Front/src/
 - 检查 `localStorage` 中 `auth_token` 是否存在
 - `super_admin` 角色跳过权限检查
 - 其他角色需检查路由 `meta.permissions` 与用户权限交集
+
+### 4.3 角色与菜单权限（★ 公司领导）
+
+| 角色 | 说明 | 数据范围 | 系统管理/操作日志 | 用户工作台 |
+| ---- | ---- | -------- | ----------------- | ---------- |
+| `super_admin`    | 系统管理员 | 全局 | ✅ | ✅ |
+| `company_leader` | 公司领导（★ 新增） | 全局（权限大于部门管理员） | ❌ | ✅ |
+| `dept_admin`     | 部门管理员 | 本部门（含子部门） | ❌ | ❌ |
+| `group_leader`   | 组长 | 组内/本人相关 | ❌ | ❌ |
+| `user`           | 普通员工 | 本人相关 | ❌ | ❌ |
+| `screen_role`    | 大屏角色 | 本人相关 | ❌ | ❌ |
+
+- 侧边栏菜单按 `permission` 过滤：公司领导可见「用户工作台」；「系统管理/操作日志」菜单为 `manage_system` 权限（仅 super_admin），公司领导天然不可见
+- 公司领导拥有任务全操作、部门/用户/标签/模板增改、数据大屏与指令权限，但**无删除权限**（删除用户/部门/模板仍为 super_admin 独占）
 
 ---
 
@@ -141,7 +157,8 @@ Web-Front/src/
 **任务 Tab（全部/待办/指派/盯办/已完成）**：
 
 - 任务墙：`grid-cols-[repeat(auto-fill,minmax(280px,1fr))]` 自适应网格
-- 点击任务 → 居中模态框编辑详情（标题/富文本内容/标签/完成归档/盯办）
+- 点击任务 → 居中模态框编辑详情（标题/富文本内容/标签/完成归档/重要/删除）
+- 任务卡片操作栏：`完成并归档` + `重要`（非红色卡片，点击变红）+ `删除`（确认后从工作台移除）（★ 新增，已移除「盯办」按钮）
 - 悬浮 FAB 按钮 → 居中弹窗创建任务（标题/富文本内容/标签/类型/指派人员）
   - 「指派他人」支持**多人勾选**（最多 50 人）：部门树每行带「全选/全不选」按钮，一键选中该部门（含子部门）全部人员；被指派的所有人员都会收到盯办提醒
   - 「指派他人」模式下支持选择工作类型，「一键推荐」基于历史参与数据智能推荐合适人员（可多选）
@@ -211,7 +228,11 @@ Web-Front/src/
 
 ### 5.7 SystemSettingsPage — 系统设置（含 AI 服务配置，★ 新增 dify）
 
-- **Tab 结构**：系统设置 / AI服务配置 / 配置文件管理 / 操作日志
+- **Tab 结构**：系统设置 / AI服务配置 / **聊天文件** / 配置文件管理 / 操作日志
+- **聊天文件 Tab**（★ 新增）：聊天文件传输白名单/黑名单管理
+  - 白名单/黑名单均为 textarea（逗号分隔扩展名），含示例 placeholder 与规则说明（黑名单优先；白名单非空时仅允许白名单；白名单为空时除黑名单外全部放行）
+  - 「保存策略」调用 `PUT /system/chat-file-policy`，成功提示「保存成功，策略已即时生效（热加载）」并刷新显示最近更新时间；「重置」重新加载数据库当前已保存值
+  - 仅 super_admin 可见（系统管理菜单本身即超管权限）
 - **AI 服务配置**：
   - 服务商下拉：OpenAI / DeepSeek / 通义千问 / 智谱AI / **Dify** / 自定义（内置各服务商地址占位与名称自动填充）
   - 新增/编辑表单：服务商、名称、API 地址、API 密钥（已配置密钥脱敏展示）、模型名称、描述、启用状态
@@ -257,18 +278,46 @@ Web-Front/src/
 - 关闭/重开：confirm 确认后调 `PUT /issues/:id/status`，成功后重新加载；关闭权限不足时 alert 后端返回的 message
 - 暗色模式：所有卡片/徽章/输入框均有 `dark:` 配色（slate-800/900 背景、浅色文字）
 
+### 5.12 ChatPage — 聊天（★ 新增，仿 QQ/微信在线聊天）
+
+- 侧边栏「💬 聊天」入口（位于「工作成效分析」与「Bug 反馈」之间），路由 `/chat`，全高左右布局
+- **左侧栏（300px）**：
+  - 顶部：「💬 聊天」标题 + 在线状态徽标（WebSocket 连接状态）+ 搜索框
+  - 「会话 / 通讯录」双 tab：
+    - 会话：最近会话列表（渐变头像 + 姓名 + 最后消息摘要 + 时间 + 红色未读角标 99+），点击打开
+    - 通讯录：全量可见用户列表（姓名 + 部门），支持按姓名/部门搜索，点击发起会话
+- **右侧消息主区**：
+  - 空态：无会话时提示「选择一个好友开始聊天」
+  - 顶部信息条：对方头像 + 姓名 + 在线状态
+  - 消息区：气泡左右分栏（自己蓝色右侧 / 对方白色左侧，圆角 + 小尾巴），顶部滚动自动加载更早历史（分页翻页）；图片消息直接渲染 `<img>`（点击放大预览遮罩）；文件消息渲染文件卡片（图标 + 文件名 + 大小 + 点击下载）
+  - 输入区：工具栏（😊 表情按钮 / 📎 文件按钮）+ emoji 面板（`EmojiPicker`）+ textarea（Enter 发送、Shift+Enter 换行）+ 发送按钮
+- **实时性**：复用全局 WebSocket（`/ws/user/:id`），`store.connectSocket()` 保证通道，收到 `chat:message` 事件自动追加消息 + 刷新会话 + 未读角标
+- 暗色模式：深色容器（slate-800/900/950）+ 浅色文字 + 蓝色气泡不变，配色统一
+
+### 5.13 InspectWorkbenchPage — 用户工作台（★ 新增，公司领导/超管）
+
+- 路由 `/workbench/inspect`，权限 `inspect_user_workbench`（super_admin + company_leader）
+- 顶部**用户搜索选择器**：输入姓名/部门关键词回车展开候选列表（点击外部关闭），选择目标用户后加载其工作台
+- **状态筛选**：待办（含总数）/ 已完成 / 已归档，对应 `GET /notes/users/:userId/workbench?status=active|completed|archived`
+- **任务卡片网格**：复用 StickyNoteCard 视图（来源标签、重要红标、创建人、负责人 + 已签收徽标），数据维度 = 目标用户作为创建人/负责人/被指派人/抄送人的任务
+- 侧边栏入口「🔍 用户工作台」，公司领导可见、部门管理员等无此权限角色自动隐藏
+
 ---
 
 ## 六、核心组件设计
 
 ### 6.1 StickyNoteCard
 
-- **Props**：`note: Note`、`mode: 'desktop' | 'web'`、`archived: boolean`
-- **Events**：`click`、`complete`、`remind`、`restore`
+- **Props**：`note: Note`、`mode: 'desktop' | 'web'`、`archived: boolean`、`editingBy?: string | null`、`extraActions?: boolean`（★ 新增，工作台开启后卡片显示「重要」「删除」按钮）
+- **Events**：`click`、`complete`、`restore`、`export`、`important`（★ 新增）、`delete`（★ 新增）
 - **状态视觉**：
   - 黄色（默认待办）：`#FEF3C7` 底色
-  - 红色（盯办预警）：`#FEE2E2` 底色 + 脉冲动画
+  - 红色（重要/盯办预警）：`#FEE2E2` 底色 + 脉冲动画
   - 绿色（已完成）：`#DCFCE7` 底色
+- **右上角徽章**（★ 新增，需求 18/19/20）：指派任务按视角区分——发起者（当前账号 = `creator_id`）看到浅蓝色卡片 + 蓝色「指派」徽章；接收者看到红色卡片 + 「盯办N」徽章（N 为盯办提醒次数），**签收后变为绿色「已签收」徽章**；**抄送人看到紫色卡片 + 紫色「抄送」徽章**；非指派任务被标记「重要」显示红色 + 「盯办N」；协作任务显示蓝色「协作」徽章
+- **签收统计**（★ 新增，需求 19）：发起者视角的指派卡片底部信息区显示「已签收 x/y / 已全部签收」（绿色高亮，悬停 title 显示已签收人姓名，统计排除发起者 initiator）；接收者视角在详情面板操作区上方显示蓝色「签收任务」按钮（签收后隐藏），发起者不显示
+- **来源标签**（★ 新增，需求 20）：每张卡片标题上方显示来源标签——自己创建（灰色）/ 自己指派（蓝色，发起者看指派任务）/ 上级指派（橙色，接收者看指派任务）/ 任务抄送（紫色，抄送人）/ 协同任务（青色）
+- **操作栏**（★ 新增/调整）：移除「盯办」按钮；新增「重要」按钮（非红色卡片显示，点击置 `color_status='red'` 卡片变红）与「删除」按钮（点击弹出确认框，确认后软删除从工作台移除，可在归档恢复）；**抄送任务卡片仅显示「完成并归档」+「删除」（无「重要」）**；`extraActions` 默认 false，专项工作组详情页/归档页不显示新按钮
 - **内容展开**：超过 100 字显示"展开全文"
 - **标签展示**：最多 2 个胶囊，超出显示 `+N`；`tags` 为 `undefined` 时安全降级
 - **左上角倒计时**（★ 新增）：设定了 `due_time` 的未完成任务，卡片左上角显示「⏱ 剩余 X天X小时 / X小时X分钟 / 已超时 X」，每 30 秒自动刷新；剩余不足 1 小时或已超时显示红色警示徽标；任务完成/归档后自动隐藏
@@ -287,6 +336,8 @@ Web-Front/src/
 - 搜索框加 `@keydown.enter.prevent` 防止触发外层表单提交
 - 支持 `drop-up` 属性控制下拉面板向上/向下展开（弹窗内自动向上避免溢出）
 - 部门树每行提供「全选/全不选」按钮：一键选中该部门及其所有子部门的全部人员（受 `max` 限制）
+- ★ 支持 `disabledIds` + `disabledNote`（bug4 修复）：已在另一处选择（如指派/抄送互斥）的用户显示灰色半透明 + 提示文案，点击弹出警告且不勾选；部门「全选」自动排除禁用用户
+- ★ 点击下拉列表外部空白处自动关闭（bug4 修复：document 级 click 监听，内部点击/「完成」按钮不受影响）
 
 ### 6.4 RichTextEditor
 
@@ -340,6 +391,12 @@ Web-Front/src/
   - 标题 `dark:text-slate-100`、正文 `dark:text-slate-300`、按钮/分隔线/反馈区/水印均补暗色变体
 - 倒计时徽章与盯办/协作徽章加深底色（`amber-700` / `red-600`）提升白字对比度
 - 管理页面（UsersPage / DepartmentsPage / TagsPage / TemplatesPage / ArchivePage / WorkbenchPage）：表格、卡片、按钮、徽章、弹窗、输入框、下拉、文本域等全部补齐 `dark:` 配色
+
+### 6.12 EmojiPicker — 表情选择器（★ 新增）
+
+- 组件 `src/components/chat/EmojiPicker.vue`，`@select` 事件返回所选 emoji
+- 9 个分类 tab：「表情包」+ 笑脸/手势/动物/食物/活动/旅行/物品/符号，`8 列网格`、悬停高亮、面板 300px 宽、分类区 176px 高可滚动
+- 表情包为高频趣味 emoji 组合（😀😂🎉💪 等 40 个），纯 Unicode 实现，内网无外部资源依赖
 
 ---
 

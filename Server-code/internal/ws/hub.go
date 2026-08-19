@@ -3,6 +3,7 @@ package ws
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -68,6 +69,7 @@ func (h *Hub) Run() {
 			h.rooms[client.RoomID][client] = true
 			h.mu.Unlock()
 			h.broadcastPresence(client.RoomID)
+			h.BroadcastPresence()
 
 		case client := <-h.unregister:
 			h.mu.Lock()
@@ -98,6 +100,7 @@ func (h *Hub) Run() {
 			h.mu.Unlock()
 			close(client.Send)
 			h.broadcastPresence(client.RoomID)
+			h.BroadcastPresence()
 
 		case msg := <-h.broadcast:
 			h.mu.RLock()
@@ -156,6 +159,56 @@ func (h *Hub) PushToUser(userID string, data []byte) {
 	select {
 	case h.broadcast <- &Message{RoomID: "user:" + userID, Data: data}:
 	default:
+	}
+}
+
+// IsUserOnline 判断用户是否有活跃的个人 WebSocket 连接
+func (h *Hub) IsUserOnline(userID string) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	clients, ok := h.rooms["user:"+userID]
+	return ok && len(clients) > 0
+}
+
+// OnlineUserIDs 返回当前所有在线用户的 ID 列表
+func (h *Hub) OnlineUserIDs() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	var ids []string
+	for roomID, clients := range h.rooms {
+		if strings.HasPrefix(roomID, "user:") && len(clients) > 0 {
+			ids = append(ids, strings.TrimPrefix(roomID, "user:"))
+		}
+	}
+	return ids
+}
+
+// BroadcastPresence 向所有在线用户广播在线用户列表（用户上线/下线时调用）
+func (h *Hub) BroadcastPresence() {
+	if h == nil {
+		return
+	}
+	ids := h.OnlineUserIDs()
+	if ids == nil {
+		ids = []string{}
+	}
+	presenceData, _ := json.Marshal(map[string]interface{}{
+		"event":      "presence:update",
+		"online_ids": ids,
+	})
+
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for roomID, clients := range h.rooms {
+		if !strings.HasPrefix(roomID, "user:") {
+			continue
+		}
+		for client := range clients {
+			select {
+			case client.Send <- presenceData:
+			default:
+			}
+		}
 	}
 }
 

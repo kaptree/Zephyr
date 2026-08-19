@@ -79,6 +79,14 @@ export async function post<T>(url: string, data?: unknown): Promise<ApiResponse<
   return response.data;
 }
 
+// multipart/form-data 上传（Content-Type 置空，交由浏览器自动带 boundary）
+export async function postForm<T>(url: string, formData: FormData): Promise<ApiResponse<T>> {
+  const response = await api.post<ApiResponse<T>>(url, formData, {
+    headers: { 'Content-Type': undefined },
+  });
+  return response.data;
+}
+
 export async function put<T>(url: string, data?: unknown): Promise<ApiResponse<T>> {
   const response = await api.put<ApiResponse<T>>(url, data);
   return response.data;

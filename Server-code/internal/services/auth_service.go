@@ -187,6 +187,16 @@ func (s *AuthService) getPermissions(role string) []string {
 			"delete_note", "remind", "view_all_archive", "view_dept_archive",
 			"view_group_archive", "manage_departments", "manage_users",
 			"manage_tags", "manage_templates", "access_screen", "send_command",
+			"inspect_user_workbench",
+		}
+	case "company_leader":
+		// 公司领导：权限大于部门管理员（全公司范围），但不需要系统配置与日志管理
+		perms = []string{
+			"create_note_self", "create_note_assigned", "edit_others_note",
+			"delete_note", "remind", "view_all_archive", "view_dept_archive",
+			"view_group_archive", "manage_departments", "manage_users",
+			"manage_tags", "manage_templates", "access_screen", "send_command",
+			"inspect_user_workbench",
 		}
 	case "dept_admin":
 		perms = []string{

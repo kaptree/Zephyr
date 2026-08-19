@@ -11,6 +11,7 @@ import (
 	"labelpro-server/internal/database"
 	"labelpro-server/internal/middleware"
 	"labelpro-server/internal/models"
+	"labelpro-server/internal/services"
 	"labelpro-server/internal/utils"
 
 	"github.com/gin-gonic/gin"
@@ -191,6 +192,80 @@ func (h *UploadHandler) DeleteAttachment(c *gin.Context) {
 	}
 
 	utils.SuccessWithMessage(c, "附件已删除", nil)
+}
+
+// UploadChatFile 聊天文件上传（独立于便签，仅返回文件元数据，不落库）
+// 策略：白名单/黑名单由管理员在系统设置中维护（chat_file_policies 表），保存后热加载
+func (h *UploadHandler) UploadChatFile(c *gin.Context) {
+	if c.Request.ContentLength > maxFileSize {
+		utils.BadRequest(c, fmt.Sprintf("文件大小超过限制，最大允许 %dMB", maxFileSize/(1024*1024)))
+		return
+	}
+
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		utils.BadRequest(c, "请选择要上传的文件")
+		return
+	}
+	defer file.Close()
+
+	if header.Size > maxFileSize {
+		utils.BadRequest(c, fmt.Sprintf("文件大小超过限制，最大允许 %dMB", maxFileSize/(1024*1024)))
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	policy := services.GetFilePolicyService()
+	if policy != nil && !policy.IsAllowed(ext) {
+		utils.BadRequest(c, fmt.Sprintf("该文件格式（%s）不在允许范围内，已由管理员禁用", ext))
+		return
+	}
+
+	mimeType := detectChatMimeType(file, header, ext)
+
+	if err := os.MkdirAll(uploadBasePath, 0755); err != nil {
+		utils.InternalError(c, "创建上传目录失败")
+		return
+	}
+
+	savedName := uuid.New().String() + ext
+	savePath := filepath.Join(uploadBasePath, savedName)
+
+	dst, err := os.Create(savePath)
+	if err != nil {
+		utils.InternalError(c, "保存文件失败")
+		return
+	}
+	defer dst.Close()
+
+	written, err := io.Copy(dst, file)
+	if err != nil {
+		os.Remove(savePath)
+		utils.InternalError(c, "写入文件失败")
+		return
+	}
+
+	utils.Created(c, gin.H{
+		"file_name": header.Filename,
+		"file_path": "/" + savePath,
+		"file_size": written,
+		"mime_type": mimeType,
+	})
+}
+
+// detectChatMimeType 聊天文件 MIME 检测：图片精确识别（决定 image 消息），其余取 header 或通用类型
+func detectChatMimeType(file multipart.File, header *multipart.FileHeader, ext string) string {
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp":
+		if mt := detectMimeType(file, header); mt != "" {
+			return mt
+		}
+		return "image/" + strings.TrimPrefix(ext, ".")
+	}
+	if ct := header.Header.Get("Content-Type"); ct != "" && !strings.HasPrefix(ct, "application/octet-stream") {
+		return ct
+	}
+	return "application/octet-stream"
 }
 
 func detectMimeType(file multipart.File, header *multipart.FileHeader) string {

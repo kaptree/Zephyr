@@ -1,4 +1,10 @@
-export type Role = 'super_admin' | 'dept_admin' | 'group_leader' | 'user' | 'screen_role'
+export type Role =
+  | 'super_admin'
+  | 'company_leader'
+  | 'dept_admin'
+  | 'group_leader'
+  | 'user'
+  | 'screen_role'
 
 export type Permission =
   | 'create_note_self'
@@ -16,6 +22,7 @@ export type Permission =
   | 'access_screen'
   | 'send_command'
   | 'manage_system'
+  | 'inspect_user_workbench'
 
 export interface User {
   id: string

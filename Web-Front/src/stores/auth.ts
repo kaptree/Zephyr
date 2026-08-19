@@ -27,6 +27,9 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isLoggedIn = computed(() => !!token.value && !!user.value)
   const isAdmin = computed(() => user.value?.role === 'super_admin')
+  const isCompanyLeader = computed(
+    () => user.value?.role === 'company_leader' || user.value?.role === 'super_admin'
+  )
   const isDeptAdmin = computed(() => user.value?.role === 'dept_admin' || user.value?.role === 'super_admin')
   const isGroupLeader = computed(() => user.value?.role === 'group_leader' || isDeptAdmin.value || isAdmin.value)
   const canCreateForOthers = computed(() => permissions.value.includes('create_note_assigned'))
@@ -40,6 +43,13 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function login(credentials: LoginCredentials) {
+    // 切换账号前先关闭旧账号的 WebSocket，避免旧连接残留导致在线状态不准确
+    try {
+      const { useNotificationStore } = await import('./notification')
+      useNotificationStore().disconnect()
+    } catch {
+      /* ignore */
+    }
     const res = await loginApi(credentials)
     applyUser(res.data.user, res.data.access_token)
   }
@@ -63,12 +73,19 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function logout() {
+  async function logout() {
     token.value = ''
     user.value = null
     permissions.value = []
     localStorage.removeItem('auth_token')
     localStorage.removeItem('auth_user')
+    // 关闭 WebSocket：登出后立即从在线列表移除，避免被误判为在线
+    try {
+      const { useNotificationStore } = await import('./notification')
+      useNotificationStore().disconnect()
+    } catch {
+      /* ignore */
+    }
   }
 
   return {
@@ -77,6 +94,7 @@ export const useAuthStore = defineStore('auth', () => {
     permissions,
     isLoggedIn,
     isAdmin,
+    isCompanyLeader,
     isDeptAdmin,
     isGroupLeader,
     canCreateForOthers,

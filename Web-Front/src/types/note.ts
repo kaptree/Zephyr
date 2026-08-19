@@ -4,15 +4,26 @@ import type { UserBrief } from './user'
 export type NoteStatus = 'active' | 'completed' | 'archived'
 export type NoteSourceType = 'self' | 'assigned' | 'collaboration'
 
-/** 任务被指派人（含反馈填报信息） */
+/** 任务被指派人（含签收与反馈填报信息） */
 export interface NoteAssignee {
   note_id: string
   user_id: string
   user?: UserBrief
   role_in_note: string
+  /** 签收状态：unsigned 未签收 / signed 已签收（默认 unsigned） */
+  sign_status?: 'unsigned' | 'signed'
+  signed_at?: string
   feedback_content?: string
   feedback_at?: string
   is_read: boolean
+}
+
+/** 任务抄送人：创建任务时多选抄送，抄送人仅查看（紫色卡片 +「抄送」徽章） */
+export interface NoteCc {
+  note_id: string
+  user_id: string
+  user?: UserBrief
+  created_at?: string
 }
 
 export interface Note {
@@ -23,9 +34,15 @@ export interface Note {
   source_type: NoteSourceType
   owner_id: string
   creator_id: string
+  /** 创建人（后端 List/FindByID 已预加载，json: creator） */
+  creator?: { id: string; name: string }
+  /** 负责人（后端 List/FindByID 已预加载，json: owner） */
+  owner?: { id: string; name: string }
   is_archived: boolean
   tags: Tag[]
   assignees: NoteAssignee[]
+  /** 抄送人列表（需求20） */
+  ccs?: NoteCc[]
   group_id?: string
   dept_id?: string
   template_type?: string

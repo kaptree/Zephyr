@@ -21,9 +21,12 @@ function normalizeNote(raw: BackendNote): Note {
     source_type: (raw.source_type as Note['source_type']) || 'self',
     owner_id: raw.owner_id || '',
     creator_id: raw.creator_id || '',
+    creator: raw.creator as Note['creator'],
+    owner: raw.owner as Note['owner'],
     is_archived: !!raw.is_archived,
     tags: (raw.tags || []) as Note['tags'],
     assignees: (raw.assignees || []) as Note['assignees'],
+    ccs: raw.ccs as Note['ccs'],
     group_id: raw.group_id as string | undefined,
     dept_id: raw.dept_id as string | undefined,
     template_type: raw.template_type as string | undefined,
@@ -172,6 +175,16 @@ export const useNoteStore = defineStore('notes', () => {
     }
   }
 
+  async function signNote(id: string) {
+    const res = await noteService.signNote(id);
+    const note = normalizeNote(res.data as unknown as BackendNote);
+    const index = activeNotes.value.findIndex((n) => n.id === id);
+    if (index !== -1) {
+      activeNotes.value[index] = note;
+    }
+    return note;
+  }
+
   async function archiveNote(id: string) {
     await noteService.archiveNote(id);
     activeNotes.value = activeNotes.value.filter((n) => n.id !== id);
@@ -222,6 +235,7 @@ export const useNoteStore = defineStore('notes', () => {
     updateNoteTags,
     completeNote,
     remindNote,
+    signNote,
     archiveNote,
     restoreNote,
     fetchArchivedNotes,

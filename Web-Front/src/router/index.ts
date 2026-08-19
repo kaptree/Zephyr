@@ -30,6 +30,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '归档查询' },
       },
       {
+        path: 'inspect',
+        name: 'InspectWorkbench',
+        component: () => import('@/pages/InspectWorkbenchPage.vue'),
+        meta: { title: '用户工作台', permissions: ['inspect_user_workbench'] },
+      },
+      {
         path: 'collaboration/:id',
         name: 'Collaboration',
         component: () => import('@/pages/CollaborationPage.vue'),
@@ -103,6 +109,19 @@ const routes: RouteRecordRaw[] = [
         name: 'IssueDetail',
         component: () => import('@/pages/IssueDetailPage.vue'),
         meta: { title: '问题详情' },
+      },
+    ],
+  },
+  {
+    path: '/chat',
+    component: () => import('@/layouts/AdminLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        name: 'Chat',
+        component: () => import('@/pages/ChatPage.vue'),
+        meta: { title: '聊天' },
       },
     ],
   },

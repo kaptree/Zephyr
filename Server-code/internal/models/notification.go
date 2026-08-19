@@ -32,7 +32,12 @@ type ChatMessage struct {
 	SenderID   uuid.UUID  `gorm:"type:uuid;index" json:"sender_id"`
 	ReceiverID uuid.UUID `gorm:"type:uuid;index" json:"receiver_id"`
 	NoteID     *uuid.UUID `gorm:"type:uuid" json:"note_id"`
+	Type       string     `gorm:"type:varchar(20);default:'text';index" json:"type"` // text 文本 / image 图片 / file 文件
 	Content    string     `gorm:"type:text" json:"content"`
+	FileName   string     `gorm:"type:varchar(255)" json:"file_name"`
+	FilePath   string     `gorm:"type:varchar(500)" json:"file_path"`
+	FileSize   int64      `gorm:"default:0" json:"file_size"`
+	MimeType   string     `gorm:"type:varchar(100)" json:"mime_type"`
 	IsRead     bool       `gorm:"default:false;index" json:"is_read"`
 	ReadAt     *time.Time `json:"read_at"`
 	CreatedAt  time.Time  `json:"created_at"`

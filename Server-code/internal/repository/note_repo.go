@@ -52,7 +52,8 @@ func (r *NoteRepository) List(filter NoteFilter, scope NoteScope) ([]models.Note
 		Preload("Creator").
 		Preload("Owner").
 		Preload("Department").
-		Preload("Assignees.User")
+		Preload("Assignees.User").
+		Preload("Ccs.User")
 
 	switch filter.Status {
 	case "archived":
@@ -104,15 +105,20 @@ func (r *NoteRepository) List(filter NoteFilter, scope NoteScope) ([]models.Note
 
 	switch scope.Role {
 	case "dept_admin":
-		// 部门管理员：仅本部门（含子部门）任务可见
+		// 部门管理员：本部门（含子部门）任务 + 与自己相关（创建/负责/被指派/抄送）的任务
+		// 修复 Bug2：跨部门指派的被指派人（如系统管理员派给部门管理员）能收到通知
+		// 但此前列表仅按部门过滤导致不显示；此处与 CheckUserAccess 语义保持一致
 		subDeptIDs, _ := r.getSubDeptIDs(scope.DepartmentID)
-		query = query.Where("notes.department_id IN ?", subDeptIDs)
+		query = query.Where(
+			"notes.department_id IN ? OR notes.creator_id = ? OR notes.owner_id = ? OR notes.id IN (SELECT note_id FROM note_assignees WHERE user_id = ?) OR notes.id IN (SELECT note_id FROM note_ccs WHERE user_id = ?)",
+			subDeptIDs, scope.UserID, scope.UserID, scope.UserID, scope.UserID,
+		)
 	default:
 		// super_admin / group_leader / 普通用户统一按「与自己相关」过滤：
-		// 创建人 / 负责人 / 被指派人，防止管理员看到所有人员的任务
+		// 创建人 / 负责人 / 被指派人 / 抄送人，防止管理员看到所有人员的任务
 		query = query.Where(
-			"notes.creator_id = ? OR notes.owner_id = ? OR notes.id IN (SELECT note_id FROM note_assignees WHERE user_id = ?)",
-			scope.UserID, scope.UserID, scope.UserID,
+			"notes.creator_id = ? OR notes.owner_id = ? OR notes.id IN (SELECT note_id FROM note_assignees WHERE user_id = ?) OR notes.id IN (SELECT note_id FROM note_ccs WHERE user_id = ?)",
+			scope.UserID, scope.UserID, scope.UserID, scope.UserID,
 		)
 	}
 
@@ -141,6 +147,39 @@ func (r *NoteRepository) List(filter NoteFilter, scope NoteScope) ([]models.Note
 	return notes, total, nil
 }
 
+// ListUserNotesForInspect 查询指定用户（创建人/负责人/被指派人/抄送人）的任务，
+// 供公司领导/super_admin 在「用户工作台」板块查看对应用户的工作台内容（不受查看者自身范围限制）
+func (r *NoteRepository) ListUserNotesForInspect(targetUserID, status string) ([]models.Note, int64, error) {
+	var notes []models.Note
+	var total int64
+
+	query := r.db.Model(&models.Note{}).
+		Preload("Tags").
+		Preload("Creator").
+		Preload("Owner").
+		Preload("Assignees.User").
+		Preload("Ccs.User").
+		Where("(creator_id = ? OR owner_id = ? OR id IN (SELECT note_id FROM note_assignees WHERE user_id = ?) OR id IN (SELECT note_id FROM note_ccs WHERE user_id = ?))",
+			targetUserID, targetUserID, targetUserID, targetUserID)
+
+	switch status {
+	case "archived":
+		query = query.Where("is_archived = ?", true)
+	case "completed":
+		query = query.Where("color_status = ?", "green")
+	default:
+		query = query.Where("is_archived = ?", false)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := query.Order("created_at DESC").Find(&notes).Error; err != nil {
+		return nil, 0, err
+	}
+	return notes, total, nil
+}
+
 func (r *NoteRepository) FindByID(id string) (*models.Note, error) {
 	var note models.Note
 	err := r.db.
@@ -149,6 +188,7 @@ func (r *NoteRepository) FindByID(id string) (*models.Note, error) {
 		Preload("Owner").
 		Preload("Department").
 		Preload("Assignees.User").
+		Preload("Ccs.User").
 		Preload("Attachments").
 		Preload("Group.Members.User").
 		Preload("Reminders.Reminder").
@@ -284,6 +324,17 @@ func (r *NoteRepository) GetAssigneeFeedback(noteID, userID string) (string, err
 	return a.FeedbackContent, nil
 }
 
+// UpdateAssigneeSign 更新被指派人的任务签收状态
+func (r *NoteRepository) UpdateAssigneeSign(noteID, userID string) error {
+	now := time.Now()
+	return r.db.Model(&models.NoteAssignee{}).
+		Where("note_id = ? AND user_id = ?", noteID, userID).
+		Updates(map[string]interface{}{
+			"sign_status": "signed",
+			"signed_at":   now,
+		}).Error
+}
+
 // GetNoteCreatorID 获取任务发起人 ID
 func (r *NoteRepository) GetNoteCreatorID(noteID string) (string, error) {
 	var n models.Note
@@ -293,13 +344,28 @@ func (r *NoteRepository) GetNoteCreatorID(noteID string) (string, error) {
 	return n.CreatorID.String(), nil
 }
 
-// CheckUserAccess 判断用户是否有权访问该任务：
-//   - 创建人 / 负责人 / 被指派人 始终可访问
+// CheckUserAccess 判断用户是否有权查看任务（含抄送人）：
+//   - 创建人 / 负责人 / 被指派人 / 抄送人 始终可访问
 //   - dept_admin（部门管理员）可访问本部门（含子部门）的任务，与列表可见范围保持一致
 func (r *NoteRepository) CheckUserAccess(noteID, userID, role, deptID string) (bool, error) {
+	return r.checkAccess(noteID, userID, role, deptID, true)
+}
+
+// CheckParticipantAccess 判断用户是否有权管理任务（排除抄送人）：
+// 抄送人仅可查看，不能编辑/删除/完成/盯办
+func (r *NoteRepository) CheckParticipantAccess(noteID, userID, role, deptID string) (bool, error) {
+	return r.checkAccess(noteID, userID, role, deptID, false)
+}
+
+func (r *NoteRepository) checkAccess(noteID, userID, role, deptID string, includeCc bool) (bool, error) {
 	var note models.Note
 	if err := r.db.Select("creator_id", "owner_id", "department_id").First(&note, "id = ?", noteID).Error; err != nil {
 		return false, err
+	}
+
+	// 公司领导（company_leader）：权限大于部门管理员，可访问全公司任意任务
+	if role == "company_leader" {
+		return true, nil
 	}
 
 	if note.CreatorID.String() == userID || note.OwnerID.String() == userID {
@@ -316,6 +382,18 @@ func (r *NoteRepository) CheckUserAccess(noteID, userID, role, deptID string) (b
 		return true, nil
 	}
 
+	if includeCc {
+		var ccCount int64
+		if err := r.db.Model(&models.NoteCc{}).
+			Where("note_id = ? AND user_id = ?", noteID, userID).
+			Count(&ccCount).Error; err != nil {
+			return false, err
+		}
+		if ccCount > 0 {
+			return true, nil
+		}
+	}
+
 	if role == "dept_admin" && deptID != "" && note.DepartmentID != nil {
 		subDeptIDs, _ := r.getSubDeptIDs(deptID)
 		for _, sid := range subDeptIDs {
@@ -326,6 +404,16 @@ func (r *NoteRepository) CheckUserAccess(noteID, userID, role, deptID string) (b
 	}
 
 	return false, nil
+}
+
+// IsParticipant 判断用户是否为任务的参与者（创建人/负责人/被指派人，不含抄送人）
+func (r *NoteRepository) IsParticipant(noteID, userID string) (bool, error) {
+	var count int64
+	err := r.db.Model(&models.Note{}).
+		Where("id = ? AND (creator_id = ? OR owner_id = ? OR EXISTS (SELECT 1 FROM note_assignees WHERE note_id = notes.id AND user_id = ?))",
+			noteID, userID, userID, userID).
+		Count(&count).Error
+	return count > 0, err
 }
 
 func (r *NoteRepository) getSubDeptIDs(deptID string) ([]string, error) {

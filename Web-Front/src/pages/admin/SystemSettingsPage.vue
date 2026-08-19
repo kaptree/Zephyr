@@ -13,6 +13,8 @@ import {
   updateConfigFile,
   getConfigFileHistory,
   listAdminLogs,
+  getChatFilePolicy,
+  updateChatFilePolicy,
 } from '@/services/system'
 import type {
   AIConfigItem,
@@ -27,14 +29,67 @@ const safeObj = (v: unknown): Record<string, unknown> => {
   return (v && typeof v === 'object' && !Array.isArray(v)) ? v as Record<string, unknown> : {}
 }
 
-const activeTab = ref<'config' | 'ai' | 'files' | 'logs'>('config')
+const activeTab = ref<'config' | 'ai' | 'files' | 'logs' | 'chatfile'>('config')
 
 const tabs = [
   { key: 'config' as const, label: '系统设置', icon: '⚙️' },
   { key: 'ai' as const, label: 'AI服务配置', icon: '🤖' },
+  { key: 'chatfile' as const, label: '聊天文件', icon: '📎' },
   { key: 'files' as const, label: '配置文件管理', icon: '📂' },
   { key: 'logs' as const, label: '操作日志', icon: '📋' },
 ]
+
+// ===== 聊天文件传输策略 Tab =====
+const filePolicy = ref<{ allow_extensions: string; blocked_extensions: string }>({
+  allow_extensions: '',
+  blocked_extensions: '',
+})
+const filePolicyLoading = ref(false)
+const filePolicySaving = ref(false)
+const filePolicyToast = ref<{ type: 'success' | 'error'; message: string } | null>(null)
+const filePolicyUpdatedAt = ref('')
+
+async function loadFilePolicy() {
+  filePolicyLoading.value = true
+  try {
+    const res = await getChatFilePolicy()
+    const data = res.data as unknown as {
+      allow_extensions: string
+      blocked_extensions: string
+      updated_at: string
+    }
+    filePolicy.value = {
+      allow_extensions: data.allow_extensions || '',
+      blocked_extensions: data.blocked_extensions || '',
+    }
+    filePolicyUpdatedAt.value = data.updated_at || ''
+  } catch {
+    filePolicyToast.value = { type: 'error', message: '加载聊天文件策略失败' }
+    setTimeout(() => (filePolicyToast.value = null), 3000)
+  } finally {
+    filePolicyLoading.value = false
+  }
+}
+
+async function saveFilePolicy() {
+  if (filePolicySaving.value) return
+  filePolicySaving.value = true
+  try {
+    await updateChatFilePolicy({
+      allow_extensions: filePolicy.value.allow_extensions,
+      blocked_extensions: filePolicy.value.blocked_extensions,
+    })
+    filePolicyToast.value = { type: 'success', message: '保存成功，策略已即时生效（热加载）' }
+    setTimeout(() => (filePolicyToast.value = null), 3000)
+    await loadFilePolicy()
+  } catch {
+    filePolicyToast.value = { type: 'error', message: '保存失败，请检查输入格式' }
+    setTimeout(() => (filePolicyToast.value = null), 3000)
+  } finally {
+    filePolicySaving.value = false
+  }
+}
+
 
 // ===== 系统设置 Tab =====
 const systemConfig = ref<Record<string, unknown>>({})
@@ -472,6 +527,7 @@ onMounted(() => {
   loadAIConfigs()
   loadConfigFiles()
   loadAdminLogs()
+  loadFilePolicy()
 })
 </script>
 
@@ -766,6 +822,87 @@ onMounted(() => {
             </div>
           </div>
         </Teleport>
+      </div>
+
+      <!-- ===== 聊天文件传输策略 Tab ===== -->
+      <div v-if="activeTab === 'chatfile'" class="max-w-3xl">
+        <div
+          v-if="filePolicyToast"
+          :class="[
+            'mb-4 px-4 py-3 rounded-lg text-sm flex items-center gap-2',
+            filePolicyToast.type === 'success' ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800'
+          ]"
+        >
+          <span>{{ filePolicyToast.type === 'success' ? '✅' : '❌' }}</span>
+          <span>{{ filePolicyToast.message }}</span>
+        </div>
+
+        <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-card p-6">
+          <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">📎 聊天文件传输策略</h3>
+          <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">
+            控制聊天中可发送的文件格式，保存后<span class="text-blue-500 font-medium">立即生效（热加载）</span>，无需重启服务。扩展名以逗号分隔，如
+            <code class="text-[10px] bg-slate-100 dark:bg-slate-700 px-1 py-0.5 rounded">.png,.jpg,.zip,.pdf</code>
+          </p>
+          <p v-if="filePolicyUpdatedAt" class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+            最近更新：{{ new Date(filePolicyUpdatedAt).toLocaleString('zh-CN') }}
+          </p>
+
+          <div v-if="filePolicyLoading" class="py-10 text-center text-sm text-slate-400">加载中...</div>
+
+          <template v-else>
+            <div class="mt-5">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-sm font-medium text-slate-700 dark:text-slate-200">白名单（允许格式）</span>
+                <span class="text-[10px] text-slate-400">留空 = 不限制，仅黑名单拦截</span>
+              </div>
+              <textarea
+                v-model="filePolicy.allow_extensions"
+                rows="3"
+                class="input-field resize-none font-mono text-xs"
+                placeholder="例：.png,.jpg,.jpeg,.gif,.webp,.zip,.rar,.7z,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.mp4,.mp3,.txt"
+              ></textarea>
+            </div>
+
+            <div class="mt-4">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-sm font-medium text-slate-700 dark:text-slate-200">黑名单（禁用格式）</span>
+                <span class="text-[10px] text-slate-400">命中即拒绝；黑名单优先于白名单</span>
+              </div>
+              <textarea
+                v-model="filePolicy.blocked_extensions"
+                rows="3"
+                class="input-field resize-none font-mono text-xs"
+                placeholder="例：.exe,.bat,.cmd,.com,.scr,.msi,.ps1,.vbs,.js,.jar,.dll,.sys,.sh,.html,.svg"
+              ></textarea>
+            </div>
+
+            <div class="flex items-center gap-3 mt-5">
+              <button
+                class="btn-primary text-sm !py-2 !px-5 disabled:opacity-50"
+                :disabled="filePolicySaving"
+                @click="saveFilePolicy"
+              >
+                {{ filePolicySaving ? '保存中...' : '保存策略' }}
+              </button>
+              <button
+                class="btn-secondary text-sm !py-2 !px-5"
+                @click="loadFilePolicy"
+              >
+                重置
+              </button>
+            </div>
+
+            <div class="mt-5 pt-4 border-t border-slate-100 dark:border-slate-700">
+              <p class="text-xs text-slate-500 dark:text-slate-400 font-medium mb-2">判断规则</p>
+              <ul class="text-[11px] text-slate-400 dark:text-slate-500 space-y-1 leading-relaxed">
+                <li>① 先检查黑名单：命中黑名单的格式一律拒绝；</li>
+                <li>② 若白名单非空：只有白名单内的格式允许发送；</li>
+                <li>③ 若白名单为空：除黑名单外的所有格式均允许发送（推荐）。</li>
+                <li>图片格式（png/jpg/jpeg/gif/webp）在聊天记录中直接显示图片，其余格式显示文件卡片。</li>
+              </ul>
+            </div>
+          </template>
+        </div>
       </div>
 
       <!-- ===== 配置文件管理 Tab ===== -->

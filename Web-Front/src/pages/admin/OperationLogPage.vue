@@ -90,9 +90,11 @@ function formatTime(dateStr: string): string {
 
 const roleLabels: Record<string, string> = {
   super_admin: '超级管理员',
+  company_leader: '公司领导',
   dept_admin: '部门管理员',
   group_leader: '组长',
   member: '普通用户',
+  user: '普通用户',
 };
 
 const actionLabels: Record<string, string> = {
@@ -107,6 +109,7 @@ const actionLabels: Record<string, string> = {
   update_note: '编辑任务',
   complete_note: '完成并归档',
   remind_note: '盯办提醒',
+  sign_note: '任务签收',
   restore_note: '恢复任务',
   delete_note: '删除任务',
   feedback_note: '提交任务反馈',
@@ -150,6 +153,7 @@ const actionLabels: Record<string, string> = {
   mark_conversation_read: '标记会话已读',
   acknowledge_reminder: '确认到期提醒',
   update_system_config: '更新系统配置',
+  update_chat_file_policy: '更新聊天文件策略',
   test_ai_config: '测试AI配置连通',
   create_ai_config: '创建AI配置',
   update_ai_config: '更新AI配置',
@@ -159,6 +163,7 @@ const actionLabels: Record<string, string> = {
   create_issue: '创建问题反馈',
   add_issue_comment: '反馈问题评论',
   update_issue_status: '关闭/重开问题',
+  upload_chat_attachment: '发送聊天文件',
 };
 
 function statusClass(code: number): string {

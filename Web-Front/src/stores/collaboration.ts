@@ -26,8 +26,9 @@ export const useCollaborationStore = defineStore('collaboration', () => {
     roomId.value = id
     syncStatus.value = 'connecting'
 
-    const wsUrl = import.meta.env.VITE_WS_URL || 'http://localhost:8080'
-    socket = io(`${wsUrl}/ws/notes/${id}`, {
+    // 内网部署：VITE_WS_URL 留空时同源连接（避免回退到本机 8080 产生无效请求）
+    const wsUrl = import.meta.env.VITE_WS_URL || ''
+    socket = io(wsUrl ? `${wsUrl}/ws/notes/${id}` : `/ws/notes/${id}`, {
       auth: { token: localStorage.getItem('auth_token') },
       transports: ['websocket', 'polling'],
     })

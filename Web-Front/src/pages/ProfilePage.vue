@@ -168,6 +168,7 @@ function fmtNum(n: number): string {
 const roleLabel = computed(() => {
   const map: Record<string, string> = {
     super_admin: '系统管理员',
+    company_leader: '公司领导',
     dept_admin: '部门管理员',
     group_leader: '组长',
     user: '普通员工',

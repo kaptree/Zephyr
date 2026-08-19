@@ -155,6 +155,8 @@ func parseOperation(path, method string) (action, resource, resourceID, detail s
 			return "complete_note", "note", secondID(), "完成并归档"
 		case method == "POST" && lastPart == "remind":
 			return "remind_note", "note", secondID(), "盯办提醒"
+		case method == "POST" && lastPart == "sign":
+			return "sign_note", "note", secondID(), "任务签收"
 		case method == "POST" && lastPart == "restore":
 			return "restore_note", "note", secondID(), "恢复任务"
 		case method == "POST" && lastPart == "feedback":
@@ -273,6 +275,8 @@ func parseOperation(path, method string) (action, resource, resourceID, detail s
 
 	case strings.HasPrefix(path, "chat"):
 		switch {
+		case method == "POST" && lastPart == "attachments":
+			return "upload_chat_attachment", "chat_attachment", "", "发送聊天文件"
 		case method == "POST" && lastPart == "messages":
 			return "send_message", "chat_message", secondID(), "发送聊天消息"
 		case method == "POST" && lastPart == "read":

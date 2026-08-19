@@ -114,10 +114,35 @@ func (s *NotificationService) ListMessages(userID, peerID string, page, pageSize
 	return s.chatRepo.ListMessages(userID, peerID, page, pageSize)
 }
 
-func (s *NotificationService) SendMessage(userID, peerID, content string, noteID *uuid.UUID) (*models.ChatMessage, error) {
-	if content == "" {
+// ChatMessagePayload 聊天消息载荷（支持文本 / 图片 / 文件）
+type ChatMessagePayload struct {
+	Type     string // text / image / file
+	Content  string
+	NoteID   *uuid.UUID
+	FileName string
+	FilePath string
+	FileSize int64
+	MimeType string
+}
+
+func (s *NotificationService) SendMessage(userID, peerID string, p ChatMessagePayload) (*models.ChatMessage, error) {
+	msgType := p.Type
+	if msgType == "" {
+		msgType = "text"
+	}
+	switch msgType {
+	case "text":
+		if p.Content == "" {
+			return nil, apperrors.ErrInvalidChatContent
+		}
+	case "image", "file":
+		if p.FilePath == "" {
+			return nil, apperrors.ErrInvalidChatContent
+		}
+	default:
 		return nil, apperrors.ErrInvalidChatContent
 	}
+
 	senderUUID, err := uuid.Parse(userID)
 	if err != nil {
 		return nil, err
@@ -129,8 +154,13 @@ func (s *NotificationService) SendMessage(userID, peerID, content string, noteID
 	msg := &models.ChatMessage{
 		SenderID:   senderUUID,
 		ReceiverID: receiverUUID,
-		Content:    content,
-		NoteID:     noteID,
+		Type:       msgType,
+		Content:    p.Content,
+		NoteID:     p.NoteID,
+		FileName:   p.FileName,
+		FilePath:   p.FilePath,
+		FileSize:   p.FileSize,
+		MimeType:   p.MimeType,
 		CreatedAt:  time.Now(),
 	}
 	if err := s.chatRepo.Create(msg); err != nil {
@@ -146,7 +176,12 @@ func (s *NotificationService) SendMessage(userID, peerID, content string, noteID
 				"sender_id":   msg.SenderID,
 				"receiver_id": msg.ReceiverID,
 				"note_id":     msg.NoteID,
+				"type":        msg.Type,
 				"content":     msg.Content,
+				"file_name":   msg.FileName,
+				"file_path":   msg.FilePath,
+				"file_size":   msg.FileSize,
+				"mime_type":   msg.MimeType,
 				"is_read":     msg.IsRead,
 				"created_at":  msg.CreatedAt,
 			},
@@ -157,7 +192,19 @@ func (s *NotificationService) SendMessage(userID, peerID, content string, noteID
 }
 
 func (s *NotificationService) MarkConversationRead(userID, peerID string) error {
-	return s.chatRepo.MarkConversationRead(userID, peerID)
+	if err := s.chatRepo.MarkConversationRead(userID, peerID); err != nil {
+		return err
+	}
+	// 实时告知对方：我已读你的消息（已读回执，发送方前端据此显示「已读」）
+	if s.hub != nil {
+		payload, _ := json.Marshal(map[string]interface{}{
+			"event":     "chat:read",
+			"reader_id": userID,
+			"read_at":   time.Now(),
+		})
+		s.hub.PushToUser(peerID, payload)
+	}
+	return nil
 }
 
 // ---------------- 盯办提醒 ----------------

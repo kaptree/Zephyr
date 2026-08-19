@@ -21,6 +21,8 @@ const TYPE_LABEL: Record<string, string> = {
   task_completed: '任务完成',
   task_feedback: '任务反馈',
   task_remind: '催办提醒',
+  task_cc: '任务抄送',
+  task_signed: '任务签收',
   system: '系统通知',
 };
 
@@ -29,6 +31,8 @@ const TYPE_COLOR: Record<string, string> = {
   task_completed: 'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-300',
   task_feedback: 'bg-violet-100 text-violet-600 dark:bg-violet-900/40 dark:text-violet-300',
   task_remind: 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300',
+  task_cc: 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300',
+  task_signed: 'bg-teal-100 text-teal-600 dark:bg-teal-900/40 dark:text-teal-300',
   system: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
 };
 

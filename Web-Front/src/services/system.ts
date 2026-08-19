@@ -9,6 +9,7 @@ import type {
   ConfigFileHistoryItem,
   AdminLogItem,
   OperationLogItem,
+  ChatFilePolicy,
 } from '@/types/system'
 
 export function getSystemConfig(): Promise<ApiResponse<Record<string, unknown>>> {
@@ -81,4 +82,15 @@ export function listOperationLogs(query: OperationLogQuery): Promise<ApiResponse
 
 export function getOperationActions(): Promise<ApiResponse<string[]>> {
   return get('/api/v1/system/operations/actions')
+}
+
+export function getChatFilePolicy(): Promise<ApiResponse<ChatFilePolicy>> {
+  return get('/api/v1/system/chat-file-policy')
+}
+
+export function updateChatFilePolicy(data: {
+  allow_extensions: string
+  blocked_extensions: string
+}): Promise<ApiResponse<{ success: boolean }>> {
+  return put('/api/v1/system/chat-file-policy', data)
 }

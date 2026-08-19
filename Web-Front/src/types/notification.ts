@@ -23,7 +23,12 @@ export interface ChatMessageItem {
   sender_id: string
   receiver_id: string
   note_id?: string
+  type: 'text' | 'image' | 'file'
   content: string
+  file_name?: string
+  file_path?: string
+  file_size?: number
+  mime_type?: string
   is_read: boolean
   read_at?: string
   created_at: string
@@ -34,6 +39,7 @@ export interface ConversationItem {
   peer_name?: string
   peer_avatar?: string
   last_msg: string
+  last_type?: string
   last_at: string
   unread: number
 }

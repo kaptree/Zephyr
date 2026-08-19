@@ -39,6 +39,7 @@ type Note struct {
 
 	Tags        []Tag            `gorm:"many2many:note_tags;" json:"tags,omitempty"`
 	Assignees   []NoteAssignee   `gorm:"foreignKey:NoteID" json:"assignees,omitempty"`
+	Ccs         []NoteCc         `gorm:"foreignKey:NoteID" json:"ccs,omitempty"`
 	Attachments []NoteAttachment `gorm:"foreignKey:NoteID" json:"attachments,omitempty"`
 	Group       *WorkGroup       `gorm:"foreignKey:GroupID" json:"group,omitempty"`
 	Reminders   []Reminder       `gorm:"foreignKey:NoteID" json:"reminders,omitempty"`
@@ -53,6 +54,8 @@ type NoteAssignee struct {
 	UserID          uuid.UUID  `gorm:"type:uuid;primaryKey" json:"user_id"`
 	User            *User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	RoleInNote      string     `gorm:"type:varchar(20);default:'member'" json:"role_in_note"`
+	SignStatus      string     `gorm:"type:varchar(20);default:'unsigned'" json:"sign_status"`
+	SignedAt        *time.Time `json:"signed_at"`
 	FeedbackContent string     `gorm:"type:text" json:"feedback_content"`
 	FeedbackAt      *time.Time `json:"feedback_at"`
 	IsRead          bool       `gorm:"default:false" json:"is_read"`
@@ -60,6 +63,18 @@ type NoteAssignee struct {
 
 func (NoteAssignee) TableName() string {
 	return "note_assignees"
+}
+
+// NoteCc 任务抄送人：创建任务时多选抄送，抄送人可见任务内容（紫色卡片 + 「抄送」徽章）
+type NoteCc struct {
+	NoteID    uuid.UUID `gorm:"type:uuid;primaryKey" json:"note_id"`
+	UserID    uuid.UUID `gorm:"type:uuid;primaryKey" json:"user_id"`
+	User      *User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (NoteCc) TableName() string {
+	return "note_ccs"
 }
 
 type NoteAttachment struct {

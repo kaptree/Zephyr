@@ -34,6 +34,7 @@ type CreateNoteRequest struct {
 	DueTime      *time.Time           `json:"due_time"`
 	WorkTimeSeconds int               `json:"work_time_seconds"`
 	Assignees    []AssigneeRequest    `json:"assignees"`
+	CcUserIDs    []string             `json:"cc_user_ids"`
 	GroupConfig  *GroupConfigRequest  `json:"group_config"`
 	CanvasConfig *CanvasConfigRequest `json:"canvas_config"`
 }
@@ -196,6 +197,17 @@ func (s *NoteService) Create(userID, role, deptID string, req CreateNoteRequest)
 		})
 	}
 
+	// 抄送人（需求20）：无论是否指派都可多选抄送，抄送人仅查看（紫色卡片 +「抄送」徽章）
+	ccSeen := map[string]bool{}
+	for _, cid := range req.CcUserIDs {
+		id, err := uuid.Parse(cid)
+		if err != nil || ccSeen[cid] || id == creatorID {
+			continue
+		}
+		ccSeen[cid] = true
+		note.Ccs = append(note.Ccs, models.NoteCc{UserID: id})
+	}
+
 	year := now.Year()
 	seq, _ := s.noteRepo.GetNextSerialNumber(year)
 	note.SerialNo = repository.GenerateSerialNo(year, seq)
@@ -215,6 +227,12 @@ func (s *NoteService) Create(userID, role, deptID string, req CreateNoteRequest)
 				_ = s.notifSvc.Notify(a.UserID, userID, &note.ID, "task_assigned", title, content)
 			}
 		}
+		// 通知抄送人：任务抄送
+		for _, cid := range req.CcUserIDs {
+			if cid != userID {
+				_ = s.notifSvc.Notify(cid, userID, &note.ID, "task_cc", "您收到任务抄送", "「"+note.Title+"」已抄送给您，请查阅")
+			}
+		}
 	}
 
 	return s.noteRepo.FindByID(note.ID.String())
@@ -231,14 +249,25 @@ func (s *NoteService) GetByID(id string) (*models.Note, error) {
 	return note, nil
 }
 
-// CanAccess 判断用户是否有权访问该任务（创建人 / 负责人 / 被指派人，
-// 部门管理员含本部门及子部门），用于详情查看、编辑、删除、导出、恢复等接口的统一越权拦截
+// CanAccess 判断用户是否有权访问该任务（创建人 / 负责人 / 被指派人 / 抄送人，
+// 部门管理员含本部门及子部门），用于详情查看等只读接口的统一越权拦截
 func (s *NoteService) CanAccess(id, userID, role, deptID string) (bool, error) {
 	return s.noteRepo.CheckUserAccess(id, userID, role, deptID)
 }
 
+// CanManage 判断用户是否有权管理该任务（排除抄送人——抄送人仅可查看，
+// 不能编辑/删除/完成/盯办），用于写操作接口的统一越权拦截
+func (s *NoteService) CanManage(id, userID, role, deptID string) (bool, error) {
+	return s.noteRepo.CheckParticipantAccess(id, userID, role, deptID)
+}
+
 func (s *NoteService) List(filter repository.NoteFilter, scope repository.NoteScope) ([]models.Note, int64, error) {
 	return s.noteRepo.List(filter, scope)
+}
+
+// ListUserNotesForInspect 查询指定用户的工作台任务（公司领导/super_admin 专用）
+func (s *NoteService) ListUserNotesForInspect(targetUserID, status string) ([]models.Note, int64, error) {
+	return s.noteRepo.ListUserNotesForInspect(targetUserID, status)
 }
 
 func (s *NoteService) Update(id, userID string, req UpdateNoteRequest) (*models.Note, error) {
@@ -298,6 +327,7 @@ func (s *NoteService) Complete(id, userID, role string, req CompleteNoteRequest)
 		!isAssignee && role != "super_admin" && role != "dept_admin" {
 		return nil, apperrors.ErrPermissionDenied
 	}
+	// 需求20：抄送人同样可以完成并归档任务（卡片提供「完成并归档」按钮）
 
 	now := time.Now()
 	note.ColorStatus = "green"
@@ -354,6 +384,45 @@ func (s *NoteService) Feedback(id, userID, content string) (*models.Note, error)
 
 	if s.notifSvc != nil && note.CreatorID.String() != userID {
 		_ = s.notifSvc.Notify(note.CreatorID.String(), userID, &note.ID, "task_feedback", "任务反馈", content)
+	}
+
+	return s.noteRepo.FindByID(id)
+}
+
+// Sign 被指派人签收任务：将本人对应 note_assignees 行的 sign_status 置为 signed。
+// 仅指派任务（source_type=assigned）且当前用户为该任务被指派人（非发起者 initiator）可签收。
+func (s *NoteService) Sign(id, userID string) (*models.Note, error) {
+	note, err := s.noteRepo.FindByID(id)
+	if err != nil || note == nil {
+		return nil, apperrors.ErrNoteNotFound
+	}
+
+	if note.SourceType != "assigned" {
+		return nil, apperrors.ErrPermissionDenied
+	}
+
+	var mine *models.NoteAssignee
+	for i := range note.Assignees {
+		if note.Assignees[i].UserID.String() == userID {
+			mine = &note.Assignees[i]
+			break
+		}
+	}
+	if mine == nil || mine.RoleInNote == "initiator" {
+		return nil, apperrors.ErrPermissionDenied
+	}
+	if mine.SignStatus == "signed" {
+		return note, nil
+	}
+
+	if err := s.noteRepo.UpdateAssigneeSign(id, userID); err != nil {
+		return nil, err
+	}
+	_ = s.recordLedger(id, userID, "update", "任务签收", "", "")
+
+	// 通知任务发起人：被指派人已签收
+	if s.notifSvc != nil && note.CreatorID.String() != userID {
+		_ = s.notifSvc.Notify(note.CreatorID.String(), userID, &note.ID, "task_signed", "任务已签收", "「"+note.Title+"」已被签收")
 	}
 
 	return s.noteRepo.FindByID(id)

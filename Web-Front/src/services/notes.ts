@@ -37,6 +37,10 @@ export function remindNote(id: string, payload?: RemindPayload) {
   return post<Note>(`/api/v1/notes/${id}/remind`, payload)
 }
 
+export function signNote(id: string) {
+  return post<Note>(`/api/v1/notes/${id}/sign`)
+}
+
 export function archiveNote(id: string) {
   return del<{ success: boolean }>(`/api/v1/notes/${id}`)
 }
@@ -58,4 +62,9 @@ export function fetchNoteStats(params?: { days?: number; dept_id?: string; statu
 
 export function fetchHeatmap(year: number) {
   return get<{ total_archived: number; year: number; daily: { date: string; count: number }[] }>('/api/v1/notes/heatmap', { year } as Record<string, unknown>)
+}
+
+/** 查看指定用户的工作台任务（公司领导/super_admin 专用） */
+export function inspectUserWorkbench(userId: string, status = 'active') {
+  return get<PaginatedData<Note>>(`/api/v1/notes/users/${userId}/workbench`, { status } as Record<string, unknown>)
 }

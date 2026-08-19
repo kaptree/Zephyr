@@ -49,6 +49,7 @@ const formError = ref('')
 
 const roleMap: Record<string, string> = {
   super_admin: '系统管理员',
+  company_leader: '公司领导',
   dept_admin: '部门管理员',
   group_leader: '组长',
   user: '普通员工',
@@ -213,6 +214,7 @@ function openProfile(user: UserRow) {
 function getRoleClass(role: string) {
   const map: Record<string, string> = {
     super_admin: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+    company_leader: 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300',
     dept_admin: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
     group_leader: 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300',
     user: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
@@ -579,6 +581,7 @@ onMounted(async () => {
                 <span class="text-xs text-slate-500 mb-1 block">角色</span>
                 <select v-model="formRole" class="input-field !py-1.5 !text-sm">
                   <option value="super_admin">系统管理员</option>
+                  <option value="company_leader">公司领导</option>
                   <option value="dept_admin">部门管理员</option>
                   <option value="group_leader">组长</option>
                   <option value="user">普通员工</option>

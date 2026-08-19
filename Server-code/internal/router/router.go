@@ -110,8 +110,8 @@ func Setup(cfg *config.Config) *gin.Engine {
 		{
 			departments.GET("", deptHandler.GetTree)
 			departments.GET("/:id", deptHandler.GetDetail)
-			departments.POST("", middleware.RequireRoles("super_admin", "dept_admin"), deptHandler.Create)
-			departments.PUT("/:id", middleware.RequireRoles("super_admin", "dept_admin"), deptHandler.Update)
+			departments.POST("", middleware.RequireRoles("super_admin", "dept_admin", "company_leader"), deptHandler.Create)
+			departments.PUT("/:id", middleware.RequireRoles("super_admin", "dept_admin", "company_leader"), deptHandler.Update)
 			departments.DELETE("/:id", middleware.RequireRoles("super_admin"), deptHandler.Delete)
 		}
 
@@ -124,21 +124,23 @@ func Setup(cfg *config.Config) *gin.Engine {
 			users.GET("/with-stats", userHandler.ListUsersWithStats)
 			users.GET("/:id", userHandler.GetUser)
 			users.GET("/:id/profile", userHandler.GetUserProfile)
-			users.PUT("/:id", middleware.RequireRoles("super_admin", "dept_admin"), userHandler.UpdateUser)
+			users.PUT("/:id", middleware.RequireRoles("super_admin", "dept_admin", "company_leader"), userHandler.UpdateUser)
 			users.DELETE("/:id", middleware.RequireRoles("super_admin"), userHandler.DeleteUser)
-			users.POST("", middleware.RequireRoles("super_admin", "dept_admin"), authHandler.Register)
+			users.POST("", middleware.RequireRoles("super_admin", "dept_admin", "company_leader"), authHandler.Register)
 		}
 
 		notes := api.Group("/notes")
 		{
 			notes.GET("", noteHandler.ListNotes)
 			notes.POST("", noteHandler.CreateNote)
+			notes.GET("/users/:userId/workbench", middleware.RequireRoles("super_admin", "company_leader"), noteHandler.InspectUserNotes)
 			notes.GET("/export", noteHandler.ExportNotes)
 			notes.GET("/:id", noteHandler.GetNote)
 			notes.PUT("/:id", noteHandler.UpdateNote)
 			notes.POST("/:id/complete", noteHandler.CompleteNote)
 			notes.POST("/:id/feedback", noteHandler.Feedback)
 			notes.POST("/:id/remind", noteHandler.RemindNote)
+			notes.POST("/:id/sign", noteHandler.SignNote)
 			notes.DELETE("/:id", noteHandler.DeleteNote)
 			notes.POST("/:id/restore", noteHandler.RestoreNote)
 			notes.GET("/stats", noteHandler.Stats)
@@ -190,21 +192,21 @@ func Setup(cfg *config.Config) *gin.Engine {
 		rooms := api.Group("/rooms")
 		{
 			rooms.GET("/:note_id/canvas", roomHandler.GetCanvas)
-			rooms.POST("/:note_id/command", middleware.RequireRoles("super_admin", "dept_admin", "group_leader"), roomHandler.SendCommand)
+			rooms.POST("/:note_id/command", middleware.RequireRoles("super_admin", "dept_admin", "group_leader", "company_leader"), roomHandler.SendCommand)
 		}
 
 		presets := api.Group("/presets")
 		{
 			presets.GET("", presetHandler.List)
-			presets.POST("", middleware.RequireRoles("super_admin", "dept_admin"), presetHandler.Create)
-			presets.PUT("/:id", middleware.RequireRoles("super_admin", "dept_admin"), presetHandler.Update)
+			presets.POST("", middleware.RequireRoles("super_admin", "dept_admin", "company_leader"), presetHandler.Create)
+			presets.PUT("/:id", middleware.RequireRoles("super_admin", "dept_admin", "company_leader"), presetHandler.Update)
 			presets.DELETE("/:id", middleware.RequireRoles("super_admin"), presetHandler.Delete)
 		}
 
 		ledger := api.Group("/ledger")
 		{
 			ledger.GET("", ledgerHandler.List)
-			ledger.GET("/stats", middleware.RequireRoles("super_admin", "dept_admin"), ledgerHandler.Stats)
+			ledger.GET("/stats", middleware.RequireRoles("super_admin", "dept_admin", "company_leader"), ledgerHandler.Stats)
 		}
 
 		notifications := api.Group("/notifications")
@@ -219,6 +221,8 @@ func Setup(cfg *config.Config) *gin.Engine {
 		chat := api.Group("/chat")
 		{
 			chat.GET("/conversations", notificationHandler.Conversations)
+			chat.GET("/online", notificationHandler.ChatOnline)
+			chat.POST("/attachments", uploadHandler.UploadChatFile)
 			chat.GET("/:userId/messages", notificationHandler.ListMessages)
 			chat.POST("/:userId/messages", notificationHandler.SendMessage)
 			chat.POST("/:userId/read", notificationHandler.MarkConversationRead)
@@ -273,6 +277,8 @@ func Setup(cfg *config.Config) *gin.Engine {
 			system.GET("/logs", sysHandler.ListAdminLogs)
 			system.GET("/operations", sysHandler.ListOperations)
 			system.GET("/operations/actions", sysHandler.GetOperationActions)
+			system.GET("/chat-file-policy", sysHandler.GetChatFilePolicy)
+			system.PUT("/chat-file-policy", sysHandler.UpdateChatFilePolicy)
 		}
 	}
 

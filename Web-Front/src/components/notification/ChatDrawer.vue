@@ -59,7 +59,7 @@ async function send() {
   const content = input.value.trim();
   if (!content || !currentPeer.value) return;
   input.value = '';
-  await store.sendMessage(currentPeer.value, content);
+  await store.sendMessage(currentPeer.value, { content });
   await nextTick();
   scrollToBottom();
 }
@@ -77,6 +77,22 @@ function formatTime(t?: string) {
   const sameDay = d.toDateString() === now.toDateString();
   const hm = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
   return sameDay ? hm : `${d.toLocaleDateString('zh-CN')} ${hm}`;
+}
+
+function formatSize(bytes?: number): string {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function fileIcon(name?: string): string {
+  const ext = (name || '').split('.').pop()?.toLowerCase() || '';
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) return '🖼';
+  if (['pdf'].includes(ext)) return '📕';
+  if (['doc', 'docx'].includes(ext)) return '📘';
+  if (['xls', 'xlsx'].includes(ext)) return '📗';
+  return '📄';
 }
 
 // 实时新消息滚动
@@ -174,7 +190,9 @@ onMounted(() => {
             :class="m.sender_id === auth.user?.id ? 'justify-end' : 'justify-start'"
           >
             <div class="max-w-[75%]">
+              <!-- 文本 -->
               <div
+                v-if="m.type !== 'image' && m.type !== 'file'"
                 class="px-3 py-2 rounded-2xl text-sm leading-relaxed break-words"
                 :class="
                   m.sender_id === auth.user?.id
@@ -183,7 +201,37 @@ onMounted(() => {
                 "
                 v-html="renderNoteContent(m.content)"
               />
-              <p class="mt-1 text-[10px] text-slate-400 px-1">{{ formatTime(m.created_at) }}</p>
+              <!-- 图片 -->
+              <img
+                v-else-if="m.type === 'image'"
+                :src="m.file_path"
+                :alt="m.file_name || '图片'"
+                class="max-w-[200px] max-h-[260px] rounded-xl object-cover border border-slate-200 dark:border-slate-600"
+                loading="lazy"
+              />
+              <!-- 文件 -->
+              <a
+                v-else-if="m.type === 'file'"
+                :href="m.file_path"
+                download
+                target="_blank"
+                rel="noopener"
+                class="flex items-center gap-2 px-3 py-2 rounded-2xl text-sm bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:shadow-md transition-smooth"
+                :class="m.sender_id === auth.user?.id ? 'rounded-br-sm' : 'rounded-bl-sm'"
+              >
+                <span class="text-xl shrink-0">{{ fileIcon(m.file_name) }}</span>
+                <div class="min-w-0">
+                  <p class="text-xs font-medium text-slate-800 dark:text-slate-100 truncate max-w-[130px]">{{ m.file_name }}</p>
+                  <p class="text-[10px] text-slate-400">{{ formatSize(m.file_size) }}</p>
+                </div>
+              </a>
+              <p class="mt-1 text-[10px] flex items-center gap-1.5 px-1" :class="m.sender_id === auth.user?.id ? 'justify-end' : ''">
+                <span class="text-slate-400">{{ formatTime(m.created_at) }}</span>
+                <span
+                  v-if="m.sender_id === auth.user?.id"
+                  :class="m.is_read ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'"
+                >{{ m.is_read ? '已读' : '未读' }}</span>
+              </p>
             </div>
           </div>
         </template>

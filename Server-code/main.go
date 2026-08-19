@@ -14,6 +14,7 @@ import (
 	"labelpro-server/internal/logger"
 	"labelpro-server/internal/models"
 	"labelpro-server/internal/router"
+	"labelpro-server/internal/services"
 	"labelpro-server/internal/utils"
 
 	"go.uber.org/zap"
@@ -60,6 +61,7 @@ func main() {
 		&models.Tag{},
 		&models.Template{},
 		&models.NoteAssignee{},
+		&models.NoteCc{},
 		&models.NoteAttachment{},
 		&models.WorkGroup{},
 		&models.WorkGroupMember{},
@@ -78,10 +80,14 @@ func main() {
 		&models.ChatMessage{},
 		&models.Issue{},
 		&models.IssueComment{},
+		&models.ChatFilePolicy{},
 	); err != nil {
 		logger.Fatal("Failed to auto migrate database", zap.Error(err))
 	}
 	logger.Info("Database migration completed")
+
+	// 初始化聊天文件传输策略（白名单/黑名单，默认黑名单拦截危险文件）
+	services.InitFilePolicyService(database.DB)
 
 	// 一次性数据修正：回填历史团队报告的 category 字段（幂等，仅修正存量数据）
 	if err := database.DB.Exec(`UPDATE work_reports SET category = 'team'

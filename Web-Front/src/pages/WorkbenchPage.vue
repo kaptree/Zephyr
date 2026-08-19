@@ -33,6 +33,7 @@ const newContent = ref('');
 const selectedTagIds = ref<string[]>([]);
 const sourceType = ref<'self' | 'assigned' | 'collaboration'>('self');
 const selectedAssigneeIds = ref<string[]>([]);
+const selectedCcIds = ref<string[]>([]);
 const creating = ref(false);
 const createError = ref('');
 
@@ -107,6 +108,37 @@ const displayedNotes = computed(() => {
   return noteStore.activeNotes;
 });
 
+// 详情中的指派任务是否为「发起者视角」（创建人 = 当前账号）
+const selectedIsAssigner = computed(
+  () =>
+    selectedNote.value?.source_type === 'assigned' &&
+    !!auth.user &&
+    selectedNote.value.creator_id === auth.user.id
+);
+
+// 签收体系（需求19）：当前账号在详情任务中的被指派人行，及是否可签收
+const selectedAssigneeMe = computed(() =>
+  (selectedNote.value?.assignees || []).find(
+    (a: any) => (a.user_id || (a as any).id) === auth.user?.id
+  )
+);
+const canSignSelected = computed(
+  () =>
+    !!selectedNote.value &&
+    selectedNote.value.source_type === 'assigned' &&
+    !!selectedAssigneeMe.value &&
+    selectedAssigneeMe.value.role_in_note !== 'initiator' &&
+    selectedAssigneeMe.value.sign_status !== 'signed'
+);
+
+// 抄送视角（需求20）：当前账号仅被抄送（非被指派人/发起者）→ 详情只读
+const selectedIsCcOnly = computed(
+  () =>
+    !!selectedNote.value &&
+    (selectedNote.value.ccs || []).some((c: any) => (c.user_id || c.id) === auth.user?.id) &&
+    !(selectedNote.value.assignees || []).some((a: any) => (a.user_id || a.id) === auth.user?.id)
+);
+
 onMounted(() => {
   noteStore.fetchNotes();
   loadWorkGroups();
@@ -153,9 +185,12 @@ function normalizeRawNote(raw: Record<string, unknown>): Note {
     source_type: (raw.source_type as Note['source_type']) || 'self',
     owner_id: (raw.owner_id as string) || '',
     creator_id: (raw.creator_id as string) || '',
+    creator: raw.creator as Note['creator'],
+    owner: raw.owner as Note['owner'],
     is_archived: !!raw.is_archived,
     tags: (raw.tags || []) as Note['tags'],
     assignees: (raw.assignees || []) as Note['assignees'],
+    ccs: raw.ccs as Note['ccs'],
     group_id: raw.group_id as string | undefined,
     dept_id: raw.dept_id as string | undefined,
     template_type: raw.template_type as string | undefined,
@@ -199,6 +234,7 @@ function openCreateModal() {
   newContent.value = '';
   selectedTagIds.value = [];
   selectedAssigneeIds.value = [];
+  selectedCcIds.value = [];
   sourceType.value = 'self';
   workTimeSeconds.value = 0;
   createError.value = '';
@@ -237,6 +273,8 @@ async function handleSubmit() {
       tags: selectedTagIds.value,
       source_type: sourceType.value,
     };
+    // 抄送人（需求20）：无论是否指派都可多选抄送
+    if (selectedCcIds.value.length > 0) payload.cc_user_ids = selectedCcIds.value;
     if (sourceType.value !== 'self' && workTimeSeconds.value > 0)
       payload.work_time_seconds = workTimeSeconds.value;
     if (sourceType.value !== 'self')
@@ -309,6 +347,21 @@ async function handleUpdateTags(tagIds: string[]) {
   }
 }
 async function handleComplete(note: Note) {
+  // 抄送人（仅被抄送、非被指派人）直接完成归档，不弹反馈填报
+  const isCcOnlyNote =
+    (note.ccs || []).some((c: any) => (c.user_id || c.id) === auth.user?.id) &&
+    !(note.assignees || []).some((a: any) => (a.user_id || a.id) === auth.user?.id);
+  if (isCcOnlyNote) {
+    completing.value = true;
+    try {
+      await noteStore.completeNote(note.id, {});
+      noteStore.fetchNotes();
+      if (showDetailPanel.value && selectedNote.value?.id === note.id) closeDetail();
+    } finally {
+      completing.value = false;
+    }
+    return;
+  }
   // 完成任务时先弹反馈填报
   feedbackNote.value = note;
   feedbackVisible.value = true;
@@ -327,10 +380,39 @@ async function submitFeedback(content: string) {
     feedbackNote.value = null;
   }
 }
-async function handleRemind(note: Note) {
-  await noteStore.remindNote(note.id, note.owner_id, '请尽快处理');
-  if (showDetailPanel.value && selectedNote.value?.id === note.id)
-    selectedNote.value = { ...selectedNote.value, color_status: 'red' as const };
+// 标记为重要：任务卡片变红（color_status='red'）
+async function handleImportant(note: Note) {
+  try {
+    await noteStore.updateNoteLocally(note.id, { color_status: 'red' });
+    if (showDetailPanel.value && selectedNote.value?.id === note.id)
+      selectedNote.value = { ...selectedNote.value, color_status: 'red' as const };
+  } catch {
+    /* ignore */
+  }
+}
+// 删除任务：确认后软删除，从工作台移除（可在归档中恢复）
+async function handleDelete(note: Note) {
+  const title = note.title || '无标题';
+  if (!window.confirm(`确定删除任务「${title}」吗？删除后将从工作台移除，可在归档中恢复。`)) return;
+  try {
+    await noteStore.archiveNote(note.id);
+    noteStore.fetchNotes();
+    if (showDetailPanel.value && selectedNote.value?.id === note.id) closeDetail();
+  } catch {
+    /* ignore */
+  }
+}
+
+// 签收任务：被指派人签收，签收后卡片右上角显示「已签收」
+async function handleSign() {
+  if (!selectedNote.value) return;
+  try {
+    const updated = await noteStore.signNote(selectedNote.value.id);
+    if (updated) selectedNote.value = updated;
+    noteStore.fetchNotes();
+  } catch {
+    /* ignore */
+  }
 }
 
 async function loadWorkGroups() {
@@ -799,10 +881,12 @@ const templateLabels: Record<string, string> = {
           :note="note"
           mode="web"
           :archived="false"
+          :extra-actions="true"
           class="animate-spring-enter"
           @click="openDetail(note)"
           @complete="handleComplete"
-          @remind="handleRemind"
+          @important="handleImportant"
+          @delete="handleDelete"
         />
       </div>
     </template>
@@ -937,6 +1021,8 @@ const templateLabels: Record<string, string> = {
                   :multiple="true"
                   :max="50"
                   :drop-up="true"
+                  :disabled-ids="selectedCcIds"
+                  disabled-note="已在抄送人员中"
                 />
                 <div class="mt-3 flex items-center gap-3">
                   <label class="text-xs text-slate-500 shrink-0">⏱ 工作时间</label>
@@ -1005,6 +1091,18 @@ const templateLabels: Record<string, string> = {
                   </div>
                 </div>
               </div>
+              <div>
+                <span class="text-xs text-slate-500 mb-1.5 block"
+                  >抄送人员（可多选，抄送人可查看该任务——紫色卡片 +「抄送」徽章）</span
+                ><UserPicker
+                  v-model="selectedCcIds"
+                  :multiple="true"
+                  :max="50"
+                  :drop-up="true"
+                  :disabled-ids="selectedAssigneeIds"
+                  disabled-note="已在指派人员中"
+                />
+              </div>
               <p v-if="createError" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-btn">
                 {{ createError }}
               </p>
@@ -1050,7 +1148,17 @@ const templateLabels: Record<string, string> = {
                   📝 任务详情
                 </h2>
                 <span
-                  v-if="selectedNote.color_status === 'red'"
+                  v-if="selectedIsCcOnly"
+                  class="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-tag"
+                  >抄送</span
+                >
+                <span
+                  v-if="selectedIsAssigner"
+                  class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-tag"
+                  >指派</span
+                >
+                <span
+                  v-else-if="selectedNote.color_status === 'red'"
                   class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-tag"
                   >盯办中</span
                 >
@@ -1120,13 +1228,36 @@ const templateLabels: Record<string, string> = {
                         : '协同任务'
                   }}</span>
                 </div>
+                <div class="flex justify-between text-xs" v-if="selectedNote.creator?.name">
+                  <span class="text-slate-400">创建人</span
+                  ><span class="text-slate-700 dark:text-slate-300">{{
+                    selectedNote.creator.name
+                  }}</span>
+                </div>
                 <div class="flex justify-between text-xs" v-if="selectedNote.assignees?.length">
                   <span class="text-slate-400">负责人</span
                   ><span
                     class="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 flex-wrap justify-end"
                   >
                     <template v-for="a in selectedNote.assignees" :key="a.user_id || (a as any).id">
-                      <span>{{ a.user?.name || (a as any).name }}</span>
+                      <span class="flex items-center gap-1">
+                        <span>{{ a.user?.name || (a as any).name }}</span>
+                        <span
+                          v-if="(a as any).sign_status === 'signed'"
+                          class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-300"
+                          :title="
+                            (a as any).signed_at
+                              ? '签收于 ' + (a as any).signed_at.slice(0, 16).replace('T', ' ')
+                              : ''
+                          "
+                          >已签收</span
+                        >
+                        <span
+                          v-else-if="(a as any).role_in_note !== 'initiator'"
+                          class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500"
+                          >未签收</span
+                        >
+                      </span>
                       <button
                         v-if="(a.user_id || (a as any).id) !== auth.user?.id"
                         class="text-blue-500 hover:text-blue-600 hover:underline shrink-0"
@@ -1154,8 +1285,16 @@ const templateLabels: Record<string, string> = {
             </div>
           </div>
           <div class="pt-4 border-t border-slate-100 dark:border-slate-700 p-6 space-y-3">
+            <button
+              v-if="canSignSelected"
+              class="w-full py-2.5 text-sm bg-blue-500 text-white rounded-btn hover:bg-blue-600 active:scale-[0.99] transition-smooth"
+              @click="handleSign"
+            >
+              签收任务
+            </button>
             <div class="flex gap-2">
               <button
+                v-if="!selectedIsCcOnly"
                 class="flex-1 py-2.5 btn-primary text-sm disabled:opacity-50"
                 :disabled="saving"
                 @click="handleSaveDetail"
@@ -1170,11 +1309,17 @@ const templateLabels: Record<string, string> = {
                 {{ completing ? '归档中...' : '完成并归档' }}
               </button>
               <button
-                v-if="selectedNote.color_status !== 'red'"
+                v-if="!selectedIsCcOnly && selectedNote.color_status !== 'red'"
                 class="flex-1 py-2.5 text-sm bg-red-50 text-red-600 rounded-btn hover:bg-red-100 transition-smooth"
-                @click="handleRemind(selectedNote!)"
+                @click="handleImportant(selectedNote!)"
               >
-                盯办
+                重要
+              </button>
+              <button
+                class="flex-1 py-2.5 text-sm bg-slate-100 text-slate-600 rounded-btn hover:bg-slate-200 transition-smooth"
+                @click="handleDelete(selectedNote!)"
+              >
+                删除
               </button>
             </div>
             <button class="w-full py-2 btn-secondary text-sm" @click="closeDetail">关闭</button>

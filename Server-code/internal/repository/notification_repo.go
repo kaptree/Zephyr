@@ -88,7 +88,7 @@ func (r *ChatRepo) Create(m *models.ChatMessage) error {
 	return r.db.Create(m).Error
 }
 
-// Conversations 会话列表：与每个用户的最新消息 + 未读数
+// Conversations 会话列表：与每个用户的最新消息 + 未读数 + 对方姓名
 func (r *ChatRepo) Conversations(userID string) ([]map[string]interface{}, error) {
 	var results []map[string]interface{}
 
@@ -119,7 +119,27 @@ func (r *ChatRepo) Conversations(userID string) ([]map[string]interface{}, error
 	}
 	delete(peerSet, userID)
 
-	for peer := range peerSet {
+	if len(peerSet) == 0 {
+		return []map[string]interface{}{}, nil
+	}
+
+	// 批量查询好友姓名
+	var peerIDs []string
+	for p := range peerSet {
+		if p != "" {
+			peerIDs = append(peerIDs, p)
+		}
+	}
+	var users []models.User
+	r.db.Select("id", "name", "avatar_url", "department_id").Where("id IN ?", peerIDs).Find(&users)
+	nameMap := make(map[string]string, len(users))
+	avatarMap := make(map[string]string, len(users))
+	for _, u := range users {
+		nameMap[u.ID.String()] = u.Name
+		avatarMap[u.ID.String()] = u.AvatarURL
+	}
+
+	for _, peer := range peerIDs {
 		if peer == "" {
 			continue
 		}
@@ -135,10 +155,13 @@ func (r *ChatRepo) Conversations(userID string) ([]map[string]interface{}, error
 			Where("sender_id = ? AND receiver_id = ? AND is_read = false", peer, userID).
 			Count(&unread)
 		results = append(results, map[string]interface{}{
-			"peer_id":  peer,
-			"last_msg": last.Content,
-			"last_at":  last.CreatedAt,
-			"unread":   unread,
+			"peer_id":    peer,
+			"peer_name":  nameMap[peer],
+			"peer_avatar": avatarMap[peer],
+			"last_msg":   summarizeLastMsg(&last),
+			"last_type":  last.Type,
+			"last_at":    last.CreatedAt,
+			"unread":     unread,
 		})
 	}
 
@@ -153,6 +176,21 @@ func (r *ChatRepo) Conversations(userID string) ([]map[string]interface{}, error
 		}
 	}
 	return results, nil
+}
+
+// summarizeLastMsg 会话摘要：图片/文件消息展示占位文案
+func summarizeLastMsg(m *models.ChatMessage) string {
+	switch m.Type {
+	case "image":
+		return "[图片]"
+	case "file":
+		if m.FileName != "" {
+			return "[文件] " + m.FileName
+		}
+		return "[文件]"
+	default:
+		return m.Content
+	}
 }
 
 func (r *ChatRepo) ListMessages(userID, peerID string, page, pageSize int) ([]models.ChatMessage, int64, error) {
