@@ -15,6 +15,15 @@ type NoteRepository struct {
 	db *gorm.DB
 }
 
+// normalizeDateTo 将 YYYY-MM-DD 格式的截止日期扩展为当天结束时刻（含整天），
+// 避免「至某日」筛选时丢失当天 00:00 之后的记录。
+func normalizeDateTo(dateTo string) string {
+	if len(dateTo) == 10 {
+		return dateTo + " 23:59:59.999999"
+	}
+	return dateTo
+}
+
 func NewNoteRepository(db *gorm.DB) *NoteRepository {
 	return &NoteRepository{db: db}
 }
@@ -87,7 +96,7 @@ func (r *NoteRepository) List(filter NoteFilter, scope NoteScope) ([]models.Note
 		query = query.Where("notes.created_at >= ?", filter.DateFrom)
 	}
 	if filter.DateTo != "" {
-		query = query.Where("notes.created_at <= ?", filter.DateTo)
+		query = query.Where("notes.created_at <= ?", normalizeDateTo(filter.DateTo))
 	}
 	if filter.IsUrgent {
 		query = query.Where("notes.due_time IS NOT NULL AND notes.due_time <= ? AND notes.is_archived = false",

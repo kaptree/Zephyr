@@ -78,3 +78,17 @@ bug6：双方都在聊天时，消息阅读状态应立刻变成已读，右上�
   - `ChatPage`：openConversation 设置 viewingPeer，onUnmounted 清除；watch 移除冗余的已读调用（改由 store 处理）
   - `ChatDrawer`：openConversation/openConversationById 设置 viewingPeer，抽屉关闭时清除
 - 验证：浏览器实测双用户（admin 打开与 wang 的会话 → 通过 API 以 wang 身份向 admin 发消息）：新消息出现且顶部聊天小黄点始终为 0、离开聊天页后角标仍为 0（无未读残留）、返回会话消息可见
+
+bug7：归档查询页面的日期筛选选中后搜索没有效果，且原生日期选择弹窗不够优雅；需一并检查其他搜索功能是否正常。
+
+- ✅ 已完成（2026-08-19）
+- 根因：
+  - `services/notes.ts fetchNotes` 只拼装了 status/tag_ids/department_id/owner_id/keyword/page/page_size，**漏传 `date_from`/`date_to`** → 后端收不到日期参数，归档日期筛选完全无效；`NoteFilters` 类型也缺少这两个字段
+  - 后端 `note_repo.List` 对 `date_to` 直接用 `created_at <= 'YYYY-MM-DD'` 比较字符串 → 截止日当天 00:00 之后的记录被排除（少一天）；`business_repo.Ledger.List` 存在同类问题（system/workgroup 已带 `T23:59:59` 处理）
+  - 归档页使用两个原生 `<input type="date">`，弹窗样式不统一、不够美观
+- 修复内容：
+  - `fetchNotes` 增加 `date_from`/`date_to` 透传；`NoteFilters` 类型补充两字段
+  - 后端 `note_repo.List` 与 `business_repo.Ledger.List` 新增 `normalizeDateTo`：`YYYY-MM-DD` 自动扩展为当天 `23:59:59.999999`，保证「至某日」包含整天
+  - 新增 `DateRangePicker.vue` 优雅日期范围组件：日历图标触发按钮 + 下拉日历面板（今天/近7天/近30天/本月/清空快捷胶囊、月份导航、周一至周日日期网格、区间高亮、反选自动交换、选完自动收起、点外部关闭、深色模式适配），替换归档页两个原生日期输入框
+  - 排查其他搜索：Issues 关键词、工作组搜索、操作日志、Analytics 报告/团队统计——前端均整包透传查询参数、后端均支持，功能正常无需修改
+- 验证：接口实测（归档按日期筛选 14→9 条且仅 8 月、单日筛选与当天实际创建数一致、日期+关键词组合筛选正确）；浏览器实测（日历面板美观可用、选 08-01~08-20 面板自动收起并显示、搜索后 14→9、清空后恢复 14、交互期间控制台无报错）

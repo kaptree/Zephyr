@@ -477,7 +477,7 @@ func (r *LedgerRepository) List(filter LedgerFilter) ([]models.LedgerEntry, int6
 		query = query.Where("created_at >= ?", filter.DateFrom)
 	}
 	if filter.DateTo != "" {
-		query = query.Where("created_at <= ?", filter.DateTo)
+		query = query.Where("created_at <= ?", normalizeDateTo(filter.DateTo))
 	}
 
 	if err := query.Count(&total).Error; err != nil {

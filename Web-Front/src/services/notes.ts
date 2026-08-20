@@ -8,6 +8,8 @@ export function fetchNotes(filters: NoteFilters) {
   if (filters.department_id) params.department_id = filters.department_id
   if (filters.owner_id) params.owner_id = filters.owner_id
   if (filters.keyword) params.keyword = filters.keyword
+  if (filters.date_from) params.date_from = filters.date_from
+  if (filters.date_to) params.date_to = filters.date_to
   if (filters.page) params.page = filters.page
   if (filters.page_size) params.page_size = filters.page_size
   return get<PaginatedData<Note>>('/api/v1/notes', params)

@@ -118,6 +118,10 @@ export interface NoteFilters {
   department_id?: string
   owner_id?: string
   keyword?: string
+  /** 起始日期 YYYY-MM-DD（按创建时间筛选） */
+  date_from?: string
+  /** 截止日期 YYYY-MM-DD（含当天） */
+  date_to?: string
   page?: number
   page_size?: number
 }
