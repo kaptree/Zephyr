@@ -15,6 +15,8 @@ export const useNotificationStore = defineStore('notification', () => {
   const socketEnabled = ref(false);
   const chatOpen = ref(false);
   const chatPeerId = ref<string | null>(null);
+  // 当前正在查看的会话（聊天页/聊天抽屉打开会话时设置）：收到该会话新消息立即标记已读
+  const viewingPeerId = ref<string | null>(null);
 
   let ws: WebSocket | null = null;
 
@@ -26,6 +28,11 @@ export const useNotificationStore = defineStore('notification', () => {
   function closeChat() {
     chatOpen.value = false;
     chatPeerId.value = null;
+  }
+
+  // 设置/清除当前正在查看的会话（聊天页打开会话 / 聊天抽屉打开会话 / 离开页面时）
+  function setViewingPeer(peerId: string | null) {
+    viewingPeerId.value = peerId;
   }
 
   // ---------------- WebSocket 全局通道 ----------------
@@ -93,10 +100,17 @@ export const useNotificationStore = defineStore('notification', () => {
 
   function handleNewMessage(m: ChatMessageItem) {
     playChatSound();
-    // 若当前会话列表已加载，追加并去重
     const list = messages.value[m.sender_id];
     if (list) {
-      if (!list.some((x) => x.id === m.id)) list.push(m);
+      if (!list.some((x) => x.id === m.id)) {
+        // 用新数组引用替换，确保聊天页/抽屉对消息的 watch 能触发（原地 push 不会触发 watch）
+        messages.value[m.sender_id] = [...list, m];
+      }
+    }
+    // 正在查看该会话：立即标记已读并清零角标，不刷新会话列表（避免并发用旧未读数覆盖已读状态）
+    if (viewingPeerId.value && viewingPeerId.value === m.sender_id) {
+      markConversationRead(m.sender_id);
+      return;
     }
     refreshConversations();
   }
@@ -197,6 +211,14 @@ export const useNotificationStore = defineStore('notification', () => {
     await notifService.markConversationRead(peerId);
     const conv = conversations.value.find((c) => c.peer_id === peerId);
     if (conv) conv.unread = 0;
+    // 本地同步：将该会话中对方发来的消息标记为已读（退出聊天后角标立即清零）
+    const list = messages.value[peerId];
+    if (list) {
+      const me = useAuthStore().user?.id;
+      list.forEach((m) => {
+        if (m.sender_id !== me) m.is_read = true;
+      });
+    }
   }
 
   function disconnect() {
@@ -217,6 +239,7 @@ export const useNotificationStore = defineStore('notification', () => {
     chatPeerId,
     openChat,
     closeChat,
+    setViewingPeer,
     connectSocket,
     disconnect,
     fetchUnreadCount,

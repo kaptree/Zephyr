@@ -1,0 +1,1 @@
+import{_ as e,g as t,h as n}from"./index-CoLEVYYu.js";function r(e){return t(`/api/v1/tags`,{scope:e})}function i(t){return e(`/api/v1/tags`,t)}function a(e){return n(`/api/v1/tags/${e}`)}export{a as n,r,i as t};

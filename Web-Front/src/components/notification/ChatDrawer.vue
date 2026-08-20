@@ -38,6 +38,7 @@ function peerName(id: string) {
 
 async function openConversation(conv: ConversationItem) {
   currentPeer.value = conv.peer_id;
+  store.setViewingPeer(conv.peer_id);
   store.loadMessages(conv.peer_id).finally(async () => {
     await store.markConversationRead(conv.peer_id);
     scrollToBottom();
@@ -50,6 +51,7 @@ async function openConversationById(peerId: string) {
     await openConversation(conv);
   } else {
     currentPeer.value = peerId;
+    store.setViewingPeer(peerId);
     await store.loadMessages(peerId);
     scrollToBottom();
   }
@@ -114,6 +116,9 @@ watch(
           openConversationById(store.chatPeerId);
         }
       });
+    } else {
+      // 关闭抽屉：清除正在查看的会话，后续消息正常计入未读角标
+      store.setViewingPeer(null);
     }
   }
 );

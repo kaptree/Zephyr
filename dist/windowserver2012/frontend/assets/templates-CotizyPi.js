@@ -1,0 +1,1 @@
+import{_ as e,g as t,h as n,y as r}from"./index-CoLEVYYu.js";function i(e){return t(`/api/v1/templates`,e)}function a(t){return e(`/api/v1/templates`,t)}function o(e,t){return r(`/api/v1/templates/${e}`,t)}function s(e){return n(`/api/v1/templates/${e}`)}export{o as i,s as n,i as r,a as t};

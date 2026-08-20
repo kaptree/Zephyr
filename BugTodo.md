@@ -51,3 +51,30 @@ bug4:在创建任务进行选择指派人员和抄送人员的时候，不能重
   - `UserPicker.vue`：新增 `disabledIds`（不可选用户列表）与 `disabledNote`（提示文案）属性——禁用用户行显示灰色半透明 + 标注文案（如「已在指派人员中」），点击时弹出警告 Toast「该用户…不能重复选择」且不会勾选；部门「全选」自动排除禁用用户；新增 `onDocClick` 点击组件外部空白处自动关闭下拉列表（挂载/卸载时注册/移除 document 监听）
   - `WorkbenchPage.vue`：指派选择器传入 `:disabled-ids="selectedCcIds"`、`disabled-note="已在抄送人员中"`；抄送选择器传入 `:disabled-ids="selectedAssigneeIds"`、`disabled-note="已在指派人员中"`，双向互斥
 - 验证（浏览器实测）：先指派张三再在抄送中搜张三 → 灰色不可选 + 点击弹出「该用户已在指派人员中，不能重复选择」且不勾选；反之先抄送刘探员再在指派中搜刘探员 → 同样拦截；点击列表外部空白处关闭、点击列表内部保持打开、点「完成」关闭；创建任务成功；控制台无报错
+
+bug5：当进入聊天界面时，收到对方发送的消息，聊天页面不会自动下拉到最新消息处，需要修复，如果当前用户正在查看聊天记录，那么则不会自动下拉，而是右下角出现一个浮动按钮，点击后会下拉到最新消息处。如果是正在对话，那么就需要自动下拉到最新消息处。
+
+- ✅ 已完成（2026-08-19）
+- 根因：
+  - `ChatPage.vue` 消息区收到新消息时无条件 `scrollToBottom()`，未区分用户是否在底部 → 上滑查看历史消息时被强制拉到底部，打断阅读位置
+  - `scrollToBottom` 仅在 nextTick 滚动一次，图片消息异步加载会撑高容器导致最终停在距底部约 35px 处
+- 修复内容：
+  - 新增 `scrolledUp` 状态：滚动事件中按「scrollHeight - scrollTop - clientHeight < 40px」判定是否在底部；在底部（正在对话）收到新消息自动下拉，上滑查看历史时不再自动下拉，位置不被打断
+  - 上滑查看历史期间收到新消息只累加角标数（`newMsgCount`），右下角出现蓝色「最新消息」浮动按钮（带未读数红色角标），点击后平滑回到最新消息并清零角标；切换会话/手动回底时同步重置
+  - `scrollToBottom` 增强：nextTick 滚动后延时 200ms 补一次 + 监听未加载完成的图片 load 事件再补一次，确保停在最新消息处
+- 验证：浏览器实测（打开会话自动滚到底部误差 0.5px、最后一条消息完整可见；上滑后右下角出现「最新消息」浮动按钮；点击平滑回到底部且按钮从 DOM 消失，两轮复验均通过）
+
+bug6：双方都在聊天时，消息阅读状态应立刻变成已读，右上角的聊天消息小黄点也应立刻消除；但实际退出聊天界面后未读消息仍然很多。
+
+- ✅ 已完成（2026-08-19）
+- 根因：
+  - `notification store.handleNewMessage` 对消息数组是**原地 `push`**（数组引用不变）→ `ChatPage`/`ChatDrawer` 里 `watch(store.messages[peer])` 不会触发 → 查看会话时收到的新消息永远不会调用 `markConversationRead`，服务端未读数不清除
+  - `handleNewMessage` 无条件调用 `refreshConversations()` 重新拉取服务端未读数——此时刚收到的新消息在服务端仍为未读，拉回的未读数会覆盖本地已读状态 → 退出聊天后角标仍显示未读
+  - `ChatDrawer`（顶部聊天抽屉）打开会话后，对后续到达的新消息完全没有已读处理
+- 修复内容：
+  - store 新增 `viewingPeerId` + `setViewingPeer()`：聊天页/抽屉打开会话时登记为「正在查看」，离开时清除
+  - `handleNewMessage`：改为用新数组引用替换（`[...list, m]`）确保 watch 触发；当消息属于正在查看的会话时**立即 `markConversationRead` 并跳过 `refreshConversations`**（避免并发用旧未读数覆盖已读状态）；非查看会话才刷新会话列表
+  - `markConversationRead`：除调用后端外，本地同步将该会话中对方发来的消息标记为已读，未读角标立即清零
+  - `ChatPage`：openConversation 设置 viewingPeer，onUnmounted 清除；watch 移除冗余的已读调用（改由 store 处理）
+  - `ChatDrawer`：openConversation/openConversationById 设置 viewingPeer，抽屉关闭时清除
+- 验证：浏览器实测双用户（admin 打开与 wang 的会话 → 通过 API 以 wang 身份向 admin 发消息）：新消息出现且顶部聊天小黄点始终为 0、离开聊天页后角标仍为 0（无未读残留）、返回会话消息可见

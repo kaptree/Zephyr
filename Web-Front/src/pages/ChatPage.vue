@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useNotificationStore } from '@/stores/notification';
 import { useAuthStore } from '@/stores/auth';
 import { getVisibleUsers } from '@/services/admin';
@@ -25,6 +25,10 @@ const loadingOlder = ref(false);
 const allLoaded = ref(false);
 const page = ref(1);
 const PAGE_SIZE = 30;
+// 用户是否已上滑查看历史消息（不在底部）：此时收到新消息不自动下拉，显示浮动按钮
+const scrolledUp = ref(false);
+// 上滑查看历史期间收到的新消息数（浮动按钮上的角标）
+const newMsgCount = ref(0);
 
 // 好友姓名映射（会话中对方姓名兜底）
 const nameMap = computed(() => {
@@ -77,6 +81,9 @@ async function openConversation(peerId: string, name?: string) {
   page.value = 1;
   allLoaded.value = false;
   showEmoji.value = false;
+  scrolledUp.value = false;
+  newMsgCount.value = 0;
+  store.setViewingPeer(peerId);
   store.fetchOnlineUsers();
   await store.loadMessages(peerId);
   await store.markConversationRead(peerId);
@@ -84,12 +91,33 @@ async function openConversation(peerId: string, name?: string) {
 }
 
 function scrollToBottom(smooth = true) {
-  nextTick(() => {
-    messagesEl.value?.scrollTo({
-      top: messagesEl.value.scrollHeight,
-      behavior: smooth ? 'smooth' : 'auto',
-    });
+  const el = messagesEl.value;
+  if (!el) return;
+  const scroll = () => {
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  };
+  nextTick(scroll);
+  // 图片等异步内容加载会撑高容器，加载完成后补一次，确保停在最新消息处
+  setTimeout(scroll, 200);
+  el.querySelectorAll('img').forEach((img) => {
+    if (!img.complete) img.addEventListener('load', scroll, { once: true });
   });
+}
+
+// 消息区滚动：记录是否在底部；滚动到顶部时加载更早消息
+function handleMessagesScroll(e: Event) {
+  const el = e.target as HTMLElement;
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  scrolledUp.value = !atBottom;
+  if (atBottom) newMsgCount.value = 0;
+  if (el.scrollTop < 40) loadOlder();
+}
+
+// 浮动按钮：一键回到最新消息
+function goToLatest() {
+  scrolledUp.value = false;
+  newMsgCount.value = 0;
+  scrollToBottom();
 }
 
 // 加载更早消息
@@ -202,15 +230,19 @@ function fileIcon(name?: string): string {
   return '📄';
 }
 
-// 实时新消息滚动 + 自动标记已读（对方发来且正在查看时）
+// 实时新消息滚动：在底部自动下拉；查看历史时只累加角标（已读标记由 store 在收到消息时即时处理）
 watch(
   () => store.messages[currentPeer.value || ''],
-  (list) => {
-    if (currentPeer.value) {
+  (list, oldList) => {
+    if (!currentPeer.value) return;
+    // bug5：正在查看历史消息时不自动下拉，仅显示浮动按钮；在底部对话中才自动下拉
+    if (!scrolledUp.value) {
       scrollToBottom();
-      const last = list?.[list.length - 1];
-      if (last && last.sender_id !== auth.user?.id && !last.is_read) {
-        store.markConversationRead(currentPeer.value);
+    } else if (list && oldList && list.length > oldList.length) {
+      // 上滑查看历史期间收到新消息 → 只累加角标，不打断阅读位置
+      const last = list[list.length - 1];
+      if (last && last.sender_id !== auth.user?.id) {
+        newMsgCount.value++;
       }
     }
   }
@@ -221,6 +253,11 @@ onMounted(() => {
   loadUsers();
   store.refreshConversations();
   store.fetchOnlineUsers();
+});
+
+onUnmounted(() => {
+  // 离开聊天页：清除正在查看的会话，后续消息正常计入未读角标
+  store.setViewingPeer(null);
 });
 </script>
 
@@ -356,22 +393,21 @@ onMounted(() => {
         </div>
 
         <!-- 消息区 -->
-        <div
-          ref="messagesEl"
-          class="flex-1 overflow-y-auto scrollbar-thin px-6 py-4 space-y-3"
-          @scroll.passive="
-            ($event.target as HTMLElement).scrollTop < 40 && loadOlder()
-          "
-        >
-          <div v-if="loadingOlder" class="text-center text-xs text-slate-400 py-1">加载更早消息...</div>
-          <div v-if="allLoaded && currentMessages.length > 0" class="text-center text-[10px] text-slate-300 dark:text-slate-600 py-1">—— 已显示全部消息 ——</div>
-
+        <div class="relative flex-1 flex flex-col min-h-0">
           <div
-            v-for="m in currentMessages"
-            :key="m.id"
-            class="flex items-end gap-2"
-            :class="m.sender_id === auth.user?.id ? 'justify-end' : 'justify-start'"
+            ref="messagesEl"
+            class="flex-1 overflow-y-auto scrollbar-thin px-6 py-4 space-y-3"
+            @scroll.passive="handleMessagesScroll"
           >
+            <div v-if="loadingOlder" class="text-center text-xs text-slate-400 py-1">加载更早消息...</div>
+            <div v-if="allLoaded && currentMessages.length > 0" class="text-center text-[10px] text-slate-300 dark:text-slate-600 py-1">—— 已显示全部消息 ——</div>
+
+            <div
+              v-for="m in currentMessages"
+              :key="m.id"
+              class="flex items-end gap-2"
+              :class="m.sender_id === auth.user?.id ? 'justify-end' : 'justify-start'"
+            >
             <!-- 对方头像 -->
             <div v-if="m.sender_id !== auth.user?.id" class="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-white text-xs font-medium flex items-center justify-center shrink-0 mb-1">
               {{ peerName(m.sender_id).slice(0, 1) }}
@@ -426,6 +462,19 @@ onMounted(() => {
               </p>
             </div>
           </div>
+        </div>
+          <!-- 浮动按钮：上滑查看历史消息时显示，点击回到最新消息 -->
+          <button
+            v-if="scrolledUp"
+            class="absolute bottom-4 right-4 z-10 flex items-center gap-1.5 px-3 py-2 rounded-full bg-blue-500 text-white text-xs font-medium shadow-lg hover:bg-blue-600 active:scale-95 transition-smooth"
+            @click="goToLatest"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7-7-7m14-8l-7 7-7-7" />
+            </svg>
+            <span v-if="newMsgCount > 0" class="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center">{{ newMsgCount }}</span>
+            <span>最新消息</span>
+          </button>
         </div>
 
         <!-- 输入区 -->
