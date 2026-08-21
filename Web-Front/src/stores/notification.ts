@@ -5,6 +5,19 @@ import type { NotificationItem, ChatMessageItem, ConversationItem } from '@/type
 import { playNotificationSound, playChatSound } from '@/utils/sound';
 import { useAuthStore } from './auth';
 
+/** 需求24：右上角消息弹窗条目 */
+export interface PopupItem {
+  id: number;
+  kind: 'chat' | 'notification';
+  title: string;
+  content: string;
+  /** 聊天消息：对端用户 id，点击跳转聊天会话 */
+  peerId?: string;
+  /** 任务通知：关联任务 id，点击跳转任务详情 */
+  noteId?: string;
+  createdAt?: string;
+}
+
 export const useNotificationStore = defineStore('notification', () => {
   const unreadCount = ref(0);
   const notifications = ref<NotificationItem[]>([]);
@@ -17,6 +30,11 @@ export const useNotificationStore = defineStore('notification', () => {
   const chatPeerId = ref<string | null>(null);
   // 当前正在查看的会话（聊天页/聊天抽屉打开会话时设置）：收到该会话新消息立即标记已读
   const viewingPeerId = ref<string | null>(null);
+  // 需求24：右上角消息弹窗（当前展示 + 等待队列，离线补推时逐步弹出）
+  const popups = ref<PopupItem[]>([]);
+  const popupQueue = ref<PopupItem[]>([]);
+  let popupId = 0;
+  let popupPumping = false;
 
   let ws: WebSocket | null = null;
 
@@ -35,6 +53,92 @@ export const useNotificationStore = defineStore('notification', () => {
     viewingPeerId.value = peerId;
   }
 
+  // ---------------- 需求24：右上角消息弹窗 ----------------
+
+  function chatPreview(m: ChatMessageItem): string {
+    if (m.type === 'image') return '[图片]';
+    if (m.type === 'file') return `[文件] ${m.file_name || ''}`.trim();
+    return (m.content || '').slice(0, 120);
+  }
+
+  function peerDisplayName(peerId: string): string {
+    const conv = conversations.value.find((c) => c.peer_id === peerId);
+    if (conv?.peer_name) return conv.peer_name;
+    return `用户 ${peerId.slice(0, 6)}`;
+  }
+
+  // 入队一条弹窗：同时最多展示 2 条，队列中的按间隔逐步弹出（离线补推时逐条浮现）
+  function enqueuePopup(item: Omit<PopupItem, 'id'>) {
+    popupQueue.value.push({ id: ++popupId, ...item });
+    pumpPopups();
+  }
+
+  function dismissPopup(id: number) {
+    popups.value = popups.value.filter((p) => p.id !== id);
+  }
+
+  function pumpPopups() {
+    if (popupPumping) return;
+    popupPumping = true;
+    const step = () => {
+      while (popups.value.length < 2 && popupQueue.value.length > 0) {
+        const item = popupQueue.value.shift()!;
+        popups.value.push(item);
+        window.setTimeout(() => dismissPopup(item.id), 5000);
+      }
+      if (popupQueue.value.length > 0) {
+        window.setTimeout(step, 700);
+      } else {
+        popupPumping = false;
+      }
+    };
+    window.setTimeout(step, 0);
+  }
+
+  // 需求24：离线期间错过的未读通知 / 未读聊天，上线后逐步从右上角弹出
+  async function replayMissed() {
+    try {
+      const res = await notifService.fetchNotifications({ page: 1, page_size: 20, unread_only: true });
+      const items = (res.data as unknown as { data: NotificationItem[] }).data || [];
+      // 从旧到新弹出，最多 5 条
+      for (const n of items.slice(-5)) {
+        enqueuePopup({
+          kind: 'notification',
+          title: n.title,
+          content: (n.content || '').slice(0, 120),
+          noteId: n.note_id,
+          createdAt: n.created_at,
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      const convRes = await notifService.fetchConversations();
+      const convs = (convRes.data as unknown as ConversationItem[]) || [];
+      const me = useAuthStore().user?.id;
+      let count = 0;
+      for (const conv of convs.filter((c) => (c.unread || 0) > 0)) {
+        if (count >= 5) break;
+        const res = await notifService.fetchChatMessages(conv.peer_id, { page: 1, page_size: 20 });
+        const list = (res.data as unknown as { data: ChatMessageItem[] }).data || [];
+        const unreadMsgs = list.filter((m) => m.sender_id !== me && !m.is_read);
+        for (const m of unreadMsgs.slice(-Math.min(3, 5 - count))) {
+          enqueuePopup({
+            kind: 'chat',
+            title: conv.peer_name || peerDisplayName(conv.peer_id),
+            content: chatPreview(m),
+            peerId: conv.peer_id,
+            createdAt: m.created_at,
+          });
+          count++;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
   // ---------------- WebSocket 全局通道 ----------------
 
   function connectSocket() {
@@ -51,6 +155,8 @@ export const useNotificationStore = defineStore('notification', () => {
     ws = new WebSocket(url);
     ws.onopen = () => {
       connected.value = true;
+      // 需求24：离线期间错过的消息/通知，上线后逐步从右上角弹出
+      replayMissed();
     };
     ws.onclose = () => {
       connected.value = false;
@@ -96,6 +202,14 @@ export const useNotificationStore = defineStore('notification', () => {
     if (!n.is_read) unreadCount.value += 1;
     notifications.value = [n, ...notifications.value.filter((x) => x.id !== n.id)];
     playNotificationSound();
+    // 需求24：右上角弹窗，点击跳转任务详情
+    enqueuePopup({
+      kind: 'notification',
+      title: n.title,
+      content: (n.content || '').slice(0, 120),
+      noteId: n.note_id,
+      createdAt: n.created_at,
+    });
   }
 
   function handleNewMessage(m: ChatMessageItem) {
@@ -106,6 +220,17 @@ export const useNotificationStore = defineStore('notification', () => {
         // 用新数组引用替换，确保聊天页/抽屉对消息的 watch 能触发（原地 push 不会触发 watch）
         messages.value[m.sender_id] = [...list, m];
       }
+    }
+    const me = useAuthStore().user?.id;
+    // 需求24：右上角弹窗（自己发送的不弹；正在查看该会话的不弹，避免打扰）
+    if (m.sender_id !== me && viewingPeerId.value !== m.sender_id) {
+      enqueuePopup({
+        kind: 'chat',
+        title: peerDisplayName(m.sender_id),
+        content: chatPreview(m),
+        peerId: m.sender_id,
+        createdAt: m.created_at,
+      });
     }
     // 正在查看该会话：立即标记已读并清零角标，不刷新会话列表（避免并发用旧未读数覆盖已读状态）
     if (viewingPeerId.value && viewingPeerId.value === m.sender_id) {
@@ -237,6 +362,8 @@ export const useNotificationStore = defineStore('notification', () => {
     connected,
     chatOpen,
     chatPeerId,
+    popups,
+    dismissPopup,
     openChat,
     closeChat,
     setViewingPeer,

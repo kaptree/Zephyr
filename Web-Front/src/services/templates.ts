@@ -1,7 +1,7 @@
 import { get, post, put, del } from './api'
 import type { Template } from '@/types'
 
-export function fetchTemplates(params?: { type?: string }) {
+export function fetchTemplates(params?: { type?: string; keyword?: string }) {
   return get<Template[]>('/api/v1/templates', params as Record<string, unknown>)
 }
 
@@ -12,6 +12,8 @@ export function fetchTemplateById(id: string) {
 export function createTemplate(payload: {
   name: string
   type?: string
+  description?: string
+  content?: string
   fields?: string
   layout?: string
 }) {
@@ -21,6 +23,8 @@ export function createTemplate(payload: {
 export function updateTemplate(id: string, payload: {
   name?: string
   type?: string
+  description?: string
+  content?: string
   fields?: string
   layout?: string
 }) {

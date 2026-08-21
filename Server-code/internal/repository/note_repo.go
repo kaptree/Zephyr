@@ -849,4 +849,129 @@ func (r *NoteRepository) GetTeamStats(since, now time.Time, deptID, role string,
 	return result, nil
 }
 
+// ---------------- 需求25：报告成员任务/反馈明细 ----------------
+
+type ReportTaskDetail struct {
+	ID          string     `json:"id"`
+	Title       string     `json:"title"`
+	Content     string     `json:"content"`
+	Status      string     `json:"status"` // active / completed
+	CreatedAt   time.Time  `json:"created_at"`
+	CompletedAt *time.Time `json:"completed_at"`
+	Feedback    string     `json:"feedback"` // 关联反馈（含填报人姓名），多条用换行分隔
+}
+
+type ReportMemberDetail struct {
+	UserID   string             `json:"user_id"`
+	UserName string             `json:"user_name"`
+	Tasks    []ReportTaskDetail `json:"tasks"`
+}
+
+type ReportDetailData struct {
+	Range   string               `json:"range"`
+	Members []ReportMemberDetail `json:"members"`
+}
+
+// GetTasksForReport 查询指定用户在时间范围内创建的任务及反馈（按时间正序），供报告下方成员明细展示
+func (r *NoteRepository) GetTasksForReport(userIDs []string, since, now time.Time) ([]ReportMemberDetail, error) {
+	uidSet := make(map[string]string) // id -> name
+	var users []models.User
+	if len(userIDs) > 0 {
+		r.db.Select("id", "name").Where("id IN ?", userIDs).Find(&users)
+	}
+	for _, u := range users {
+		uidSet[u.ID.String()] = u.Name
+	}
+	// 补充无 user 记录但仍传入的 id（以 id 兜底）
+	for _, id := range userIDs {
+		if _, ok := uidSet[id]; !ok {
+			uidSet[id] = ""
+		}
+	}
+
+	var notes []models.Note
+	if len(uidSet) > 0 {
+		ids := make([]string, 0, len(uidSet))
+		for id := range uidSet {
+			ids = append(ids, id)
+		}
+		err := r.db.
+			Preload("Assignees.User").
+			Where("creator_id IN ? AND created_at >= ? AND created_at <= ?", ids, since, now).
+			Order("created_at ASC").
+			Find(&notes).Error
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	memberMap := make(map[string]*ReportMemberDetail)
+	var memberList []*ReportMemberDetail
+	for id, name := range uidSet {
+		m := &ReportMemberDetail{UserID: id, UserName: name, Tasks: []ReportTaskDetail{}}
+		memberMap[id] = m
+		memberList = append(memberList, m)
+	}
+
+	for _, n := range notes {
+		m, ok := memberMap[n.CreatorID.String()]
+		if !ok {
+			continue
+		}
+		status := "active"
+		if n.IsArchived {
+			status = "completed"
+		}
+		feedback := buildAssigneeFeedback(n.Assignees)
+		m.Tasks = append(m.Tasks, ReportTaskDetail{
+			ID:          n.ID.String(),
+			Title:       n.Title,
+			Content:     n.Content,
+			Status:      status,
+			CreatedAt:   n.CreatedAt,
+			CompletedAt: n.CompletedAt,
+			Feedback:    feedback,
+		})
+	}
+
+	// 任务按时间正序；成员输出顺序按 userIDs 传入顺序（未指定则按 uidSet 顺序）
+	if len(userIDs) > 0 {
+		byID := make(map[string]*ReportMemberDetail, len(memberList))
+		for _, m := range memberList {
+			byID[m.UserID] = m
+		}
+		ordered := make([]ReportMemberDetail, 0, len(memberList))
+		for _, id := range userIDs {
+			if m, ok := byID[id]; ok {
+				ordered = append(ordered, *m)
+			}
+		}
+		return ordered, nil
+	}
+	members := make([]ReportMemberDetail, 0, len(memberList))
+	for _, m := range memberList {
+		members = append(members, *m)
+	}
+	return members, nil
+}
+
+// buildAssigneeFeedback 汇总被指派人的反馈内容（"姓名：内容"，多条换行）
+func buildAssigneeFeedback(assignees []models.NoteAssignee) string {
+	parts := []string{}
+	for _, a := range assignees {
+		if a.FeedbackContent == "" {
+			continue
+		}
+		name := ""
+		if a.User != nil {
+			name = a.User.Name
+		}
+		if name == "" {
+			name = "被指派人"
+		}
+		parts = append(parts, name+"："+a.FeedbackContent)
+	}
+	return strings.Join(parts, "\n")
+}
+
 var _ = strings.TrimSpace

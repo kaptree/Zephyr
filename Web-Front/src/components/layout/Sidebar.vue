@@ -41,7 +41,7 @@ const menuItems: MenuItem[] = [
   },
   { icon: 'user', label: '人员管理', path: '/admin/users', permission: 'manage_users' },
   { icon: 'tag', label: '标签管理', path: '/admin/tags', permission: 'manage_tags' },
-  { icon: 'template', label: '模板管理', path: '/admin/templates', permission: 'manage_templates' },
+  { icon: 'template', label: '模板管理', path: '/admin/templates' },
   { icon: 'monitor', label: '数据大屏', path: '/screen/default', permission: 'access_screen' },
   {
     icon: 'settings',

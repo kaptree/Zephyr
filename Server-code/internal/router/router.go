@@ -262,6 +262,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 			analytics.POST("/ai-report", analyticsHandler.GenerateAIReport)
 			analytics.GET("/reports", analyticsHandler.ListReports)
 			analytics.GET("/reports/:id", analyticsHandler.GetReport)
+			analytics.GET("/reports/:id/detail", analyticsHandler.GetReportDetail)
 			analytics.DELETE("/reports/:id", analyticsHandler.DeleteReport)
 			analytics.GET("/report-template", analyticsHandler.GetReportTemplate)
 			analytics.PUT("/report-template", analyticsHandler.SaveReportTemplate)

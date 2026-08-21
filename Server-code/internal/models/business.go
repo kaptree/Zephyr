@@ -29,15 +29,18 @@ func (Tag) TableName() string {
 }
 
 type Template struct {
-	ID        uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	Name      string     `gorm:"type:varchar(100);not null" json:"name"`
-	Type      string     `gorm:"type:varchar(30);default:'default'" json:"type"`
-	Fields    string     `gorm:"type:jsonb;default:'[]'" json:"fields"`
-	Layout    string     `gorm:"type:varchar(10);default:'1'" json:"layout"`
-	IsSystem  bool       `gorm:"default:false" json:"is_system"`
-	CreatorID *uuid.UUID `gorm:"type:uuid" json:"creator_id"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	ID          uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	Name        string     `gorm:"type:varchar(100);not null" json:"name"`
+	Type        string     `gorm:"type:varchar(30);default:'default'" json:"type"`
+	Description string     `gorm:"type:varchar(500);default:''" json:"description"`
+	Content     string     `gorm:"type:text" json:"content"`
+	Fields      string     `gorm:"type:jsonb;default:'[]'" json:"fields"`
+	Layout      string     `gorm:"type:varchar(10);default:'1'" json:"layout"`
+	IsSystem    bool       `gorm:"default:false" json:"is_system"`
+	CreatorID   *uuid.UUID `gorm:"type:uuid" json:"creator_id"`
+	Creator     *User      `gorm:"foreignKey:CreatorID" json:"creator,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 func (Template) TableName() string {
@@ -110,14 +113,14 @@ func (Reminder) TableName() string {
 }
 
 type PresetGroup struct {
-	ID           uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	Name         string     `gorm:"type:varchar(200);not null" json:"name"`
-	Description  string     `gorm:"type:text" json:"description"`
-	TemplateType string     `gorm:"type:varchar(30);default:'default'" json:"template_type"`
-	CreatorID    uuid.UUID  `gorm:"type:uuid;not null" json:"creator_id"`
-	Creator      *User      `gorm:"foreignKey:CreatorID" json:"creator,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID           uuid.UUID           `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	Name         string              `gorm:"type:varchar(200);not null" json:"name"`
+	Description  string              `gorm:"type:text" json:"description"`
+	TemplateType string              `gorm:"type:varchar(30);default:'default'" json:"template_type"`
+	CreatorID    uuid.UUID           `gorm:"type:uuid;not null" json:"creator_id"`
+	Creator      *User               `gorm:"foreignKey:CreatorID" json:"creator,omitempty"`
+	CreatedAt    time.Time           `json:"created_at"`
+	UpdatedAt    time.Time           `json:"updated_at"`
 	Members      []PresetGroupMember `gorm:"foreignKey:PresetID" json:"members,omitempty"`
 }
 

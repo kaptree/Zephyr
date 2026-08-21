@@ -78,6 +78,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/AnalyticsPage.vue'),
         meta: { title: '工作成效分析' },
       },
+      {
+        path: 'reports/:id',
+        name: 'ReportDetail',
+        component: () => import('@/pages/ReportDetailPage.vue'),
+        meta: { title: '工作报告详情' },
+      },
     ],
   },
   {
@@ -152,7 +158,7 @@ const routes: RouteRecordRaw[] = [
         path: 'templates',
         name: 'Templates',
         component: () => import('@/pages/admin/TemplatesPage.vue'),
-        meta: { title: '模板管理', permissions: ['manage_templates'] },
+        meta: { title: '模板管理' },
       },
       {
         path: 'system',

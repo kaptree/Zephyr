@@ -622,15 +622,25 @@ function onTemplateSelect() {
   if (!selectedTemplateId.value) return;
   const tpl = userTemplates.value.find((t) => t.id === selectedTemplateId.value);
   if (!tpl) return;
-  let fields: any[] = [];
-  try {
-    fields = JSON.parse(
-      typeof tpl.fields === 'string' ? tpl.fields : JSON.stringify(tpl.fields ?? [])
-    );
-  } catch {}
-  if (fields.length > 0) {
+  // 需求23：模板内容为任务记录/报告编辑的文本模板，直接填入任务编辑器
+  let content = (tpl.content || '').trim();
+  if (!content) {
+    // 兼容旧 JSON 字段模板：把字段名转为占位正文
+    try {
+      const fields = JSON.parse(
+        typeof tpl.fields === 'string' ? tpl.fields : JSON.stringify(tpl.fields ?? [])
+      );
+      if (Array.isArray(fields) && fields.length) {
+        content = fields.map((f: any) => `【${f.name}】`).join('\n');
+      }
+    } catch {}
+  }
+  if (content) {
     const header = `<div><b>📋 模板：${tpl.name}</b></div>`;
-    const lines = fields.map((f: any) => `<div>【${f.name}】</div>`).join('');
+    const lines = content
+      .split('\n')
+      .map((line) => `<div>${line || '<br>'}</div>`)
+      .join('');
     newContent.value = `${header}${lines}<div><br></div>${newContent.value || ''}`;
   }
 }

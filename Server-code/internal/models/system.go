@@ -25,15 +25,15 @@ func (AIConfig) TableName() string {
 }
 
 type ConfigFileHistory struct {
-	ID             uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	FileName       string    `gorm:"type:varchar(255);not null;index" json:"file_name"`
-	FilePath       string    `gorm:"type:varchar(500);not null" json:"file_path"`
-	ContentBefore  string    `gorm:"type:text" json:"content_before"`
-	ContentAfter   string    `gorm:"type:text" json:"content_after"`
-	ChangedBy      string    `gorm:"type:varchar(100);not null" json:"changed_by"`
-	ChangedByID    string    `gorm:"type:varchar(50);not null" json:"changed_by_id"`
-	ChangeSummary  string    `gorm:"type:varchar(500)" json:"change_summary"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID            uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	FileName      string    `gorm:"type:varchar(255);not null;index" json:"file_name"`
+	FilePath      string    `gorm:"type:varchar(500);not null" json:"file_path"`
+	ContentBefore string    `gorm:"type:text" json:"content_before"`
+	ContentAfter  string    `gorm:"type:text" json:"content_after"`
+	ChangedBy     string    `gorm:"type:varchar(100);not null" json:"changed_by"`
+	ChangedByID   string    `gorm:"type:varchar(50);not null" json:"changed_by_id"`
+	ChangeSummary string    `gorm:"type:varchar(500)" json:"change_summary"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 func (ConfigFileHistory) TableName() string {
@@ -89,6 +89,7 @@ type WorkReport struct {
 	Title        string     `gorm:"type:varchar(300)" json:"title"`
 	Content      string     `gorm:"type:text" json:"content"`
 	StatsSummary string     `gorm:"type:text" json:"stats_summary"`
+	Detail       string     `gorm:"type:jsonb" json:"-"` // 需求25：报告周期内各成员任务/反馈快照（仅详情接口返回）
 	CreatedAt    time.Time  `gorm:"index" json:"created_at"`
 }
 

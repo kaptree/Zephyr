@@ -2,10 +2,16 @@ export interface Template {
   id: string
   name: string
   type: string
+  /** 模板简介 */
+  description?: string
+  /** 模板内容（任务记录/报告编辑的文本模板） */
+  content?: string
   fields: string
   layout: string
   is_system: boolean
   creator_id?: string
+  /** 模板创建人（后端已预加载） */
+  creator?: { id: string; name: string }
   created_at: string
   updated_at: string
 }

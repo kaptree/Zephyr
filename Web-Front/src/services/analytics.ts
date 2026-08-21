@@ -65,6 +65,31 @@ export function getReport(id: string): Promise<ApiResponse<WorkReportItem>> {
   return get(`/api/v1/analytics/reports/${id}`);
 }
 
+/** 需求25：报告详情（含周期内各成员任务/反馈明细） */
+export interface ReportTaskDetail {
+  id: string;
+  title: string;
+  content: string;
+  status: 'active' | 'completed';
+  created_at: string;
+  completed_at?: string;
+  feedback: string;
+}
+export interface ReportMemberDetail {
+  user_id: string;
+  user_name: string;
+  tasks: ReportTaskDetail[];
+}
+export interface ReportDetailData {
+  range: string;
+  members: ReportMemberDetail[];
+}
+export function getReportDetail(
+  id: string
+): Promise<ApiResponse<{ report: WorkReportItem; detail: ReportDetailData }>> {
+  return get(`/api/v1/analytics/reports/${id}/detail`);
+}
+
 export function deleteReport(id: string): Promise<ApiResponse<null>> {
   return del(`/api/v1/analytics/reports/${id}`);
 }

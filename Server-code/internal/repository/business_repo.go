@@ -117,11 +117,15 @@ func NewTemplateRepository(db *gorm.DB) *TemplateRepository {
 	return &TemplateRepository{db: db}
 }
 
-func (r *TemplateRepository) FindAll(templateType string) ([]models.Template, error) {
+func (r *TemplateRepository) FindAll(templateType, keyword string) ([]models.Template, error) {
 	var templates []models.Template
-	query := r.db.Order("created_at DESC")
+	query := r.db.Preload("Creator").Order("created_at DESC")
 	if templateType != "" {
 		query = query.Where("type = ?", templateType)
+	}
+	if keyword != "" {
+		kw := "%" + keyword + "%"
+		query = query.Where("name ILIKE ? OR description ILIKE ? OR content ILIKE ?", kw, kw, kw)
 	}
 	if err := query.Find(&templates).Error; err != nil {
 		return nil, err
@@ -131,7 +135,7 @@ func (r *TemplateRepository) FindAll(templateType string) ([]models.Template, er
 
 func (r *TemplateRepository) FindByID(id string) (*models.Template, error) {
 	var tmpl models.Template
-	err := r.db.First(&tmpl, "id = ?", id).Error
+	err := r.db.Preload("Creator").First(&tmpl, "id = ?", id).Error
 	if err != nil {
 		return nil, err
 	}

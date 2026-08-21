@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import {
   fetchPersonalStats,
   generateAIReport,
@@ -22,6 +23,7 @@ import type {
 
 type Period = 'week' | 'month' | 'year';
 
+const router = useRouter();
 const activePeriod = ref<Period>('week');
 const stats = ref<PersonalStatsData | null>(null);
 const loading = ref(false);
@@ -45,7 +47,6 @@ const reportsFilter = ref({
   date_from: '',
   date_to: '',
 });
-const selectedReport = ref<WorkReportItem | null>(null);
 
 // ===== 团队报告模块（★ 新增） =====
 type TeamPeriod = 'week' | 'month' | 'custom';
@@ -270,15 +271,6 @@ function showToast(type: 'success' | 'error', msg: string) {
   }, 3000);
 }
 
-function copyReportContent() {
-  try {
-    navigator.clipboard.writeText(selectedReport.value?.content || '');
-    showToast('success', '已复制到剪贴板');
-  } catch {
-    showToast('error', '复制失败');
-  }
-}
-
 const periodOptions: { key: Period; label: string; icon: string }[] = [
   { key: 'week', label: '本周', icon: '📅' },
   { key: 'month', label: '本月', icon: '📆' },
@@ -371,11 +363,8 @@ function resetReportFilters() {
 }
 
 function viewReport(report: WorkReportItem) {
-  selectedReport.value = report;
-}
-
-function closeReportDetail() {
-  selectedReport.value = null;
+  // 需求25：点击报告跳转到详情子页面
+  router.push(`/analytics/reports/${report.id}`);
 }
 
 async function openTemplateEditor() {
@@ -412,7 +401,6 @@ async function handleDeleteReport(id: string) {
   try {
     await deleteReport(id);
     showToast('success', '报告已删除');
-    if (selectedReport.value?.id === id) selectedReport.value = null;
     loadReports();
   } catch {
     showToast('error', '删除报告失败');
@@ -440,7 +428,7 @@ function copyReport() {
 }
 
 const renderedReport = computed(() => {
-  const content = selectedReport.value?.content || reportContent.value;
+  const content = reportContent.value;
   if (!content) return '';
   return content
     .replace(/&/g, '&amp;')
@@ -1261,94 +1249,6 @@ onMounted(() => {
         </div>
       </template>
     </div>
-
-    <!-- Report detail modal -->
-    <Teleport to="body">
-      <div
-        v-if="selectedReport"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-        @click.self="closeReportDetail()"
-      >
-        <div
-          class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col mx-4 overflow-hidden"
-        >
-          <div
-            class="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700"
-          >
-            <div>
-              <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">
-                {{ selectedReport.title }}
-              </h3>
-              <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                {{ formatTime(selectedReport.created_at) }}
-                ·
-                {{ periodLabels[selectedReport.period] || selectedReport.period_label }}
-                ·
-                <span
-                  :class="
-                    selectedReport.category === 'team'
-                      ? 'text-purple-500'
-                      : selectedReport.category === 'group'
-                        ? 'text-cyan-500'
-                        : 'text-blue-500'
-                  "
-                >
-                  {{
-                    selectedReport.category === 'team'
-                      ? '团队报告'
-                      : selectedReport.category === 'group'
-                        ? '工作组报告'
-                        : '个人报告'
-                  }}
-                </span>
-                ·
-                <span
-                  :class="
-                    selectedReport.report_type === 'ai' ? 'text-purple-500' : 'text-amber-500'
-                  "
-                >
-                  {{ selectedReport.report_type === 'ai' ? 'AI生成' : '模板生成' }}
-                </span>
-              </p>
-            </div>
-            <button
-              class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-xl leading-none"
-              @click="closeReportDetail()"
-            >
-              ✕
-            </button>
-          </div>
-          <div class="flex-1 overflow-auto p-6">
-            <div class="prose prose-sm dark:prose-invert max-w-none" v-html="renderedReport"></div>
-          </div>
-          <div
-            class="shrink-0 flex items-center justify-end gap-2 px-6 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40"
-          >
-            <button
-              class="px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-smooth"
-              @click="
-                handleDeleteReport(selectedReport.id);
-                closeReportDetail();
-              "
-            >
-              🗑 删除
-            </button>
-            <button
-              class="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-smooth"
-              @click="copyReportContent()"
-            >
-              📋 复制
-            </button>
-            <button
-              class="px-4 py-1.5 text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-smooth"
-              @click="closeReportDetail()"
-            >
-              关闭
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
 
     <!-- Template editor modal -->
     <Teleport to="body">

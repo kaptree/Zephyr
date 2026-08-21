@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { useRoute } from 'vue-router';
 import { useNotificationStore } from '@/stores/notification';
 import { useAuthStore } from '@/stores/auth';
 import { getVisibleUsers } from '@/services/admin';
@@ -10,6 +11,7 @@ import { renderNoteContent } from '@/utils/richText';
 
 const store = useNotificationStore();
 const auth = useAuthStore();
+const route = useRoute();
 
 const leftTab = ref<'conv' | 'contact'>('conv');
 const keyword = ref('');
@@ -253,7 +255,18 @@ onMounted(() => {
   loadUsers();
   store.refreshConversations();
   store.fetchOnlineUsers();
+  // 需求24：弹窗点击跳转 /chat?peer=xxx 时直达对应会话
+  const peer = route.query.peer as string | undefined;
+  if (peer) openConversation(peer);
 });
+
+// 需求24：已在聊天页时，点击弹窗切换会话（peer 查询参数变化）
+watch(
+  () => route.query.peer,
+  (peer) => {
+    if (peer && peer !== currentPeer.value) openConversation(peer as string);
+  }
+);
 
 onUnmounted(() => {
   // 离开聊天页：清除正在查看的会话，后续消息正常计入未读角标

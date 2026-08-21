@@ -26,6 +26,20 @@ func NewAnalyticsHandler(noteRepo *repository.NoteRepository, sysRepo *repositor
 	return &AnalyticsHandler{noteRepo: noteRepo, sysRepo: sysRepo}
 }
 
+// buildReportDetail 采集报告周期内各成员的任务/反馈快照（需求25：附在报告下方）
+func (h *AnalyticsHandler) buildReportDetail(userIDs []string, since, now time.Time, dateRange string) string {
+	members, err := h.noteRepo.GetTasksForReport(userIDs, since, now)
+	if err != nil {
+		return ""
+	}
+	data := repository.ReportDetailData{Range: dateRange, Members: members}
+	b, err := json.Marshal(data)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
 // parseTeamRange 解析时间范围：date_from/date_to 为空时默认本周一至今天
 func parseTeamRange(dateFrom, dateTo string) (time.Time, time.Time) {
 	now := time.Now()
@@ -75,13 +89,13 @@ func (h *AnalyticsHandler) TeamStats(c *gin.Context) {
 	}
 
 	utils.Success(c, gin.H{
-		"date_from":      since.Format("2006-01-02"),
-		"date_to":        now.Format("2006-01-02"),
-		"members":        result.Members,
-		"total_created":  result.TotalCreated,
+		"date_from":       since.Format("2006-01-02"),
+		"date_to":         now.Format("2006-01-02"),
+		"members":         result.Members,
+		"total_created":   result.TotalCreated,
 		"total_completed": result.TotalCompleted,
 		"completion_rate": result.CompletionRate,
-		"member_count":   result.MemberCount,
+		"member_count":    result.MemberCount,
 	})
 }
 
@@ -147,6 +161,12 @@ func (h *AnalyticsHandler) GenerateTeamReport(c *gin.Context) {
 	statsJSON, _ := json.Marshal(result)
 	title := fmt.Sprintf("%s - %s", periodLabel, time.Now().Format("2006-01-02 15:04"))
 
+	// 需求25：采集各成员任务/反馈快照附在报告下方
+	memberIDs := make([]string, 0, len(result.Members))
+	for _, m := range result.Members {
+		memberIDs = append(memberIDs, m.UserID)
+	}
+
 	workReport := &models.WorkReport{
 		ID:           uuid.New(),
 		UserID:       userID,
@@ -158,18 +178,19 @@ func (h *AnalyticsHandler) GenerateTeamReport(c *gin.Context) {
 		Title:        title,
 		Content:      reportContent,
 		StatsSummary: string(statsJSON),
+		Detail:       h.buildReportDetail(memberIDs, since, now, dateRange),
 	}
 	_ = h.sysRepo.CreateWorkReport(workReport)
 
 	utils.Success(c, gin.H{
-		"report_id":     workReport.ID.String(),
-		"period":        period,
-		"period_label":  periodLabel,
-		"report_type":   reportType,
-		"category":      workReport.Category,
-		"stats":         result,
-		"report":        reportContent,
-		"generated_at":  workReport.CreatedAt.Format(time.RFC3339),
+		"report_id":    workReport.ID.String(),
+		"period":       period,
+		"period_label": periodLabel,
+		"report_type":  reportType,
+		"category":     workReport.Category,
+		"stats":        result,
+		"report":       reportContent,
+		"generated_at": workReport.CreatedAt.Format(time.RFC3339),
 	})
 }
 
@@ -437,6 +458,10 @@ func (h *AnalyticsHandler) GenerateAIReport(c *gin.Context) {
 
 	title := fmt.Sprintf("%s工作成效报告 - %s", titlePrefix, time.Now().Format("2006-01-02 15:04"))
 
+	// 需求25：采集本人任务/反馈快照附在报告下方
+	since := time.Now().AddDate(0, 0, -days)
+	dateRange := fmt.Sprintf("%s ~ %s", since.Format("2006-01-02"), time.Now().Format("2006-01-02"))
+
 	report := &models.WorkReport{
 		ID:           uuid.New(),
 		UserID:       userID,
@@ -448,18 +473,19 @@ func (h *AnalyticsHandler) GenerateAIReport(c *gin.Context) {
 		Title:        title,
 		Content:      reportContent,
 		StatsSummary: string(statsJSON),
+		Detail:       h.buildReportDetail([]string{userID}, since, time.Now(), dateRange),
 	}
 	_ = h.sysRepo.CreateWorkReport(report)
 
 	utils.Success(c, gin.H{
-		"report_id":     report.ID.String(),
-		"period":        period,
-		"period_label":  periodLabel,
-		"report_type":   reportType,
-		"category":      report.Category,
-		"stats":         stats,
-		"report":        reportContent,
-		"generated_at":  report.CreatedAt.Format(time.RFC3339),
+		"report_id":    report.ID.String(),
+		"period":       period,
+		"period_label": periodLabel,
+		"report_type":  reportType,
+		"category":     report.Category,
+		"stats":        stats,
+		"report":       reportContent,
+		"generated_at": report.CreatedAt.Format(time.RFC3339),
 	})
 }
 
@@ -504,6 +530,27 @@ func (h *AnalyticsHandler) GetReport(c *gin.Context) {
 		return
 	}
 	utils.Success(c, report)
+}
+
+// GetReportDetail 需求25：报告详情（含报告周期内各成员任务/反馈明细，供报告文章下方展示）
+func (h *AnalyticsHandler) GetReportDetail(c *gin.Context) {
+	id := c.Param("id")
+	report, err := h.sysRepo.GetWorkReport(id)
+	if err != nil {
+		utils.NotFound(c, "报告不存在")
+		return
+	}
+	var detail repository.ReportDetailData
+	if report.Detail != "" {
+		_ = json.Unmarshal([]byte(report.Detail), &detail)
+	}
+	if detail.Members == nil {
+		detail.Members = []repository.ReportMemberDetail{}
+	}
+	utils.Success(c, gin.H{
+		"report": report,
+		"detail": detail,
+	})
 }
 
 func (h *AnalyticsHandler) DeleteReport(c *gin.Context) {
@@ -729,6 +776,8 @@ func (h *AnalyticsHandler) generatePeriodReport(c *gin.Context, userID, userName
 
 	title := fmt.Sprintf("%s工作报告 - %s", periodLabel, now.Format("2006-01-02 15:04"))
 
+	dateRange := fmt.Sprintf("%s ~ %s", since.Format("2006-01-02"), now.Format("2006-01-02"))
+
 	workReport := &models.WorkReport{
 		ID:           uuid.New(),
 		UserID:       userID,
@@ -740,19 +789,20 @@ func (h *AnalyticsHandler) generatePeriodReport(c *gin.Context, userID, userName
 		Title:        title,
 		Content:      report,
 		StatsSummary: string(statsJSON),
+		Detail:       h.buildReportDetail([]string{userID}, since, now, dateRange),
 	}
 	_ = h.sysRepo.CreateWorkReport(workReport)
 
 	utils.Success(c, gin.H{
-		"report_id":     workReport.ID.String(),
-		"period":        period,
-		"period_label":  periodLabel,
-		"report_type":   "template",
-		"category":      workReport.Category,
-		"stats":         stats,
-		"source_stats":  sourceStats,
-		"report":        report,
-		"generated_at":  workReport.CreatedAt.Format(time.RFC3339),
+		"report_id":    workReport.ID.String(),
+		"period":       period,
+		"period_label": periodLabel,
+		"report_type":  "template",
+		"category":     workReport.Category,
+		"stats":        stats,
+		"source_stats": sourceStats,
+		"report":       report,
+		"generated_at": workReport.CreatedAt.Format(time.RFC3339),
 	})
 }
 
@@ -868,4 +918,3 @@ func buildReportPrompt(userName, periodLabel string, stats *repository.PersonalS
 		dailyTrendDesc,
 	)
 }
-

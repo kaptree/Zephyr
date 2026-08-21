@@ -31,7 +31,8 @@ func NewTemplateHandler(tmplRepo *repository.TemplateRepository) *TemplateHandle
 
 func (h *TemplateHandler) List(c *gin.Context) {
 	tmplType := c.Query("type")
-	templates, err := h.tmplRepo.FindAll(tmplType)
+	keyword := c.Query("keyword")
+	templates, err := h.tmplRepo.FindAll(tmplType, keyword)
 	if err != nil {
 		utils.InternalError(c, "查询模板失败")
 		return
@@ -50,10 +51,12 @@ func (h *TemplateHandler) Get(c *gin.Context) {
 }
 
 type CreateTemplateRequest struct {
-	Name   string `json:"name" binding:"required,max=100"`
-	Type   string `json:"type"`
-	Fields string `json:"fields"`
-	Layout string `json:"layout"`
+	Name        string `json:"name" binding:"required,max=100"`
+	Type        string `json:"type"`
+	Description string `json:"description"`
+	Content     string `json:"content"`
+	Fields      string `json:"fields"`
+	Layout      string `json:"layout"`
 }
 
 func (h *TemplateHandler) Create(c *gin.Context) {
@@ -65,21 +68,20 @@ func (h *TemplateHandler) Create(c *gin.Context) {
 
 	userID := middleware.GetUserID(c)
 	tmpl := &models.Template{
-		Name:      req.Name,
-		Type:      req.Type,
-		Fields:    req.Fields,
-		Layout:    req.Layout,
-		IsSystem:  false,
-		CreatorID: uuidPtr(userID),
+		Name:        req.Name,
+		Type:        req.Type,
+		Description: req.Description,
+		Content:     req.Content,
+		Fields:      req.Fields,
+		Layout:      req.Layout,
+		IsSystem:    false,
+		CreatorID:   uuidPtr(userID),
 	}
 	if tmpl.Type == "" {
 		tmpl.Type = "default"
 	}
 	if tmpl.Layout == "" {
 		tmpl.Layout = "1"
-	}
-	if tmpl.Fields == "" {
-		tmpl.Fields = `[{"name":"任务描述","type":"textarea","required":true,"order":1}]`
 	}
 
 	if err := h.tmplRepo.Create(tmpl); err != nil {
@@ -90,10 +92,26 @@ func (h *TemplateHandler) Create(c *gin.Context) {
 }
 
 type UpdateTemplateRequest struct {
-	Name   *string `json:"name"`
-	Type   *string `json:"type"`
-	Fields *string `json:"fields"`
-	Layout *string `json:"layout"`
+	Name        *string `json:"name"`
+	Type        *string `json:"type"`
+	Description *string `json:"description"`
+	Content     *string `json:"content"`
+	Fields      *string `json:"fields"`
+	Layout      *string `json:"layout"`
+}
+
+// canManageTemplate 模板可改删权限：系统管理员拥有全部权限；其余用户仅可管理自己创建的模板
+func canManageTemplate(c *gin.Context, tmpl *models.Template) bool {
+	if middleware.GetUserRole(c) == "super_admin" {
+		return true
+	}
+	if tmpl.IsSystem {
+		return false
+	}
+	if tmpl.CreatorID != nil && tmpl.CreatorID.String() == middleware.GetUserID(c) {
+		return true
+	}
+	return false
 }
 
 func (h *TemplateHandler) Update(c *gin.Context) {
@@ -101,6 +119,11 @@ func (h *TemplateHandler) Update(c *gin.Context) {
 	tmpl, err := h.tmplRepo.FindByID(id)
 	if err != nil {
 		utils.NotFound(c, "模板不存在")
+		return
+	}
+
+	if !canManageTemplate(c, tmpl) {
+		utils.Forbidden(c, "仅模板创建者或系统管理员可以修改")
 		return
 	}
 
@@ -115,6 +138,12 @@ func (h *TemplateHandler) Update(c *gin.Context) {
 	}
 	if req.Type != nil {
 		tmpl.Type = *req.Type
+	}
+	if req.Description != nil {
+		tmpl.Description = *req.Description
+	}
+	if req.Content != nil {
+		tmpl.Content = *req.Content
 	}
 	if req.Fields != nil {
 		tmpl.Fields = *req.Fields
@@ -137,8 +166,8 @@ func (h *TemplateHandler) Delete(c *gin.Context) {
 		utils.NotFound(c, "模板不存在")
 		return
 	}
-	if tmpl.IsSystem {
-		utils.Forbidden(c, "系统内置模板不可删除")
+	if !canManageTemplate(c, tmpl) {
+		utils.Forbidden(c, "仅模板创建者或系统管理员可以删除")
 		return
 	}
 	if err := h.tmplRepo.Delete(id); err != nil {
@@ -224,8 +253,8 @@ func (h *WorkGroupHandler) Create(c *gin.Context) {
 		if err == nil {
 			for _, pm := range preset.Members {
 				req.Members = append(req.Members, GroupMemberReq{
-					UserID:  pm.UserID.String(),
-					Role:    pm.Role,
+					UserID:   pm.UserID.String(),
+					Role:     pm.Role,
 					SubGroup: pm.SubGroupName,
 				})
 			}
@@ -623,8 +652,8 @@ type DashboardItem struct {
 }
 
 type DashboardColumn struct {
-	SubGroupName string           `json:"sub_group_name"`
-	Items        []DashboardItem  `json:"items"`
+	SubGroupName string          `json:"sub_group_name"`
+	Items        []DashboardItem `json:"items"`
 }
 
 func (h *WorkGroupHandler) GetDashboard(c *gin.Context) {

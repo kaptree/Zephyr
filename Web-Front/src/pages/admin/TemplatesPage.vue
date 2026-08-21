@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { fetchTemplates, createTemplate, updateTemplate, deleteTemplate } from '@/services/templates'
+import { useAuthStore } from '@/stores/auth'
 import type { Template } from '@/types'
 
+const auth = useAuthStore()
 const templates = ref<Template[]>([])
 const loading = ref(true)
+const keyword = ref('')
 const showModal = ref(false)
 const isEditing = ref(false)
 const editingId = ref<string | null>(null)
@@ -15,8 +18,8 @@ const saving = ref(false)
 const form = ref({
   name: '',
   type: 'default',
-  fields: '',
-  layout: '1',
+  description: '',
+  content: '',
 })
 
 const TYPE_LABELS: Record<string, string> = {
@@ -37,10 +40,18 @@ const TYPE_COLORS: Record<string, string> = {
   custom: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
 }
 
+const isSuperAdmin = computed(() => auth.user?.role === 'super_admin')
+
+// 模板可改删权限：系统管理员全部；其余用户仅可管理自己创建的模板
+function canManage(t: Template): boolean {
+  if (isSuperAdmin.value) return true
+  return !!t.creator_id && t.creator_id === auth.user?.id
+}
+
 async function loadTemplates() {
   loading.value = true
   try {
-    const res = await fetchTemplates()
+    const res = await fetchTemplates({ keyword: keyword.value || undefined })
     templates.value = res.data || []
   } catch {
     templates.value = []
@@ -49,25 +60,30 @@ async function loadTemplates() {
   }
 }
 
+function handleSearch() {
+  loadTemplates()
+}
+
+function handleClearSearch() {
+  keyword.value = ''
+  loadTemplates()
+}
+
 function openCreate() {
   isEditing.value = false
   editingId.value = null
-  form.value = { name: '', type: 'default', fields: '', layout: '1' }
+  form.value = { name: '', type: 'default', description: '', content: '' }
   showModal.value = true
 }
 
 function openEdit(t: Template) {
   isEditing.value = true
   editingId.value = t.id
-  let fieldsStr = t.fields
-  if (typeof fieldsStr === 'object') {
-    fieldsStr = JSON.stringify(fieldsStr, null, 2)
-  }
   form.value = {
     name: t.name,
     type: t.type,
-    fields: fieldsStr,
-    layout: t.layout || '1',
+    description: t.description || '',
+    content: t.content || '',
   }
   showModal.value = true
 }
@@ -76,20 +92,16 @@ async function handleSave() {
   if (!form.value.name.trim()) return
   saving.value = true
   try {
+    const payload = {
+      name: form.value.name.trim(),
+      type: form.value.type,
+      description: form.value.description.trim(),
+      content: form.value.content,
+    }
     if (isEditing.value && editingId.value) {
-      await updateTemplate(editingId.value, {
-        name: form.value.name,
-        type: form.value.type,
-        fields: form.value.fields || undefined,
-        layout: form.value.layout,
-      })
+      await updateTemplate(editingId.value, payload)
     } else {
-      await createTemplate({
-        name: form.value.name,
-        type: form.value.type,
-        fields: form.value.fields || undefined,
-        layout: form.value.layout,
-      })
+      await createTemplate(payload)
     }
     showModal.value = false
     await loadTemplates()
@@ -115,12 +127,22 @@ async function handleDelete() {
   }
 }
 
-function parseFields(fieldsStr: string): any[] {
+function creatorName(t: Template): string {
+  return t.creator?.name || '系统'
+}
+
+// 内容预览：优先模板内容，兼容旧 JSON 字段模板
+function contentPreview(t: Template): string {
+  if (t.content?.trim()) return t.content.trim()
   try {
-    return JSON.parse(fieldsStr)
+    const fields = JSON.parse(typeof t.fields === 'string' ? t.fields : JSON.stringify(t.fields ?? '[]'))
+    if (Array.isArray(fields) && fields.length) {
+      return fields.map((f: any) => `【${f.name}】`).join(' ')
+    }
   } catch {
-    return []
+    /* ignore */
   }
+  return ''
 }
 
 onMounted(loadTemplates)
@@ -138,30 +160,69 @@ onMounted(loadTemplates)
       </button>
     </div>
 
+    <!-- 搜索栏 -->
+    <div
+      class="bg-white dark:bg-slate-800 rounded-card p-4 mb-6 flex flex-wrap items-center gap-3 border border-slate-100 dark:border-slate-700 transition-colors duration-300"
+    >
+      <input
+        v-model="keyword"
+        class="input-field !w-56"
+        placeholder="🔍 搜索模板名称 / 简介 / 内容..."
+        @keyup.enter="handleSearch"
+      />
+      <button class="btn-primary text-sm !py-2" @click="handleSearch">搜索</button>
+      <button
+        v-if="keyword"
+        class="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-smooth"
+        @click="handleClearSearch"
+      >
+        清空
+      </button>
+    </div>
+
     <div v-if="loading" class="text-center text-slate-400 dark:text-slate-500 py-20">加载中...</div>
 
     <div v-else-if="templates.length === 0" class="text-center text-slate-400 dark:text-slate-500 py-20">
       暂无模板，点击上方按钮创建
     </div>
 
-    <div v-else class="grid grid-cols-2 gap-4">
+    <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div
         v-for="t in templates"
         :key="t.id"
         class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-5 hover:shadow-note transition-smooth"
       >
         <div class="flex items-start justify-between mb-2">
-          <div class="flex items-center gap-2">
-            <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ t.name }}</h4>
-            <span v-if="t.is_system" class="text-xs px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-300 rounded">系统</span>
+          <div class="flex items-center gap-2 min-w-0">
+            <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{{ t.name }}</h4>
+            <span v-if="t.is_system" class="text-xs px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-300 rounded shrink-0">系统</span>
           </div>
-          <span class="text-xs px-2 py-0.5 rounded-tag" :class="TYPE_COLORS[t.type] || TYPE_COLORS.default">
+          <span class="text-xs px-2 py-0.5 rounded-tag shrink-0" :class="TYPE_COLORS[t.type] || TYPE_COLORS.default">
             {{ TYPE_LABELS[t.type] || t.type }}
           </span>
         </div>
+
+        <!-- 创建人 + 简介 -->
+        <div class="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 mb-2">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+          <span class="font-medium text-slate-500 dark:text-slate-400">{{ creatorName(t) }}</span>
+          <span class="text-slate-300 dark:text-slate-600">·</span>
+          <span class="truncate">{{ t.description || '暂无简介' }}</span>
+        </div>
+
+        <!-- 内容预览 -->
+        <div
+          v-if="contentPreview(t)"
+          class="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 rounded-lg px-3 py-2 line-clamp-3 whitespace-pre-line"
+        >
+          {{ contentPreview(t) }}
+        </div>
+
         <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-50 dark:border-slate-700">
-          <span class="text-xs text-slate-400 dark:text-slate-400">{{ parseFields(t.fields).length }} 个字段</span>
-          <div class="flex gap-2">
+          <span class="text-xs text-slate-300 dark:text-slate-500">{{ t.created_at?.slice(0, 10) }}</span>
+          <div v-if="canManage(t)" class="flex gap-2">
             <button
               class="text-xs px-2.5 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded hover:bg-slate-200 dark:hover:bg-slate-600 transition-smooth"
               @click="openEdit(t)"
@@ -169,57 +230,67 @@ onMounted(loadTemplates)
               编辑
             </button>
             <button
-              v-if="!t.is_system"
               class="text-xs px-2.5 py-1 bg-red-50 dark:bg-red-900/40 text-red-600 dark:text-red-300 rounded hover:bg-red-100 dark:hover:bg-red-900/60 transition-smooth"
               @click="confirmDelete(t.id)"
             >
               删除
             </button>
           </div>
+          <span v-else class="text-xs text-slate-300 dark:text-slate-500">仅创建者/管理员可编辑</span>
         </div>
       </div>
     </div>
 
     <!-- Create/Edit Modal -->
     <div v-if="showModal" class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showModal = false">
-      <div class="bg-white dark:bg-slate-800 rounded-lg w-[480px] max-h-[80vh] overflow-y-auto p-6 shadow-xl">
+      <div class="bg-white dark:bg-slate-800 rounded-lg w-[560px] max-h-[85vh] overflow-y-auto p-6 shadow-xl">
         <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100 mb-4">
           {{ isEditing ? '编辑模板' : '新建模板' }}
         </h3>
         <div class="space-y-4">
-          <div>
-            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">模板名称 *</label>
-            <input
-              v-model="form.name"
-              class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-btn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-400"
-              placeholder="输入模板名称"
-            />
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">模板类型</label>
-            <select v-model="form.type" class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-btn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-400">
-              <option v-for="(label, key) in TYPE_LABELS" :key="key" :value="key">{{ label }}</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">布局样式</label>
-            <select v-model="form.layout" class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-btn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-400">
-              <option value="1">单栏</option>
-              <option value="2">双栏</option>
-              <option value="4">四宫格</option>
-              <option value="6">六宫格</option>
-            </select>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">模板名称 *</label>
+              <input
+                v-model="form.name"
+                class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-btn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-400"
+                placeholder="输入模板名称"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">模板类型</label>
+              <select v-model="form.type" class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-btn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-400">
+                <option v-for="(label, key) in TYPE_LABELS" :key="key" :value="key">{{ label }}</option>
+              </select>
+            </div>
           </div>
           <div>
             <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-              字段定义 (JSON)
-              <span class="text-slate-400 dark:text-slate-500 font-normal">— 示例：[{"name":"任务描述","type":"textarea","required":true,"order":1}]</span>
+              模板简介
+              <span class="text-slate-400 dark:text-slate-500 font-normal">— 简要说明模板用途，展示在卡片上</span>
+            </label>
+            <input
+              v-model="form.description"
+              class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-btn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-400"
+              placeholder="如：针对专项行动的任务记录模板"
+              maxlength="500"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+              模板内容
+              <span class="text-slate-400 dark:text-slate-500 font-normal">— 任务记录/报告编辑的模板正文，创建任务选用后自动填入</span>
             </label>
             <textarea
-              v-model="form.fields"
-              rows="6"
-              class="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-600 rounded-btn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-400 font-mono"
-              placeholder='[{"name":"字段名","type":"text","required":true,"order":1}]'
+              v-model="form.content"
+              rows="10"
+              class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-btn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-400 resize-y"
+              placeholder='例如：
+【任务背景】
+【任务目标】
+【工作措施】
+【完成标准】
+【备注】'
             ></textarea>
           </div>
         </div>
