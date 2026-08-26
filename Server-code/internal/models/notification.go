@@ -13,7 +13,8 @@ type Notification struct {
 	SenderID    *uuid.UUID `gorm:"type:uuid" json:"sender_id"`
 	Sender      *User      `gorm:"foreignKey:SenderID" json:"sender,omitempty"`
 	NoteID      *uuid.UUID `gorm:"type:uuid;index" json:"note_id"`
-	Type        string     `gorm:"type:varchar(30);index" json:"type"` // task_assigned/task_completed/task_feedback/task_remind/system
+	IssueID     *uuid.UUID `gorm:"type:uuid;index" json:"issue_id"`    // 需求26：issue 评论通知关联的问题
+	Type        string     `gorm:"type:varchar(30);index" json:"type"` // task_assigned/task_completed/task_feedback/task_remind/issue_comment/system
 	Title       string     `gorm:"type:varchar(200)" json:"title"`
 	Content     string     `gorm:"type:text" json:"content"`
 	IsRead      bool       `gorm:"default:false;index" json:"is_read"`
@@ -30,7 +31,7 @@ func (Notification) TableName() string {
 type ChatMessage struct {
 	ID         uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	SenderID   uuid.UUID  `gorm:"type:uuid;index" json:"sender_id"`
-	ReceiverID uuid.UUID `gorm:"type:uuid;index" json:"receiver_id"`
+	ReceiverID uuid.UUID  `gorm:"type:uuid;index" json:"receiver_id"`
 	NoteID     *uuid.UUID `gorm:"type:uuid" json:"note_id"`
 	Type       string     `gorm:"type:varchar(20);default:'text';index" json:"type"` // text 文本 / image 图片 / file 文件
 	Content    string     `gorm:"type:text" json:"content"`

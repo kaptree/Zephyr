@@ -9,7 +9,9 @@ export interface NotificationItem {
     avatar?: string
   }
   note_id?: string
-  type: 'task_assigned' | 'task_completed' | 'task_feedback' | 'task_remind' | 'system'
+  /** 需求26：issue 评论通知关联的问题 id */
+  issue_id?: string
+  type: 'task_assigned' | 'task_completed' | 'task_feedback' | 'task_remind' | 'issue_comment' | 'issue_new' | 'system'
   title: string
   content: string
   is_read: boolean

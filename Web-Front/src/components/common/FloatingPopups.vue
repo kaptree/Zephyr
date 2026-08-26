@@ -6,12 +6,14 @@ import type { PopupItem } from '@/stores/notification';
 const store = useNotificationStore();
 const router = useRouter();
 
-// 点击弹窗跳转：聊天消息 → 聊天会话页；任务通知 → 工作台任务详情；其他 → 通知中心
+// 点击弹窗跳转：聊天消息 → 聊天会话页；任务通知 → 工作台任务详情；issue 评论 → 问题详情；其他 → 通知中心
 function onPopupClick(p: PopupItem) {
   if (p.kind === 'chat' && p.peerId) {
     router.push({ path: '/chat', query: { peer: p.peerId } });
   } else if (p.kind === 'notification' && p.noteId) {
     router.push({ path: '/workbench', query: { note: p.noteId } });
+  } else if (p.kind === 'notification' && p.issueId) {
+    router.push(`/issues/${p.issueId}`);
   } else {
     router.push('/notifications');
   }

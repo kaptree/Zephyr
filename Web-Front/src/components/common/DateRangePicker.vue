@@ -242,10 +242,10 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
             class="h-8 text-xs rounded-lg transition-smooth"
             :class="{
               'text-slate-300 dark:text-slate-600': !d.inMonth,
-              'bg-blue-500 text-white font-semibold shadow-sm': isSelected(d),
-              'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300': isInRange(d),
-              'ring-2 ring-inset ring-blue-400 dark:ring-blue-500': isRangeEnd(d) && !isSelected(d),
-              'text-blue-500 font-medium': isToday(d) && !isSelected(d) && !isInRange(d),
+              'bg-blue-500 text-white font-semibold shadow-sm': isSelected(d.date),
+              'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300': isInRange(d.date),
+              'ring-2 ring-inset ring-blue-400 dark:ring-blue-500': isRangeEnd(d.date) && !isSelected(d.date),
+              'text-blue-500 font-medium': isToday(d.date) && !isSelected(d.date) && !isInRange(d.date),
             }"
             @click="selectDay(d.date)"
           >

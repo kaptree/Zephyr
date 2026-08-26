@@ -12,7 +12,7 @@ type Issue struct {
 	IssueNo   int       `gorm:"not null;index" json:"issue_no"` // 自增编号（#1 #2 ...）
 	Title     string    `gorm:"type:varchar(200);not null" json:"title"`
 	Content   string    `gorm:"type:text;not null" json:"content"`
-	Type      string    `gorm:"type:varchar(20);default:'bug';index" json:"type"` // bug 缺陷 / feature 预期功能
+	Type      string    `gorm:"type:varchar(20);default:'bug';index" json:"type"`    // bug 缺陷 / feature 预期功能
 	Status    string    `gorm:"type:varchar(20);default:'open';index" json:"status"` // open 开放 / closed 已关闭
 	UserID    uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
 	UserName  string    `gorm:"type:varchar(100);not null" json:"user_name"`
@@ -40,4 +40,27 @@ type IssueComment struct {
 
 func (IssueComment) TableName() string {
 	return "issue_comments"
+}
+
+// IssueSubscriber 问题订阅人：issue 新增评论时收到消息提示（需求26）
+type IssueSubscriber struct {
+	IssueID   uuid.UUID `gorm:"type:uuid;primaryKey" json:"issue_id"`
+	UserID    uuid.UUID `gorm:"type:uuid;primaryKey" json:"user_id"`
+	User      *User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (IssueSubscriber) TableName() string {
+	return "issue_subscribers"
+}
+
+// IssueWatcher 全局订阅人（需求28）：订阅后收到所有新建 issue 的消息提示
+type IssueWatcher struct {
+	UserID    uuid.UUID `gorm:"type:uuid;primaryKey" json:"user_id"`
+	User      *User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (IssueWatcher) TableName() string {
+	return "issue_watchers"
 }

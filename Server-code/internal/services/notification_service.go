@@ -38,6 +38,15 @@ func NewNotificationService(
 
 // Notify 创建通知并通过 WebSocket 实时推送
 func (s *NotificationService) Notify(recipientID, senderID string, noteID *uuid.UUID, notifType, title, content string) error {
+	return s.notify(recipientID, senderID, noteID, nil, notifType, title, content)
+}
+
+// NotifyIssue 需求26/28：issue 相关通知（评论 issue_comment / 新建 issue_new），关联 issue 可跳转问题详情
+func (s *NotificationService) NotifyIssue(recipientID, senderID string, issueID *uuid.UUID, notifType, title, content string) error {
+	return s.notify(recipientID, senderID, nil, issueID, notifType, title, content)
+}
+
+func (s *NotificationService) notify(recipientID, senderID string, noteID, issueID *uuid.UUID, notifType, title, content string) error {
 	if recipientID == "" {
 		return nil
 	}
@@ -59,6 +68,9 @@ func (s *NotificationService) Notify(recipientID, senderID string, noteID *uuid.
 	}
 	if noteID != nil {
 		n.NoteID = noteID
+	}
+	if issueID != nil {
+		n.IssueID = issueID
 	}
 
 	if err := s.notifRepo.Create(n); err != nil {

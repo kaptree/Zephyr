@@ -84,6 +84,8 @@ func main() {
 		&models.ChatMessage{},
 		&models.Issue{},
 		&models.IssueComment{},
+		&models.IssueSubscriber{},
+		&models.IssueWatcher{},
 		&models.ChatFilePolicy{},
 		&models.Emoticon{},
 	); err != nil {

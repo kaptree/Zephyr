@@ -77,7 +77,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	sysHandler := handlers.NewSystemHandler(sysRepo)
 	analyticsHandler := handlers.NewAnalyticsHandler(noteRepo, sysRepo)
 	presetHandler := handlers.NewPresetGroupHandler(presetRepo)
-	issueHandler := handlers.NewIssueHandler(issueRepo)
+	issueHandler := handlers.NewIssueHandler(issueRepo, userRepo, notifSvc)
 	uploadHandler := handlers.NewUploadHandler()
 	notificationHandler := handlers.NewNotificationHandler(notifSvc)
 	emoticonHandler := handlers.NewEmoticonHandler(emoticonRepo)
@@ -248,9 +248,14 @@ func Setup(cfg *config.Config) *gin.Engine {
 		{
 			issues.GET("", issueHandler.List)
 			issues.POST("", issueHandler.Create)
+			issues.GET("/watching", issueHandler.GetWatching)
+			issues.POST("/watch", issueHandler.Watch)
+			issues.DELETE("/watch", issueHandler.Unwatch)
 			issues.GET("/:id", issueHandler.Get)
 			issues.POST("/:id/comments", issueHandler.AddComment)
 			issues.PUT("/:id/status", issueHandler.UpdateStatus)
+			issues.POST("/:id/subscribe", issueHandler.Subscribe)
+			issues.DELETE("/:id/subscribe", issueHandler.Unsubscribe)
 		}
 
 		analytics := api.Group("/analytics")

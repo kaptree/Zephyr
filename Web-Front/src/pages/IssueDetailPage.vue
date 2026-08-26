@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
-import { getIssue, addIssueComment, updateIssueStatus } from '@/services/issues';
+import { getIssue, addIssueComment, updateIssueStatus, subscribeIssue, unsubscribeIssue } from '@/services/issues';
 import type { IssueDetail, IssueCommentItem } from '@/services/issues';
 import { renderNoteContent } from '@/utils/richText';
 
@@ -18,6 +18,10 @@ const commentText = ref('');
 const submitting = ref(false);
 const commentError = ref('');
 const updatingStatus = ref(false);
+// 需求26：订阅状态与人数
+const subscribed = ref(false);
+const subscriberCount = ref(0);
+const subscribing = ref(false);
 
 const typeBadge: Record<string, { cls: string; icon: string; label: string }> = {
   bug: { cls: 'bg-red-50 dark:bg-red-900/40 text-red-600 dark:text-red-300', icon: '🐛', label: 'Bug 缺陷' },
@@ -46,10 +50,33 @@ async function load() {
   try {
     const res = await getIssue(route.params.id as string);
     detail.value = res.data as unknown as IssueDetail;
+    subscribed.value = !!detail.value.subscribed;
+    subscriberCount.value = detail.value.subscriber_count || 0;
   } catch {
     error.value = '加载问题详情失败';
   } finally {
     loading.value = false;
+  }
+}
+
+// 需求26：订阅 / 取消订阅
+async function handleToggleSubscribe() {
+  if (!detail.value || subscribing.value) return;
+  subscribing.value = true;
+  try {
+    if (subscribed.value) {
+      const res = await unsubscribeIssue(detail.value.issue.id);
+      subscribed.value = false;
+      subscriberCount.value = res.data.subscriber_count || 0;
+    } else {
+      const res = await subscribeIssue(detail.value.issue.id);
+      subscribed.value = true;
+      subscriberCount.value = res.data.subscriber_count || 0;
+    }
+  } catch {
+    commentError.value = '订阅操作失败，请重试';
+  } finally {
+    subscribing.value = false;
   }
 }
 
@@ -131,17 +158,32 @@ onMounted(load);
               </div>
             </div>
           </div>
-          <button
-            v-if="canManage"
-            class="shrink-0 text-xs px-3 py-1.5 rounded-btn transition-smooth"
-            :class="isClosed
-              ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900'
-              : 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900'"
-            :disabled="updatingStatus"
-            @click="handleToggleStatus"
-          >
-            {{ updatingStatus ? '处理中...' : isClosed ? '重新打开' : '关闭 Issue' }}
-          </button>
+          <div class="flex items-center gap-2 shrink-0">
+            <!-- 需求26：订阅按钮 -->
+            <button
+              class="shrink-0 text-xs px-3 py-1.5 rounded-btn transition-smooth"
+              :class="subscribed
+                ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900'
+                : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900'"
+              :disabled="subscribing"
+              :title="subscribed ? '取消订阅后，该问题的新评论不再提醒' : '订阅后，该问题的新评论会提醒你'"
+              @click="handleToggleSubscribe"
+            >
+              {{ subscribing ? '处理中...' : subscribed ? '🔕 已订阅' : '🔔 订阅' }}
+              <span v-if="subscriberCount > 0" class="ml-1 opacity-80">({{ subscriberCount }})</span>
+            </button>
+            <button
+              v-if="canManage"
+              class="shrink-0 text-xs px-3 py-1.5 rounded-btn transition-smooth"
+              :class="isClosed
+                ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900'
+                : 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900'"
+              :disabled="updatingStatus"
+              @click="handleToggleStatus"
+            >
+              {{ updatingStatus ? '处理中...' : isClosed ? '重新打开' : '关闭 Issue' }}
+            </button>
+          </div>
         </div>
 
         <!-- 创建人信息条 -->

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { listIssues, createIssue } from '@/services/issues';
+import { listIssues, createIssue, getIssueWatching, watchIssues, unwatchIssues } from '@/services/issues';
 import type { IssueItem } from '@/services/issues';
 
 const router = useRouter();
@@ -13,9 +13,14 @@ const page = ref(1);
 const total = ref(0);
 const pageSize = 20;
 
-const statusFilter = ref(''); // '' | open | closed
+const statusFilter = ref('open'); // 默认展示开放的 issue（需求27）
 const typeFilter = ref(''); // '' | bug | feature
 const keyword = ref('');
+
+// 需求28：全局订阅（收到所有新 issue 通知）
+const watching = ref(false);
+const watchingLoading = ref(false);
+const watchingError = ref('');
 
 const showCreateModal = ref(false);
 const formTitle = ref('');
@@ -122,6 +127,36 @@ function goDetail(id: string) {
   router.push(`/issues/${id}`);
 }
 
+// 需求28：加载全局订阅状态
+async function loadWatching() {
+  try {
+    const res = await getIssueWatching();
+    watching.value = !!res.data?.watching;
+  } catch {
+    watching.value = false;
+  }
+}
+
+// 需求28：切换全局订阅
+async function handleToggleWatching() {
+  if (watchingLoading.value) return;
+  watchingLoading.value = true;
+  watchingError.value = '';
+  try {
+    if (watching.value) {
+      const res = await unwatchIssues();
+      watching.value = !!res.data?.watching;
+    } else {
+      const res = await watchIssues();
+      watching.value = !!res.data?.watching;
+    }
+  } catch {
+    watchingError.value = '订阅操作失败，请重试';
+  } finally {
+    watchingLoading.value = false;
+  }
+}
+
 function prevPage() {
   if (page.value > 1) {
     page.value--;
@@ -136,7 +171,10 @@ function nextPage() {
   }
 }
 
-onMounted(load);
+onMounted(() => {
+  load();
+  loadWatching();
+});
 </script>
 
 <template>
@@ -148,8 +186,23 @@ onMounted(load);
           提交系统缺陷或功能建议，与大家一同跟进解决
         </p>
       </div>
-      <button class="btn-primary text-sm !py-2" @click="openCreate">新建 Issue</button>
+      <div class="flex items-center gap-2 shrink-0">
+        <!-- 需求28：全局订阅按钮（新建 issue 左侧） -->
+        <button
+          class="text-sm px-4 py-2 rounded-btn transition-smooth disabled:opacity-50"
+          :class="watching
+            ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900'
+            : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'"
+          :disabled="watchingLoading"
+          :title="watching ? '已订阅全部 issue，任何新建 issue 都会提醒你' : '订阅后，所有新建 issue 都会提醒你'"
+          @click="handleToggleWatching"
+        >
+          {{ watchingLoading ? '处理中...' : watching ? '🔕 已订阅' : '🔔 订阅' }}
+        </button>
+        <button class="btn-primary text-sm !py-2" @click="openCreate">新建 Issue</button>
+      </div>
     </div>
+    <p v-if="watchingError" class="text-xs text-red-500 dark:text-red-400 mb-2">{{ watchingError }}</p>
 
     <!-- 筛选栏 -->
     <div class="flex flex-wrap items-center gap-3 mb-4">
@@ -211,7 +264,12 @@ onMounted(load);
     <div v-else class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 overflow-hidden">
       <div v-for="(issue, idx) in issues" :key="issue.id">
         <div
-          class="px-5 py-3.5 flex items-start gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-smooth"
+          :class="[
+            'px-5 py-3.5 flex items-start gap-3 cursor-pointer transition-smooth',
+            issue.status === 'closed'
+              ? 'bg-slate-100 dark:bg-slate-700/40 hover:bg-slate-200 dark:hover:bg-slate-700/60'
+              : 'hover:bg-slate-50 dark:hover:bg-slate-700/40',
+          ]"
           @click="goDetail(issue.id)"
         >
           <span class="text-lg leading-6 shrink-0 mt-0.5">{{ typeBadge[issue.type]?.icon || '📌' }}</span>

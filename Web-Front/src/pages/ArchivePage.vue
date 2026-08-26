@@ -11,7 +11,7 @@ import { submitFeedback } from '@/services/notes';
 
 const noteStore = useNoteStore();
 const toast = useToast();
-const viewMode = ref<'timeline' | 'card'>('card');
+const viewMode = ref<'timeline' | 'card'>('timeline'); // Bug8：默认时间轴
 const keyword = ref('');
 const dateFrom = ref('');
 const dateTo = ref('');
@@ -104,6 +104,17 @@ function groupNotesByMonth(notes: Note[]) {
     group.notes.push(note);
   }
   return groups;
+}
+
+// Bug8：时间轴卡片展示反馈信息（被指派人反馈内容）
+function feedbackList(note: Note) {
+  return (note.assignees || [])
+    .filter((a) => a.feedback_content)
+    .map((a) => ({
+      name: a.user?.name || '被指派人',
+      content: a.feedback_content || '',
+      time: a.feedback_at,
+    }));
 }
 </script>
 
@@ -207,23 +218,53 @@ function groupNotesByMonth(notes: Note[]) {
               class="flex-1 bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-4 relative hover:shadow-note transition-smooth cursor-pointer"
               @click="openDetail(note)"
             >
-              <h4 class="text-sm font-medium text-slate-900 mb-1 truncate">
-                {{ note.title || '无标题' }}
-              </h4>
-              <p class="text-xs text-slate-400 line-clamp-2">
-                <span v-if="!note.content" class="text-slate-300">暂无内容</span>
+              <div class="flex items-start justify-between gap-2">
+                <h4 class="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                  {{ note.title || '无标题' }}
+                </h4>
+                <span class="watermark-archived shrink-0">已归档</span>
+              </div>
+
+              <!-- Bug8：任务创建人信息 -->
+              <div class="flex items-center gap-2 mt-1.5 text-xs text-slate-400 dark:text-slate-500">
+                <span class="flex items-center gap-1 min-w-0">
+                  <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <span class="truncate">{{ note.creator?.name || note.owner?.name || '未知用户' }}</span>
+                </span>
+                <span class="text-slate-300 dark:text-slate-600">·</span>
+                <span>{{ (note.archive_time || note.created_at)?.slice(0, 10) }} 归档</span>
+              </div>
+
+              <!-- Bug8：详细信息（内容展示更完整） -->
+              <p class="text-xs text-slate-500 dark:text-slate-400 line-clamp-3 mt-2 leading-relaxed">
+                <span v-if="!note.content" class="text-slate-300 dark:text-slate-600">暂无内容</span>
                 <span v-else v-html="renderNoteContent(note.content)"></span>
               </p>
-              <div class="flex items-center gap-2 mt-2">
+
+              <div v-if="note.tags?.length" class="flex items-center gap-2 mt-2 flex-wrap">
                 <span
-                  v-for="tag in note.tags?.slice(0, 3)"
+                  v-for="tag in note.tags.slice(0, 3)"
                   :key="tag.id"
                   class="tag-capsule text-white text-[10px]"
                   :style="{ backgroundColor: tag.color || '#94A3B8' }"
                   >{{ tag.sub_tag ? tag.name + ' › ' + tag.sub_tag : tag.name }}</span
                 >
               </div>
-              <span class="watermark-archived">已归档</span>
+
+              <!-- Bug8：反馈信息 -->
+              <div v-if="feedbackList(note).length" class="mt-2.5 space-y-1.5">
+                <div
+                  v-for="(fb, i) in feedbackList(note)"
+                  :key="i"
+                  class="rounded-lg bg-green-50 dark:bg-green-900/30 border-l-2 border-green-500 px-2.5 py-1.5 text-xs text-green-700 dark:text-green-300"
+                >
+                  <span class="font-semibold">💬 {{ fb.name }}：</span>
+                  <span class="line-clamp-2">{{ fb.content }}</span>
+                </div>
+              </div>
+              <div v-else class="mt-2 text-[11px] text-slate-300 dark:text-slate-600">暂无反馈</div>
             </div>
             <div class="flex flex-col gap-1 shrink-0 pt-1">
               <button

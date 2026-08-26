@@ -1,4 +1,4 @@
-import { get, post, put } from './api'
+import { get, post, put, del } from './api'
 import type { ApiResponse, PaginatedData } from '@/types'
 
 export interface IssueUserBrief {
@@ -35,6 +35,10 @@ export interface IssueCommentItem {
 export interface IssueDetail {
   issue: IssueItem
   comments: IssueCommentItem[]
+  /** 需求26：当前用户是否已订阅 */
+  subscribed?: boolean
+  /** 需求26：订阅人数 */
+  subscriber_count?: number
 }
 
 export interface IssueQuery {
@@ -63,4 +67,26 @@ export function addIssueComment(id: string, content: string): Promise<ApiRespons
 
 export function updateIssueStatus(id: string, status: 'open' | 'closed'): Promise<ApiResponse<{ success: boolean; status: string }>> {
   return put(`/api/v1/issues/${id}/status`, { status })
+}
+
+// 需求26：订阅 / 取消订阅 issue
+export function subscribeIssue(id: string): Promise<ApiResponse<{ subscribed: boolean; subscriber_count: number }>> {
+  return post(`/api/v1/issues/${id}/subscribe`)
+}
+
+export function unsubscribeIssue(id: string): Promise<ApiResponse<{ subscribed: boolean; subscriber_count: number }>> {
+  return del(`/api/v1/issues/${id}/subscribe`)
+}
+
+// 需求28：全局订阅（收到所有新 issue 通知）
+export function getIssueWatching(): Promise<ApiResponse<{ watching: boolean }>> {
+  return get(`/api/v1/issues/watching`)
+}
+
+export function watchIssues(): Promise<ApiResponse<{ watching: boolean }>> {
+  return post(`/api/v1/issues/watch`)
+}
+
+export function unwatchIssues(): Promise<ApiResponse<{ watching: boolean }>> {
+  return del(`/api/v1/issues/watch`)
 }

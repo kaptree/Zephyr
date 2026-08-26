@@ -15,6 +15,8 @@ export interface PopupItem {
   peerId?: string;
   /** 任务通知：关联任务 id，点击跳转任务详情 */
   noteId?: string;
+  /** 需求26：issue 评论通知：关联问题 id，点击跳转问题详情 */
+  issueId?: string;
   createdAt?: string;
 }
 
@@ -107,6 +109,7 @@ export const useNotificationStore = defineStore('notification', () => {
           title: n.title,
           content: (n.content || '').slice(0, 120),
           noteId: n.note_id,
+          issueId: n.issue_id,
           createdAt: n.created_at,
         });
       }
@@ -202,12 +205,13 @@ export const useNotificationStore = defineStore('notification', () => {
     if (!n.is_read) unreadCount.value += 1;
     notifications.value = [n, ...notifications.value.filter((x) => x.id !== n.id)];
     playNotificationSound();
-    // 需求24：右上角弹窗，点击跳转任务详情
+    // 需求24：右上角弹窗，点击跳转任务详情 / issue 详情
     enqueuePopup({
       kind: 'notification',
       title: n.title,
       content: (n.content || '').slice(0, 120),
       noteId: n.note_id,
+      issueId: n.issue_id,
       createdAt: n.created_at,
     });
   }
