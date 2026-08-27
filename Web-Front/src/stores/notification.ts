@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import * as notifService from '@/services/notification';
 import type { NotificationItem, ChatMessageItem, ConversationItem } from '@/types';
 import { playNotificationSound, playChatSound } from '@/utils/sound';
@@ -212,6 +212,9 @@ export const useNotificationStore = defineStore('notification', () => {
     if (!n.is_read) unreadCount.value += 1;
     notifications.value = [n, ...notifications.value.filter((x) => x.id !== n.id)];
     playNotificationSound();
+    // 需求31：无音频提醒——页面在后台时用系统级通知（首次请求权限）
+    ensureNotificationPermission();
+    showSystemNotification(n.title, (n.content || '').slice(0, 100), navigateTargetForNotification(n));
     // 需求24：右上角弹窗，点击跳转任务详情 / issue 详情
     enqueuePopup({
       kind: 'notification',
@@ -233,8 +236,15 @@ export const useNotificationStore = defineStore('notification', () => {
       }
     }
     const me = useAuthStore().user?.id;
-    // 需求24：右上角弹窗（自己发送的不弹；正在查看该会话的不弹，避免打扰）
+    // 需求31：无音频提醒——页面在后台时系统级通知聊天消息
     if (m.sender_id !== me && viewingPeerId.value !== m.sender_id) {
+      ensureNotificationPermission();
+      showSystemNotification(
+        `${peerDisplayName(m.sender_id)} 发来消息`,
+        chatPreview(m),
+        `/chat?peer=${m.sender_id}`
+      );
+      // 需求24：右上角弹窗（自己发送的不弹；正在查看该会话的不弹，避免打扰）
       enqueuePopup({
         kind: 'chat',
         title: peerDisplayName(m.sender_id),
@@ -252,6 +262,141 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   // ---------------- 通知 ----------------
+
+  // ---------------- 无音频提醒（需求31）：页面标题闪烁 + favicon 未读红点 + 系统级通知 ----------------
+
+  const BASE_TITLE = '轻燕工作台';
+  const DEFAULT_FAVICON = '/favicon.svg';
+  let titleFlashTimer: number | null = null;
+  let flashOn = false;
+  let systemNotifyReady = false;
+
+  // 动态绘制带红色未读角标的 favicon（canvas 生成 data URL）
+  function drawBadgeFavicon(count: number) {
+    try {
+      const size = 64;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      // 底色：蓝色圆角方块 + 白字
+      ctx.fillStyle = '#3B82F6';
+      if (typeof ctx.roundRect === 'function') {
+        ctx.beginPath();
+        ctx.roundRect(6, 6, size - 12, size - 12, 14);
+        ctx.fill();
+      } else {
+        ctx.fillRect(6, 6, size - 12, size - 12);
+      }
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 32px "PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('燕', size / 2, size / 2 - 4);
+      // 红色未读角标
+      const badge = count > 99 ? '99+' : String(count);
+      const bx = size - 13;
+      const by = 14;
+      ctx.beginPath();
+      ctx.arc(bx, by, 15, 0, Math.PI * 2);
+      ctx.fillStyle = '#EF4444';
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(badge, bx, by + 0.5);
+      const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+      if (link) link.href = canvas.toDataURL('image/png');
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function restoreFavicon() {
+    const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (link && link.href !== DEFAULT_FAVICON) link.href = DEFAULT_FAVICON;
+  }
+
+  function stopTitleFlash() {
+    if (titleFlashTimer !== null) {
+      window.clearInterval(titleFlashTimer);
+      titleFlashTimer = null;
+    }
+    flashOn = false;
+    document.title = BASE_TITLE;
+    restoreFavicon();
+  }
+
+  // 未读数变化 → 控制标题闪烁与 favicon 角标
+  watch(
+    unreadCount,
+    (n) => {
+      if (n > 0) {
+        drawBadgeFavicon(n);
+        if (titleFlashTimer === null) {
+          document.title = `【${n}条新消息】${BASE_TITLE}`;
+          titleFlashTimer = window.setInterval(() => {
+            flashOn = !flashOn;
+            document.title = flashOn
+              ? `【${unreadCount.value}条新消息】${BASE_TITLE}`
+              : BASE_TITLE;
+          }, 1200);
+        }
+      } else {
+        stopTitleFlash();
+      }
+    },
+    { immediate: true }
+  );
+
+  // 请求系统通知权限（首次收到消息时调用，避免一进页面就弹授权框）
+  function ensureNotificationPermission() {
+    if (!('Notification' in window) || systemNotifyReady) return;
+    const p = Notification.permission;
+    if (p === 'granted') {
+      systemNotifyReady = true;
+    } else if (p === 'default') {
+      Notification.requestPermission()
+        .then((r) => {
+          systemNotifyReady = r === 'granted';
+        })
+        .catch(() => {
+          /* ignore */
+        });
+    }
+  }
+
+  // 页面在后台/最小化时，通过系统级通知提醒（不依赖音频；页面可见时用右上角弹窗）
+  function showSystemNotification(title: string, body: string, target: string) {
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+    if (!document.hidden) return;
+    try {
+      const n = new Notification(title, {
+        body,
+        icon: '/logo.jpg',
+        tag: 'zephyr-notify',
+      });
+      n.onclick = () => {
+        window.focus();
+        if (target) window.location.assign(target);
+        n.close();
+      };
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function navigateTargetForNotification(n: NotificationItem): string {
+    if (n.note_id) return `/workbench?note=${n.note_id}`;
+    if (n.issue_id) return `/issues/${n.issue_id}`;
+    return '/notifications';
+  }
 
   async function fetchUnreadCount() {
     try {
