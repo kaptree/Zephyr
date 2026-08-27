@@ -88,6 +88,19 @@ func (s *NotificationService) notify(recipientID, senderID string, noteID, issue
 	return nil
 }
 
+// PushNoteUpdate 需求30：向用户推送工作台任务变化事件（前端据此动态刷新工作台，无需手动刷新）
+func (s *NotificationService) PushNoteUpdate(userID string, noteID *uuid.UUID, action string) {
+	if s.hub == nil || userID == "" {
+		return
+	}
+	payload, _ := json.Marshal(map[string]interface{}{
+		"event":   "note:updated",
+		"note_id": noteID,
+		"action":  action,
+	})
+	s.hub.PushToUser(userID, payload)
+}
+
 func (s *NotificationService) List(userID string, page, pageSize int, unreadOnly bool) ([]models.Notification, int64, int64, error) {
 	list, total, err := s.notifRepo.List(userID, page, pageSize, unreadOnly)
 	if err != nil {

@@ -54,7 +54,8 @@ func NewHub() *Hub {
 		rooms:      make(map[string]map[*Client]bool),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
-		broadcast:  make(chan *Message),
+		// 需求30：带缓冲，避免连续推送（如 notification:new + note:updated）时非阻塞发送被静默丢弃
+		broadcast: make(chan *Message, 256),
 	}
 }
 
@@ -158,6 +159,17 @@ func (h *Hub) PushToUser(userID string, data []byte) {
 	}
 	select {
 	case h.broadcast <- &Message{RoomID: "user:" + userID, Data: data}:
+	default:
+	}
+}
+
+// BroadcastToRoom 需求29：向指定房间（note）内的所有在线客户端广播（协同指令实时下发）
+func (h *Hub) BroadcastToRoom(roomID string, data []byte) {
+	if h == nil {
+		return
+	}
+	select {
+	case h.broadcast <- &Message{RoomID: roomID, Data: data}:
 	default:
 	}
 }

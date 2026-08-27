@@ -23,6 +23,9 @@ export interface PopupItem {
 export const useNotificationStore = defineStore('notification', () => {
   const unreadCount = ref(0);
   const notifications = ref<NotificationItem[]>([]);
+  // 需求30：工作台任务变化事件计数（note:updated 时自增，工作台 watch 后自动刷新）
+  const noteUpdateTick = ref(0);
+  const lastNoteUpdate = ref<{ note_id?: string; action?: string }>({});
   const conversations = ref<ConversationItem[]>([]);
   const messages = ref<Record<string, ChatMessageItem[]>>({});
   const onlineIds = ref<string[]>([]);
@@ -178,6 +181,10 @@ export const useNotificationStore = defineStore('notification', () => {
           handlePresence(data);
         } else if (data.event === 'chat:read') {
           handleChatRead(data);
+        } else if (data.event === 'note:updated') {
+          // 需求30：别人指派/抄送任务 → 工作台动态刷新
+          lastNoteUpdate.value = { note_id: data.note_id, action: data.action };
+          noteUpdateTick.value += 1;
         }
       } catch {
         /* ignore */
@@ -367,6 +374,8 @@ export const useNotificationStore = defineStore('notification', () => {
     chatOpen,
     chatPeerId,
     popups,
+    noteUpdateTick,
+    lastNoteUpdate,
     dismissPopup,
     openChat,
     closeChat,

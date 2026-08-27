@@ -72,6 +72,7 @@ func main() {
 		&models.PresetGroup{},
 		&models.PresetGroupMember{},
 		&models.CollaborationRoom{},
+		&models.CollaborationCommand{},
 		&models.Reminder{},
 		&models.LedgerEntry{},
 		&models.AIConfig{},

@@ -95,6 +95,20 @@ func (CollaborationRoom) TableName() string {
 	return "collaboration_rooms"
 }
 
+// CollaborationCommand 协同作战房间指令（需求29：领导下发指令，成员实时动态刷新）
+type CollaborationCommand struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	NoteID    uuid.UUID `gorm:"type:uuid;not null;index" json:"note_id"`
+	UserID    uuid.UUID `gorm:"type:uuid;not null" json:"user_id"`
+	UserName  string    `gorm:"type:varchar(100);not null" json:"user_name"`
+	Content   string    `gorm:"type:text;not null" json:"content"`
+	CreatedAt time.Time `gorm:"index" json:"created_at"`
+}
+
+func (CollaborationCommand) TableName() string {
+	return "collaboration_commands"
+}
+
 type Reminder struct {
 	ID             uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	NoteID         uuid.UUID `gorm:"type:uuid;not null;index" json:"note_id"`

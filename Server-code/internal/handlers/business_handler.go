@@ -16,6 +16,7 @@ import (
 	"labelpro-server/internal/repository"
 	"labelpro-server/internal/services"
 	"labelpro-server/internal/utils"
+	"labelpro-server/internal/ws"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -1205,10 +1206,12 @@ var _ = http.NewRequest
 
 type RoomHandler struct {
 	roomRepo *repository.CollaborationRoomRepository
+	userRepo *repository.UserRepository
+	hub      *ws.Hub
 }
 
-func NewRoomHandler(roomRepo *repository.CollaborationRoomRepository) *RoomHandler {
-	return &RoomHandler{roomRepo: roomRepo}
+func NewRoomHandler(roomRepo *repository.CollaborationRoomRepository, userRepo *repository.UserRepository, hub *ws.Hub) *RoomHandler {
+	return &RoomHandler{roomRepo: roomRepo, userRepo: userRepo, hub: hub}
 }
 
 func (h *RoomHandler) GetCanvas(c *gin.Context) {
@@ -1226,21 +1229,70 @@ func (h *RoomHandler) GetCanvas(c *gin.Context) {
 	})
 }
 
+// SendCommand 需求29：领导下发指令 → 持久化 + WebSocket 实时广播（成员动态刷新，无需手动刷新页面）
 func (h *RoomHandler) SendCommand(c *gin.Context) {
 	noteID := c.Param("note_id")
 
 	var req struct {
 		CommandText string `json:"command_text" binding:"required"`
-		FromUserID  string `json:"from_user_id" binding:"required"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.BadRequest(c, "请求参数错误")
+	if err := c.ShouldBindJSON(&req); err != nil || req.CommandText == "" {
+		utils.BadRequest(c, "请输入指令内容")
+		return
+	}
+	if len(req.CommandText) > 2000 {
+		utils.BadRequest(c, "指令内容过长（最多 2000 字）")
 		return
 	}
 
-	_ = noteID
+	userID := middleware.GetUserID(c)
+	userName := c.GetString("username")
+	if u, err := h.userRepo.FindByID(userID); err == nil && u != nil && u.Name != "" {
+		userName = u.Name
+	}
 
-	utils.Success(c, gin.H{"success": true, "message": "指令已发送"})
+	noteUUID, _ := uuid.Parse(noteID)
+	cmd := &models.CollaborationCommand{
+		ID:        uuid.New(),
+		NoteID:    noteUUID,
+		UserID:    uuid.MustParse(userID),
+		UserName:  userName,
+		Content:   req.CommandText,
+		CreatedAt: time.Now(),
+	}
+	if err := h.roomRepo.CreateCommand(cmd); err != nil {
+		utils.InternalError(c, "指令发送失败")
+		return
+	}
+
+	// 实时广播给房间内所有在线成员
+	if h.hub != nil {
+		payload, _ := json.Marshal(map[string]interface{}{
+			"event":   "command:broadcast",
+			"command": cmd,
+		})
+		h.hub.BroadcastToRoom(noteID, payload)
+	}
+
+	utils.Success(c, cmd)
+}
+
+// ListCommands 需求29：房间指令历史（进入房间时加载，时间正序）
+func (h *RoomHandler) ListCommands(c *gin.Context) {
+	noteID := c.Param("note_id")
+	limit := 50
+	if l, err := strconv.Atoi(c.DefaultQuery("limit", "50")); err == nil && l > 0 && l <= 200 {
+		limit = l
+	}
+	commands, err := h.roomRepo.ListCommands(noteID, limit)
+	if err != nil {
+		utils.InternalError(c, "查询指令失败")
+		return
+	}
+	if commands == nil {
+		commands = []models.CollaborationCommand{}
+	}
+	utils.Success(c, commands)
 }
 
 type LedgerHandler struct {

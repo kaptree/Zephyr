@@ -72,7 +72,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	tagHandler := handlers.NewTagHandler(tagRepo)
 	tmplHandler := handlers.NewTemplateHandler(tmplRepo)
 	groupHandler := handlers.NewWorkGroupHandler(groupRepo, noteRepo, userRepo, sysRepo, presetRepo)
-	roomHandler := handlers.NewRoomHandler(roomRepo)
+	roomHandler := handlers.NewRoomHandler(roomRepo, userRepo, hub)
 	ledgerHandler := handlers.NewLedgerHandler(ledgerRepo)
 	sysHandler := handlers.NewSystemHandler(sysRepo)
 	analyticsHandler := handlers.NewAnalyticsHandler(noteRepo, sysRepo)
@@ -194,6 +194,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 		rooms := api.Group("/rooms")
 		{
 			rooms.GET("/:note_id/canvas", roomHandler.GetCanvas)
+			rooms.GET("/:note_id/commands", roomHandler.ListCommands)
 			rooms.POST("/:note_id/command", middleware.RequireRoles("super_admin", "dept_admin", "group_leader", "company_leader"), roomHandler.SendCommand)
 		}
 

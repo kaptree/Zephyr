@@ -204,6 +204,17 @@ watch(
   }
 );
 
+// 需求30：别人指派/抄送的任务 → 工作台动态刷新（无需手动刷新页面）
+watch(
+  () => notifStore.noteUpdateTick,
+  () => {
+    const last = notifStore.lastNoteUpdate;
+    // 若新任务已在列表（刚通过其他途径加载过），仅刷新不重复弹出
+    if (last?.note_id && noteStore.activeNotes.some((n) => n.id === last.note_id)) return;
+    noteStore.fetchNotes();
+  }
+);
+
 function openNoteFromQuery(noteId: string) {
   const target = noteStore.activeNotes.find((n) => n.id === noteId);
   if (target) {

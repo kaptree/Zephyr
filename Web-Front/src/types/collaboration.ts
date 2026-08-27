@@ -16,10 +16,14 @@ export interface RemoteChangeData {
   updated_by: string
 }
 
+// 需求29：协同房间指令（服务端 CollaborationCommand 结构）
 export interface CommandMessage {
-  message: string
-  from: string
-  timestamp: string
+  id: string
+  note_id: string
+  user_id: string
+  user_name: string
+  content: string
+  created_at: string
 }
 
 export interface CollaborationRoom {

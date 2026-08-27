@@ -454,6 +454,30 @@ func (r *CollaborationRoomRepository) UpdateCanvas(noteID, canvasData string, ve
 		}).Error
 }
 
+// ---------------- 需求29：协同房间指令 ----------------
+
+func (r *CollaborationRoomRepository) CreateCommand(cmd *models.CollaborationCommand) error {
+	return r.db.Create(cmd).Error
+}
+
+// ListCommands 返回房间最近的指令（时间正序，供进入房间时加载历史）
+func (r *CollaborationRoomRepository) ListCommands(noteID string, limit int) ([]models.CollaborationCommand, error) {
+	var commands []models.CollaborationCommand
+	err := r.db.
+		Where("note_id = ?", noteID).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&commands).Error
+	if err != nil {
+		return nil, err
+	}
+	// 时间正序展示
+	for i, j := 0, len(commands)-1; i < j; i, j = i+1, j-1 {
+		commands[i], commands[j] = commands[j], commands[i]
+	}
+	return commands, nil
+}
+
 type LedgerRepository struct {
 	db *gorm.DB
 }

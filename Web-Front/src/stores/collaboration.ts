@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Participant, RemoteChangeData, CommandMessage } from '@/types'
-import { io, Socket } from 'socket.io-client'
+import type { Participant, CommandMessage } from '@/types'
+import { sendRoomCommand, fetchRoomCommands } from '@/services/collaboration'
 
+// 需求29：协同房间改为原生 WebSocket（与后端 gorilla 协议一致，?token= 鉴权，JSON event 驱动）
 export const useCollaborationStore = defineStore('collaboration', () => {
   const roomId = ref<string>('')
   const noteTitle = ref('')
@@ -13,7 +14,7 @@ export const useCollaborationStore = defineStore('collaboration', () => {
   const commands = ref<CommandMessage[]>([])
   const columns = ref(4)
 
-  let socket: Socket | null = null
+  let ws: WebSocket | null = null
 
   const typingStatusText = computed(() => {
     const users = Array.from(typingUsers.value)
@@ -22,62 +23,68 @@ export const useCollaborationStore = defineStore('collaboration', () => {
     return `${users.length}人正在输入...`
   })
 
+  function buildWsUrl(id: string): string {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const token = localStorage.getItem('auth_token') || ''
+    return `${protocol}//${window.location.host}/ws/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}`
+  }
+
+  function sendRaw(obj: Record<string, unknown>) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(obj))
+    }
+  }
+
+  function handleServerEvent(data: Record<string, unknown>) {
+    switch (data.event) {
+      case 'canvas:sync':
+        if (data.column_id !== undefined) {
+          canvasData.value[data.column_id as number] = (data.content as string) || ''
+        }
+        break
+      // 需求29：别人下发的指令实时广播 → 动态刷新
+      case 'command:broadcast':
+        if (data.command) {
+          const cmd = data.command as CommandMessage
+          if (!commands.value.some((c) => c.id === cmd.id)) {
+            commands.value.push(cmd)
+          }
+        }
+        break
+      default:
+        break
+    }
+  }
+
   function joinRoom(id: string) {
     roomId.value = id
     syncStatus.value = 'connecting'
 
-    // 内网部署：VITE_WS_URL 留空时同源连接（避免回退到本机 8080 产生无效请求）
-    const wsUrl = import.meta.env.VITE_WS_URL || ''
-    socket = io(wsUrl ? `${wsUrl}/ws/notes/${id}` : `/ws/notes/${id}`, {
-      auth: { token: localStorage.getItem('auth_token') },
-      transports: ['websocket', 'polling'],
-    })
-
-    socket.on('connect', () => {
+    ws = new WebSocket(buildWsUrl(id))
+    ws.onopen = () => {
       syncStatus.value = 'connected'
-    })
-
-    socket.on('disconnect', () => {
+      // 通知房间更新在场状态
+      sendRaw({ event: 'room:join' })
+    }
+    ws.onclose = () => {
       syncStatus.value = 'disconnected'
-    })
-
-    socket.on('canvas:sync', (data: RemoteChangeData) => {
-      if (data.column_id !== undefined) {
-        canvasData.value[data.column_id] = data.content
+    }
+    ws.onerror = () => {
+      syncStatus.value = 'disconnected'
+    }
+    ws.onmessage = (ev) => {
+      try {
+        handleServerEvent(JSON.parse(ev.data) as Record<string, unknown>)
+      } catch {
+        /* ignore */
       }
-    })
-
-    socket.on('participant:join', (p: Participant) => {
-      const exists = participants.value.find(u => u.user_id === p.user_id)
-      if (!exists) {
-        participants.value.push({ ...p, is_online: true })
-      } else {
-        exists.is_online = true
-      }
-    })
-
-    socket.on('participant:leave', (userId: string) => {
-      const p = participants.value.find(u => u.user_id === userId)
-      if (p) p.is_online = false
-    })
-
-    socket.on('typing:status', ({ user_id, name, isTyping }: { user_id: string; name: string; isTyping: boolean }) => {
-      if (isTyping) {
-        typingUsers.value.add(name)
-      } else {
-        typingUsers.value.delete(name)
-      }
-    })
-
-    socket.on('command:broadcast', (cmd: CommandMessage) => {
-      commands.value.push(cmd)
-    })
+    }
   }
 
   function leaveRoom() {
-    if (socket) {
-      socket.disconnect()
-      socket = null
+    if (ws) {
+      ws.close()
+      ws = null
     }
     roomId.value = ''
     participants.value = []
@@ -88,28 +95,42 @@ export const useCollaborationStore = defineStore('collaboration', () => {
   }
 
   function pushLocalChange(columnId: number, content: string) {
-    if (socket && syncStatus.value === 'connected') {
-      socket.emit('canvas:update', {
-        column_id: columnId,
-        content,
-        user_id: JSON.parse(localStorage.getItem('auth_user') || '{}')?.id,
-      })
-    }
+    sendRaw({
+      event: 'canvas:update',
+      column_id: columnId,
+      content,
+      user_id: JSON.parse(localStorage.getItem('auth_user') || '{}')?.id,
+    })
   }
 
   function sendTypingStatus(isTyping: boolean) {
-    if (socket) {
-      const user = JSON.parse(localStorage.getItem('auth_user') || '{}')
-      socket.emit(isTyping ? 'typing:start' : 'typing:stop', {
-        user_id: user.id,
-        name: user.name,
-      })
-    }
+    const user = JSON.parse(localStorage.getItem('auth_user') || '{}')
+    sendRaw({
+      event: isTyping ? 'typing:start' : 'typing:stop',
+      user_id: user.id,
+      name: user.name,
+    })
   }
 
-  function sendCommand(message: string) {
-    if (socket) {
-      socket.emit('command:broadcast', { message, timestamp: new Date().toISOString() })
+  // 需求29：发送指令（REST 持久化 + 后端广播，返回后本地也立即展示）
+  async function sendCommand(message: string) {
+    if (!roomId.value) return
+    const res = await sendRoomCommand(roomId.value, message)
+    const cmd = res.data as CommandMessage
+    if (cmd && !commands.value.some((c) => c.id === cmd.id)) {
+      commands.value.push(cmd)
+    }
+    return cmd
+  }
+
+  // 需求29：加载房间指令历史（进入房间时）
+  async function fetchCommands() {
+    if (!roomId.value) return
+    try {
+      const res = await fetchRoomCommands(roomId.value)
+      commands.value = (res.data as CommandMessage[]) || []
+    } catch {
+      /* ignore */
     }
   }
 
@@ -132,6 +153,7 @@ export const useCollaborationStore = defineStore('collaboration', () => {
     pushLocalChange,
     sendTypingStatus,
     sendCommand,
+    fetchCommands,
     setColumns,
   }
 })

@@ -233,6 +233,20 @@ func (s *NoteService) Create(userID, role, deptID string, req CreateNoteRequest)
 				_ = s.notifSvc.Notify(cid, userID, &note.ID, "task_cc", "您收到任务抄送", "「"+note.Title+"」已抄送给您，请查阅")
 			}
 		}
+		// 需求30：别人指派/抄送的任务，工作台实时动态刷新（推送 note:updated 事件）
+		// 注意：gorm Create 后会清空 note.Assignees 内存切片，故使用 req.Assignees
+		for _, a := range req.Assignees {
+			if a.UserID == userID {
+				continue
+			}
+			s.notifSvc.PushNoteUpdate(a.UserID, &note.ID, "created")
+		}
+		for _, cid := range req.CcUserIDs {
+			if cid == userID {
+				continue
+			}
+			s.notifSvc.PushNoteUpdate(cid, &note.ID, "created")
+		}
 	}
 
 	return s.noteRepo.FindByID(note.ID.String())
