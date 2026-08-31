@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import type { Tag } from '@/types';
 import { fetchTags, createTag } from '@/services/tags';
+import { matchPinyin } from '@/utils/pinyin';
 
 const props = withDefaults(
   defineProps<{
@@ -82,14 +83,13 @@ const tagGroups = computed(() => {
 });
 
 const filteredTagGroups = computed(() => {
-  const q = searchText.value.toLowerCase().trim();
+  const q = searchText.value.trim();
   if (!q) return tagGroups.value;
+  // 需求36：支持拼音全拼 / 首字母搜索（无视大小写）
   return tagGroups.value
     .map((g) => ({
       ...g,
-      tags: g.tags.filter(
-        (t) => t.name.toLowerCase().includes(q) || (t.sub_tag || '').toLowerCase().includes(q)
-      ),
+      tags: g.tags.filter((t) => matchPinyin(q, t.name, t.sub_tag || '')),
     }))
     .filter((g) => g.tags.length > 0);
 });

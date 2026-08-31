@@ -30,6 +30,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '归档查询' },
       },
       {
+        path: 'archive/:id',
+        name: 'ArchiveDetail',
+        component: () => import('@/pages/ArchiveDetailPage.vue'),
+        meta: { title: '归档详情' },
+      },
+      {
         path: 'inspect',
         name: 'InspectWorkbench',
         component: () => import('@/pages/InspectWorkbenchPage.vue'),

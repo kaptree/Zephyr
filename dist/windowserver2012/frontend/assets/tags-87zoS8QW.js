@@ -1,1 +1,0 @@
-import{_ as e,g as t,v as n}from"./index-DDK2Lpxr.js";function r(t){return e(`/api/v1/tags`,{scope:t})}function i(e){return n(`/api/v1/tags`,e)}function a(e){return t(`/api/v1/tags/${e}`)}export{a as n,r,i as t};

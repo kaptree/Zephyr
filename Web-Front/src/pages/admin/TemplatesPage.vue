@@ -2,6 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { fetchTemplates, createTemplate, updateTemplate, deleteTemplate } from '@/services/templates'
 import { useAuthStore } from '@/stores/auth'
+import MarkdownEditor from '@/components/common/MarkdownEditor.vue'
+import { markdownToHtml } from '@/utils/markdown'
 import type { Template } from '@/types'
 
 const auth = useAuthStore()
@@ -145,6 +147,11 @@ function contentPreview(t: Template): string {
   return ''
 }
 
+// 卡片内容预览：Markdown → HTML 渲染
+function contentPreviewHtml(t: Template): string {
+  return markdownToHtml(contentPreview(t))
+}
+
 onMounted(loadTemplates)
 </script>
 
@@ -212,13 +219,12 @@ onMounted(loadTemplates)
           <span class="truncate">{{ t.description || '暂无简介' }}</span>
         </div>
 
-        <!-- 内容预览 -->
+        <!-- 内容预览（Markdown 渲染） -->
         <div
           v-if="contentPreview(t)"
-          class="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 rounded-lg px-3 py-2 line-clamp-3 whitespace-pre-line"
-        >
-          {{ contentPreview(t) }}
-        </div>
+          class="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 rounded-lg px-3 py-2 line-clamp-3 prose prose-sm dark:prose-invert max-w-none [&_h1]:text-sm [&_h1]:font-semibold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-xs [&_p]:my-0.5 [&_ul]:my-0.5 [&_ol]:my-0.5 [&_pre]:my-0.5 [&_pre]:p-1.5 [&_code]:text-[10px] [&_li]:text-xs"
+          v-html="contentPreviewHtml(t)"
+        ></div>
 
         <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-50 dark:border-slate-700">
           <span class="text-xs text-slate-300 dark:text-slate-500">{{ t.created_at?.slice(0, 10) }}</span>
@@ -279,19 +285,24 @@ onMounted(loadTemplates)
           <div>
             <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
               模板内容
-              <span class="text-slate-400 dark:text-slate-500 font-normal">— 任务记录/报告编辑的模板正文，创建任务选用后自动填入</span>
+              <span class="text-slate-400 dark:text-slate-500 font-normal">— 支持 Markdown 语法，可全屏编写；创建任务选用后自动填入</span>
             </label>
-            <textarea
-              v-model="form.content"
-              rows="10"
-              class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-btn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-400 resize-y"
-              placeholder='例如：
-【任务背景】
-【任务目标】
-【工作措施】
-【完成标准】
-【备注】'
-            ></textarea>
+            <MarkdownEditor v-model="form.content" :min-height="260" placeholder="支持 Markdown 语法，例如：
+# 任务背景
+描述任务背景与来源...
+
+## 任务目标
+- 目标一
+- 目标二
+
+## 工作措施
+1. 措施一
+2. 措施二
+
+## 完成标准
+> 明确验收标准
+
+## 备注" />
           </div>
         </div>
         <div class="flex justify-end gap-2 mt-6">

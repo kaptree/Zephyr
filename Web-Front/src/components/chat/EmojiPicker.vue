@@ -177,6 +177,31 @@ function currentEmojis(): string[] {
 
 const activeTab = ref('pack');
 
+// ===== 需求32：鼠标悬停表情图片时放大预览，便于筛选查看以免发错 =====
+const hoveredEmo = ref<Emoticon | null>(null);
+const previewPos = ref<{ x: number; y: number } | null>(null);
+
+function onPreviewEnter(e: MouseEvent, img: Emoticon) {
+  hoveredEmo.value = img;
+  previewPos.value = { x: e.clientX, y: e.clientY };
+}
+function onPreviewLeave() {
+  hoveredEmo.value = null;
+  previewPos.value = null;
+}
+
+// 预览浮层跟随鼠标，靠近视口边缘时自动反向偏移避免溢出
+const previewStyle = computed(() => {
+  const pos = previewPos.value;
+  if (!pos) return {};
+  const w = 152; // 预览卡宽（含 padding）
+  const h = 172; // 预览卡高（含名称行）
+  const gap = 14;
+  const left = pos.x + gap + w > window.innerWidth ? pos.x - w - gap : pos.x + gap;
+  const top = pos.y + gap + h > window.innerHeight ? pos.y - h - gap : pos.y + gap;
+  return { left: `${Math.max(4, left)}px`, top: `${Math.max(4, top)}px` };
+});
+
 onMounted(() => {
   loadImageTabs();
 });
@@ -212,6 +237,8 @@ onMounted(() => {
           <button
             class="w-full aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-700 hover:ring-2 hover:ring-blue-400 transition-smooth"
             :title="img.name"
+            @mouseenter="onPreviewEnter($event, img)"
+            @mouseleave="onPreviewLeave"
             @click="sendImage(img.path)"
           >
             <img :src="img.path" :alt="img.name" class="w-full h-full object-cover" loading="lazy" />
@@ -258,5 +285,25 @@ onMounted(() => {
         <span>{{ batchUploading ? '批量中...' : '🗂 批量上传' }}</span>
       </label>
     </div>
+
+    <!-- 需求32：悬停放大预览浮层（Teleport 到 body，避免被面板裁剪） -->
+    <Teleport to="body">
+      <div
+        v-if="hoveredEmo && previewPos"
+        class="fixed z-[200] pointer-events-none"
+        :style="previewStyle"
+      >
+        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-2 flex flex-col items-center">
+          <img
+            :src="hoveredEmo.path"
+            :alt="hoveredEmo.name"
+            class="w-28 h-28 object-contain rounded-lg bg-slate-50 dark:bg-slate-900"
+          />
+          <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-1 max-w-[128px] truncate">
+            {{ hoveredEmo.name }}
+          </p>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

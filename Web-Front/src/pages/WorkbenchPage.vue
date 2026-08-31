@@ -8,7 +8,8 @@ import type { Note } from '@/types';
 import TagSelector from '@/components/common/TagSelector.vue';
 import StickyNoteCard from '@/components/note/StickyNoteCard.vue';
 import UserPicker from '@/components/common/UserPicker.vue';
-import RichTextEditor from '@/components/common/RichTextEditor.vue';
+import MarkdownEditor from '@/components/common/MarkdownEditor.vue';
+import { markdownToHtml, htmlToMarkdown } from '@/utils/markdown';
 import FeedbackModal from '@/components/notification/FeedbackModal.vue';
 import { createWorkGroup, searchGroups, deleteWorkGroup } from '@/services/workgroup';
 import type { WorkGroupData } from '@/services/workgroup';
@@ -300,7 +301,7 @@ function openCreateModal() {
 function openDetail(note: Note) {
   selectedNote.value = note;
   editingTitle.value = note.title || '';
-  editingContent.value = note.content || '';
+  editingContent.value = htmlToMarkdown(note.content || '');
   selectedEditingTagIds.value = (note.tags || []).map((t) => t.id);
   tagError.value = '';
   showDetailPanel.value = true;
@@ -326,7 +327,7 @@ async function handleSubmit() {
   try {
     const payload: any = {
       title: newTitle.value.trim(),
-      content: newContent.value,
+      content: markdownToHtml(newContent.value),
       tags: selectedTagIds.value,
       source_type: sourceType.value,
     };
@@ -373,7 +374,7 @@ async function handleSaveDetail() {
   try {
     await noteStore.updateNoteLocally(selectedNote.value.id, {
       title: editingTitle.value.trim(),
-      content: editingContent.value,
+      content: markdownToHtml(editingContent.value),
       tags: selectedEditingTagIds.value,
     } as any);
     closeDetail();
@@ -633,7 +634,7 @@ function onTemplateSelect() {
   if (!selectedTemplateId.value) return;
   const tpl = userTemplates.value.find((t) => t.id === selectedTemplateId.value);
   if (!tpl) return;
-  // 需求23：模板内容为任务记录/报告编辑的文本模板，直接填入任务编辑器
+  // 需求23/34：模板内容为 Markdown/纯文本模板，直接填入任务 Markdown 编辑器（旧 HTML 模板先转回 Markdown）
   let content = (tpl.content || '').trim();
   if (!content) {
     // 兼容旧 JSON 字段模板：把字段名转为占位正文
@@ -647,12 +648,9 @@ function onTemplateSelect() {
     } catch {}
   }
   if (content) {
-    const header = `<div><b>📋 模板：${tpl.name}</b></div>`;
-    const lines = content
-      .split('\n')
-      .map((line) => `<div>${line || '<br>'}</div>`)
-      .join('');
-    newContent.value = `${header}${lines}<div><br></div>${newContent.value || ''}`;
+    content = htmlToMarkdown(content);
+    const block = `> 📋 模板：${tpl.name}\n\n${content}`;
+    newContent.value = newContent.value.trim() ? `${block}\n\n${newContent.value}` : block;
   }
 }
 
@@ -1011,7 +1009,7 @@ const templateLabels: Record<string, string> = {
                   📝 新建任务
                 </h2>
                 <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                  支持富文本编辑，内容可多行排版
+                  支持 Markdown 语法，可全屏编写
                 </p>
               </div>
               <button
@@ -1043,9 +1041,9 @@ const templateLabels: Record<string, string> = {
               />
               <div>
                 <label class="block text-xs font-medium text-slate-500 mb-1.5"
-                  >任务内容（支持富文本）</label
+                  >任务内容（支持 Markdown，可全屏）</label
                 >
-                <RichTextEditor
+                <MarkdownEditor
                   v-model="newContent"
                   placeholder="请输入任务内容..."
                   :min-height="200"
@@ -1288,8 +1286,8 @@ const templateLabels: Record<string, string> = {
                 />
               </div>
               <div>
-                <span class="text-xs text-slate-400 mb-1 block">内容（支持富文本）</span>
-                <RichTextEditor
+                <span class="text-xs text-slate-400 mb-1 block">内容（支持 Markdown，可全屏）</span>
+                <MarkdownEditor
                   v-model="editingContent"
                   placeholder="请输入任务内容..."
                   :min-height="220"

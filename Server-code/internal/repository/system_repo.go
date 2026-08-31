@@ -2,6 +2,7 @@ package repository
 
 import (
 	"labelpro-server/internal/models"
+	"labelpro-server/internal/utils"
 	"time"
 
 	"github.com/google/uuid"
@@ -104,25 +105,45 @@ func (r *SystemRepository) ListOperationLogs(f OperationLogFilter) ([]models.Ope
 	var logs []models.OperationLog
 	var total int64
 
-	query := r.db.Model(&models.OperationLog{})
-
-	if f.UserID != "" {
-		query = query.Where("user_id = ?", f.UserID)
+	buildBase := func() *gorm.DB {
+		query := r.db.Model(&models.OperationLog{})
+		if f.UserID != "" {
+			query = query.Where("user_id = ?", f.UserID)
+		}
+		if f.Action != "" {
+			query = query.Where("action = ?", f.Action)
+		}
+		if f.Method != "" {
+			query = query.Where("method = ?", f.Method)
+		}
+		if f.DateFrom != "" {
+			query = query.Where("created_at >= ?", f.DateFrom)
+		}
+		if f.DateTo != "" {
+			query = query.Where("created_at <= ?", f.DateTo+"T23:59:59")
+		}
+		return query
 	}
+
+	if f.UserName != "" && utils.IsPinyinKeyword(f.UserName) {
+		// 需求36：拼音搜索——全量加载后内存过滤
+		var all []models.OperationLog
+		if err := buildBase().Order("created_at DESC").Find(&all).Error; err != nil {
+			return nil, 0, err
+		}
+		for _, l := range all {
+			if utils.MatchKeyword(f.UserName, l.UserName) {
+				logs = append(logs, l)
+			}
+		}
+		total = int64(len(logs))
+		logs = pageSlice(logs, f.Page, f.PageSize)
+		return logs, total, nil
+	}
+
+	query := buildBase()
 	if f.UserName != "" {
 		query = query.Where("user_name ILIKE ?", "%"+f.UserName+"%")
-	}
-	if f.Action != "" {
-		query = query.Where("action = ?", f.Action)
-	}
-	if f.Method != "" {
-		query = query.Where("method = ?", f.Method)
-	}
-	if f.DateFrom != "" {
-		query = query.Where("created_at >= ?", f.DateFrom)
-	}
-	if f.DateTo != "" {
-		query = query.Where("created_at <= ?", f.DateTo+"T23:59:59")
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -158,23 +179,43 @@ func (r *SystemRepository) ListWorkReports(f WorkReportFilter) ([]models.WorkRep
 	var reports []models.WorkReport
 	var total int64
 
-	query := r.db.Model(&models.WorkReport{})
+	buildBase := func() *gorm.DB {
+		query := r.db.Model(&models.WorkReport{})
+		if f.UserID != "" {
+			query = query.Where("user_id = ?", f.UserID)
+		}
+		if f.Period != "" {
+			query = query.Where("period = ?", f.Period)
+		}
+		if f.DateFrom != "" {
+			query = query.Where("created_at >= ?", f.DateFrom)
+		}
+		if f.DateTo != "" {
+			query = query.Where("created_at <= ?", f.DateTo+"T23:59:59")
+		}
+		return query
+	}
 
-	if f.UserID != "" {
-		query = query.Where("user_id = ?", f.UserID)
+	if f.Keyword != "" && utils.IsPinyinKeyword(f.Keyword) {
+		// 需求36：拼音搜索——全量加载后内存过滤
+		var all []models.WorkReport
+		if err := buildBase().Order("created_at DESC").Find(&all).Error; err != nil {
+			return nil, 0, err
+		}
+		for _, rp := range all {
+			if utils.MatchKeyword(f.Keyword, rp.Title, rp.Content, rp.UserName) {
+				reports = append(reports, rp)
+			}
+		}
+		total = int64(len(reports))
+		reports = pageSlice(reports, f.Page, f.PageSize)
+		return reports, total, nil
 	}
-	if f.Period != "" {
-		query = query.Where("period = ?", f.Period)
-	}
+
+	query := buildBase()
 	if f.Keyword != "" {
 		kw := "%" + f.Keyword + "%"
 		query = query.Where("title ILIKE ? OR content ILIKE ?", kw, kw)
-	}
-	if f.DateFrom != "" {
-		query = query.Where("created_at >= ?", f.DateFrom)
-	}
-	if f.DateTo != "" {
-		query = query.Where("created_at <= ?", f.DateTo+"T23:59:59")
 	}
 
 	if err := query.Count(&total).Error; err != nil {

@@ -1,1 +1,0 @@
-import{_ as e,g as t,v as n}from"./index-DDK2Lpxr.js";function r(t){return e(`/api/v1/presets`,t?{template_type:t}:{})}function i(e){return n(`/api/v1/presets`,e)}function a(e){return t(`/api/v1/presets/${e}`)}export{a as n,r,i as t};

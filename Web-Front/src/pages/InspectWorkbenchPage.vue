@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { getUsers } from '@/services/admin';
 import { inspectUserWorkbench } from '@/services/notes';
 import type { UserBrief } from '@/types';
+import { matchPinyin } from '@/utils/pinyin';
 
 const users = ref<UserBrief[]>([]);
 const searchText = ref('');
@@ -15,11 +16,10 @@ const error = ref('');
 const total = ref(0);
 
 const filteredUsers = computed(() => {
-  const q = searchText.value.trim().toLowerCase();
+  const q = searchText.value.trim();
   if (!q) return users.value;
-  return users.value.filter(
-    (u) => u.name.toLowerCase().includes(q) || u.dept_name.toLowerCase().includes(q)
-  );
+  // 需求36：支持拼音全拼 / 首字母搜索（无视大小写）
+  return users.value.filter((u) => matchPinyin(q, u.name, u.dept_name));
 });
 
 async function loadUsers() {

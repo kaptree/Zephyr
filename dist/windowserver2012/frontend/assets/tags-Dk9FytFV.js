@@ -1,0 +1,1 @@
+import{n as e,r as t,t as n}from"./api-D8Hicrww.js";function r(t){return e(`/api/v1/tags`,{scope:t})}function i(e){return t(`/api/v1/tags`,e)}function a(e){return n(`/api/v1/tags/${e}`)}export{a as n,r,i as t};

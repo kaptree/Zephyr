@@ -12,6 +12,7 @@ import {
 import type { UserBrief, Department } from '@/types';
 import { getDepartments, getUsers } from '@/services/admin';
 import { useToast } from '@/composables/useToast';
+import { matchPinyin } from '@/utils/pinyin';
 
 const { warning: toastWarning } = useToast();
 
@@ -52,10 +53,8 @@ const selectedUsers = computed(() => users.value.filter((u) => props.modelValue.
 
 const filteredUsers = computed(() => {
   if (!searchText.value) return users.value;
-  const q = searchText.value.toLowerCase();
-  return users.value.filter(
-    (u) => u.name.toLowerCase().includes(q) || u.dept_name.toLowerCase().includes(q)
-  );
+  // 需求36：支持拼音全拼 / 首字母搜索（无视大小写）
+  return users.value.filter((u) => matchPinyin(searchText.value, u.name, u.dept_name));
 });
 
 async function loadData() {

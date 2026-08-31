@@ -8,6 +8,7 @@ import { uploadChatFile } from '@/services/notification';
 import EmojiPicker from '@/components/chat/EmojiPicker.vue';
 import type { ChatMessageItem, User } from '@/types';
 import { renderNoteContent } from '@/utils/richText';
+import { matchPinyin } from '@/utils/pinyin';
 
 const store = useNotificationStore();
 const auth = useAuthStore();
@@ -22,6 +23,9 @@ const messagesEl = ref<HTMLDivElement | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 const uploading = ref(false);
 const showEmoji = ref(false);
+// 需求33：表情面板元素引用，用于「点击页面其他地方关闭」
+const emojiBtnEl = ref<HTMLElement | null>(null);
+const emojiPanelEl = ref<HTMLElement | null>(null);
 const previewUrl = ref('');
 const loadingOlder = ref(false);
 const allLoaded = ref(false);
@@ -46,11 +50,8 @@ const filteredUsers = computed(() => {
   const me = auth.user?.id;
   let list = users.value.filter((u) => u.id !== me && u.is_active !== false);
   if (kw) {
-    list = list.filter((u) =>
-      (u.name || '').toLowerCase().includes(kw) ||
-      (u.username || '').toLowerCase().includes(kw) ||
-      (u.dept_name || '').toLowerCase().includes(kw)
-    );
+    // 需求36：支持拼音全拼 / 首字母搜索（无视大小写）
+    list = list.filter((u) => matchPinyin(kw, u.name || '', u.username || '', u.dept_name || ''));
   }
   // 在线用户优先展示（仿微信通讯录）
   return [...list].sort((a, b) => Number(store.isOnline(b.id)) - Number(store.isOnline(a.id)));
@@ -258,7 +259,18 @@ onMounted(() => {
   // 需求24：弹窗点击跳转 /chat?peer=xxx 时直达对应会话
   const peer = route.query.peer as string | undefined;
   if (peer) openConversation(peer);
+  // 需求33：点击表情面板之外的区域关闭面板
+  document.addEventListener('mousedown', handleOutsideClick);
 });
+
+// 需求33：点击页面其他地方关闭表情面板（面板与触发按钮内部不关闭）
+function handleOutsideClick(e: MouseEvent) {
+  if (!showEmoji.value) return;
+  const t = e.target as Node;
+  if (emojiPanelEl.value?.contains(t)) return;
+  if (emojiBtnEl.value?.contains(t)) return;
+  showEmoji.value = false;
+}
 
 // 需求24：已在聊天页时，点击弹窗切换会话（peer 查询参数变化）
 watch(
@@ -271,6 +283,8 @@ watch(
 onUnmounted(() => {
   // 离开聊天页：清除正在查看的会话，后续消息正常计入未读角标
   store.setViewingPeer(null);
+  // 需求33：移除全局点击监听
+  document.removeEventListener('mousedown', handleOutsideClick);
 });
 </script>
 
@@ -495,6 +509,7 @@ onUnmounted(() => {
           <!-- 工具栏 -->
           <div class="flex items-center gap-1 mb-2">
             <button
+              ref="emojiBtnEl"
               class="w-8 h-8 rounded-lg flex items-center justify-center text-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
               title="表情"
               @click="showEmoji = !showEmoji"
@@ -510,7 +525,12 @@ onUnmounted(() => {
           </div>
 
           <!-- emoji 面板 -->
-          <div v-if="showEmoji" class="absolute bottom-full left-3 mb-2 z-20" @click.stop>
+          <div
+            v-if="showEmoji"
+            ref="emojiPanelEl"
+            class="absolute bottom-full left-3 mb-2 z-20"
+            @click.stop
+          >
             <EmojiPicker @select="insertEmoji" @send-image="sendEmoticon" />
           </div>
 

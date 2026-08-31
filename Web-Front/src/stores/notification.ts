@@ -147,6 +147,27 @@ export const useNotificationStore = defineStore('notification', () => {
 
   // ---------------- WebSocket 全局通道 ----------------
 
+  // 解码本地 JWT，判断 token 是否已过期（无 token 视为已过期）
+  function isTokenExpired(): boolean {
+    const t = localStorage.getItem('auth_token');
+    if (!t) return true;
+    try {
+      const payload = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return typeof payload.exp === 'number' && payload.exp * 1000 < Date.now();
+    } catch {
+      return false;
+    }
+  }
+
+  // token 过期处理：清理登录态、断开 WebSocket、跳转登录页
+  function handleAuthExpired() {
+    const auth = useAuthStore();
+    auth.logout();
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  }
+
   function connectSocket() {
     if (socketEnabled.value) return;
     const auth = useAuthStore();
@@ -166,6 +187,11 @@ export const useNotificationStore = defineStore('notification', () => {
     };
     ws.onclose = () => {
       connected.value = false;
+      // 兜底：服务端因 token 过期强制断开连接时（auth:expired 消息可能因连接异常未送达），
+      // 检测本地 token 已过期则清理登录态并跳转登录页
+      if (isTokenExpired()) {
+        handleAuthExpired();
+      }
     };
     ws.onerror = () => {
       connected.value = false;
@@ -173,7 +199,10 @@ export const useNotificationStore = defineStore('notification', () => {
     ws.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data);
-        if (data.event === 'notification:new' && data.notification) {
+        if (data.event === 'auth:expired') {
+          // 服务端检测到 token 过期并主动断开：清理登录态并跳转登录页
+          handleAuthExpired();
+        } else if (data.event === 'notification:new' && data.notification) {
           handleNewNotification(data.notification as NotificationItem);
         } else if (data.event === 'chat:message' && data.message) {
           handleNewMessage(data.message as ChatMessageItem);

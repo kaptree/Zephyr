@@ -2,6 +2,7 @@ package repository
 
 import (
 	"labelpro-server/internal/models"
+	"labelpro-server/internal/utils"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -28,26 +29,48 @@ func (r *IssueRepository) List(f IssueFilter) ([]models.Issue, int64, error) {
 	var issues []models.Issue
 	var total int64
 
-	query := r.db.Model(&models.Issue{}).Preload("User")
-	if f.Status != "" {
-		query = query.Where("status = ?", f.Status)
-	}
-	if f.Type != "" {
-		query = query.Where("type = ?", f.Type)
-	}
-	if f.Keyword != "" {
-		kw := "%" + f.Keyword + "%"
-		query = query.Where("title ILIKE ? OR content ILIKE ?", kw, kw)
-	}
+	if f.Keyword != "" && utils.IsPinyinKeyword(f.Keyword) {
+		// 需求36：拼音搜索——数据库无法对中文做拼音匹配，改为全量加载后内存过滤
+		var all []models.Issue
+		query := r.db.Model(&models.Issue{}).Preload("User")
+		if f.Status != "" {
+			query = query.Where("status = ?", f.Status)
+		}
+		if f.Type != "" {
+			query = query.Where("type = ?", f.Type)
+		}
+		if err := query.Order("created_at DESC").Find(&all).Error; err != nil {
+			return nil, 0, err
+		}
+		for _, it := range all {
+			if utils.MatchKeyword(f.Keyword, it.Title, it.Content) {
+				issues = append(issues, it)
+			}
+		}
+		total = int64(len(issues))
+		issues = pageSlice(issues, f.Page, f.PageSize)
+	} else {
+		query := r.db.Model(&models.Issue{}).Preload("User")
+		if f.Status != "" {
+			query = query.Where("status = ?", f.Status)
+		}
+		if f.Type != "" {
+			query = query.Where("type = ?", f.Type)
+		}
+		if f.Keyword != "" {
+			kw := "%" + f.Keyword + "%"
+			query = query.Where("title ILIKE ? OR content ILIKE ?", kw, kw)
+		}
 
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
+		if err := query.Count(&total).Error; err != nil {
+			return nil, 0, err
+		}
 
-	offset := (f.Page - 1) * f.PageSize
-	if err := query.Order("created_at DESC").
-		Offset(offset).Limit(f.PageSize).Find(&issues).Error; err != nil {
-		return nil, 0, err
+		offset := (f.Page - 1) * f.PageSize
+		if err := query.Order("created_at DESC").
+			Offset(offset).Limit(f.PageSize).Find(&issues).Error; err != nil {
+			return nil, 0, err
+		}
 	}
 
 	// 批量统计评论数

@@ -39,6 +39,9 @@ type Client struct {
 	Conn          *websocket.Conn
 	Send          chan []byte
 	EditingNoteID string
+	// TokenExpiresAt 建立连接时所携带 token 的过期时间（零值表示不过期校验）。
+	// 修复：cookie(token) 过期后仍显示在线的 bug —— Hub 定期扫描，过期连接强制断开。
+	TokenExpiresAt time.Time
 }
 
 type Message struct {
@@ -60,6 +63,10 @@ func NewHub() *Hub {
 }
 
 func (h *Hub) Run() {
+	// 修复：定期清理 token 已过期的连接，避免 cookie 过期后仍显示在线
+	expireTicker := time.NewTicker(30 * time.Second)
+	defer expireTicker.Stop()
+
 	for {
 		select {
 		case client := <-h.register:
@@ -118,8 +125,43 @@ func (h *Hub) Run() {
 				}
 			}
 			h.mu.RUnlock()
+		case <-expireTicker.C:
+			h.cleanupExpired()
 		}
 	}
+}
+
+// cleanupExpired 扫描所有房间，强制断开 token 已过期的连接并重新广播在线列表。
+// 修复：用户 cookie(token) 过期后，只要 WebSocket 连接还挂着，其他用户仍能看到其在线。
+func (h *Hub) cleanupExpired() {
+	now := time.Now()
+
+	h.mu.Lock()
+	for roomID, clients := range h.rooms {
+		for client := range clients {
+			if !client.TokenExpiresAt.IsZero() && now.After(client.TokenExpiresAt) {
+				// 先通过 Send 队列告知客户端 token 已过期（writePump 单写者，并发安全），
+				// 稍等 writePump 把 auth:expired 发送出去后再关闭连接，确保客户端能收到明确事件。
+				// readPump 读到错误后会自动走 unregister 流程移除该连接并广播新在线列表。
+				expiredData, _ := json.Marshal(map[string]interface{}{"event": "auth:expired"})
+				select {
+				case client.Send <- expiredData:
+				default:
+				}
+				go func(conn *websocket.Conn) {
+					time.Sleep(500 * time.Millisecond)
+					conn.Close()
+				}(client.Conn)
+				delete(clients, client)
+			}
+		}
+		if len(clients) == 0 {
+			delete(h.rooms, roomID)
+		}
+	}
+	h.mu.Unlock()
+
+	h.BroadcastPresence()
 }
 
 func (h *Hub) broadcastPresence(roomID string) {
@@ -246,11 +288,12 @@ func HandleUserWebSocket(hub *Hub) gin.HandlerFunc {
 		}
 
 		client := &Client{
-			ID:     claims.UserID,
-			Name:   claims.Username,
-			RoomID: "user:" + claims.UserID,
-			Conn:   conn,
-			Send:   make(chan []byte, 256),
+			ID:             claims.UserID,
+			Name:           claims.Username,
+			RoomID:         "user:" + claims.UserID,
+			Conn:           conn,
+			Send:           make(chan []byte, 256),
+			TokenExpiresAt: tokenExpiry(claims),
 		}
 
 		hub.register <- client
@@ -258,6 +301,14 @@ func HandleUserWebSocket(hub *Hub) gin.HandlerFunc {
 		go client.writePump()
 		go client.readPump(hub)
 	}
+}
+
+// tokenExpiry 从 JWT claims 中提取 token 过期时间（缺失时为零值，表示不做过期校验）
+func tokenExpiry(claims *utils.Claims) time.Time {
+	if claims != nil && claims.ExpiresAt != nil {
+		return claims.ExpiresAt.Time
+	}
+	return time.Time{}
 }
 
 func HandleWebSocket(hub *Hub) gin.HandlerFunc {
@@ -283,11 +334,12 @@ func HandleWebSocket(hub *Hub) gin.HandlerFunc {
 		}
 
 		client := &Client{
-			ID:     claims.UserID,
-			Name:   claims.Username,
-			RoomID: noteID,
-			Conn:   conn,
-			Send:   make(chan []byte, 256),
+			ID:             claims.UserID,
+			Name:           claims.Username,
+			RoomID:         noteID,
+			Conn:           conn,
+			Send:           make(chan []byte, 256),
+			TokenExpiresAt: tokenExpiry(claims),
 		}
 
 		hub.register <- client
@@ -440,11 +492,12 @@ func HandleGroupWebSocket(hub *Hub) gin.HandlerFunc {
 		}
 
 		client := &Client{
-			ID:     claims.UserID,
-			Name:   claims.Username,
-			RoomID: "group:" + groupID,
-			Conn:   conn,
-			Send:   make(chan []byte, 256),
+			ID:             claims.UserID,
+			Name:           claims.Username,
+			RoomID:         "group:" + groupID,
+			Conn:           conn,
+			Send:           make(chan []byte, 256),
+			TokenExpiresAt: tokenExpiry(claims),
 		}
 
 		hub.register <- client

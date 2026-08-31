@@ -1,26 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { useToast } from '@/composables/useToast';
+import { useRouter } from 'vue-router';
 import { useNoteStore } from '@/stores/notes';
 import type { Note } from '@/types';
 import StickyNoteCard from '@/components/note/StickyNoteCard.vue';
 import DateRangePicker from '@/components/common/DateRangePicker.vue';
-import FeedbackModal from '@/components/notification/FeedbackModal.vue';
 import { renderNoteContent } from '@/utils/richText';
-import { submitFeedback } from '@/services/notes';
 
+const router = useRouter();
 const noteStore = useNoteStore();
-const toast = useToast();
 const viewMode = ref<'timeline' | 'card'>('timeline'); // Bug8：默认时间轴
 const keyword = ref('');
 const dateFrom = ref('');
 const dateTo = ref('');
-const showDetailPanel = ref(false);
-const selectedNote = ref<Note | null>(null);
 const restoring = ref(false);
-const feedbackVisible = ref(false);
-const feedbackNote = ref<Note | null>(null);
-const submittingFeedback = ref(false);
 
 onMounted(() => {
   noteStore.fetchArchivedNotes({});
@@ -41,48 +34,19 @@ function handleClear() {
   noteStore.fetchArchivedNotes({});
 }
 
+// 需求35：点击归档记录跳转新页面展示详情
 function openDetail(note: Note) {
-  selectedNote.value = note;
-  showDetailPanel.value = true;
-}
-
-function closeDetail() {
-  showDetailPanel.value = false;
-  selectedNote.value = null;
+  router.push(`/workbench/archive/${note.id}`);
 }
 
 async function handleRestore(note: Note) {
   restoring.value = true;
   try {
     await noteStore.restoreNote(note.id);
-    if (showDetailPanel.value && selectedNote.value?.id === note.id) {
-      closeDetail();
-    }
   } catch {
     // ignore
   } finally {
     restoring.value = false;
-  }
-}
-
-function openFeedback(note: Note) {
-  feedbackNote.value = note;
-  feedbackVisible.value = true;
-}
-
-async function handleSubmitFeedback(content: string) {
-  if (!feedbackNote.value) return;
-  submittingFeedback.value = true;
-  try {
-    await submitFeedback(feedbackNote.value.id, content);
-    toast.success('反馈提交成功，已通知任务发起人');
-    feedbackVisible.value = false;
-    feedbackNote.value = null;
-  } catch (e: unknown) {
-    const err = e as { friendlyMessage?: string };
-    toast.error(err.friendlyMessage || '反馈提交失败');
-  } finally {
-    submittingFeedback.value = false;
   }
 }
 
@@ -293,112 +257,5 @@ function feedbackList(note: Note) {
       />
     </div>
 
-    <!-- 详情侧滑面板 -->
-    <Teleport to="body">
-      <div v-if="showDetailPanel && selectedNote">
-        <div class="overlay-backdrop" @click="closeDetail" />
-        <div class="slide-panel">
-          <div class="p-6 h-full flex flex-col">
-            <div class="flex items-center justify-between mb-6">
-              <div class="flex items-center gap-2">
-                <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">归档详情</h2>
-                <span class="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded-tag"
-                  >已归档</span
-                >
-              </div>
-              <button
-                class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
-                @click="closeDetail"
-              >
-                <svg
-                  class="w-5 h-5 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <div class="flex-1 overflow-auto space-y-5">
-              <div>
-                <span class="text-xs text-slate-400 dark:text-slate-500 mb-1 block">标题</span>
-                <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ selectedNote.title }}</p>
-              </div>
-              <div>
-                <span class="text-xs text-slate-400 dark:text-slate-500 mb-1 block">内容</span>
-                <div class="text-sm text-slate-700 dark:text-slate-300 rich-content-display">
-                  <span v-if="!selectedNote.content" class="text-slate-300 dark:text-slate-500">暂无内容</span>
-                  <span v-else v-html="renderNoteContent(selectedNote.content)"></span>
-                </div>
-              </div>
-              <div v-if="selectedNote.tags?.length" class="flex flex-wrap gap-2">
-                <span
-                  v-for="tag in selectedNote.tags"
-                  :key="tag.id"
-                  class="tag-capsule text-white"
-                  :style="{ backgroundColor: tag.color || '#64748B' }"
-                  >{{ tag.sub_tag ? tag.name + ' › ' + tag.sub_tag : tag.name }}</span
-                >
-              </div>
-              <div
-                class="bg-slate-50 dark:bg-slate-900 rounded-card p-4 space-y-2 text-xs transition-colors duration-300"
-              >
-                <div class="flex justify-between">
-                  <span class="text-slate-400 dark:text-slate-500">创建时间</span
-                  ><span class="text-slate-700 dark:text-slate-300">{{
-                    selectedNote.created_at?.slice(0, 16).replace('T', ' ')
-                  }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-slate-400 dark:text-slate-500">完成时间</span
-                  ><span class="text-slate-700 dark:text-slate-300">{{
-                    selectedNote.completed_at?.slice(0, 16).replace('T', ' ') || '—'
-                  }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-slate-400 dark:text-slate-500">归档时间</span
-                  ><span class="text-slate-700 dark:text-slate-300">{{
-                    selectedNote.archive_time?.slice(0, 16).replace('T', ' ') || '—'
-                  }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="flex gap-3 pt-4 border-t border-slate-100 dark:border-slate-700 mt-4">
-              <button
-                class="flex-1 py-2.5 btn-primary text-sm disabled:opacity-50"
-                :disabled="restoring"
-                @click="handleRestore(selectedNote!)"
-              >
-                {{ restoring ? '恢复中...' : '恢复任务' }}
-              </button>
-              <button
-                class="flex-1 py-2.5 text-sm bg-violet-500 text-white rounded-btn hover:bg-violet-600 transition-smooth"
-                @click="openFeedback(selectedNote!)"
-              >
-                反馈填报
-              </button>
-              <button class="flex-1 py-2.5 btn-secondary text-sm" @click="closeDetail">关闭</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- 补充反馈填报弹窗 -->
-    <FeedbackModal
-      :visible="feedbackVisible"
-      :note="feedbackNote"
-      mode="feedback"
-      @update:visible="feedbackVisible = $event"
-      @submit="handleSubmitFeedback"
-    />
   </div>
 </template>

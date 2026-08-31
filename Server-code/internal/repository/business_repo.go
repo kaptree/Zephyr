@@ -2,6 +2,7 @@ package repository
 
 import (
 	"labelpro-server/internal/models"
+	"labelpro-server/internal/utils"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -122,6 +123,19 @@ func (r *TemplateRepository) FindAll(templateType, keyword string) ([]models.Tem
 	query := r.db.Preload("Creator").Order("created_at DESC")
 	if templateType != "" {
 		query = query.Where("type = ?", templateType)
+	}
+	if keyword != "" && utils.IsPinyinKeyword(keyword) {
+		// 需求36：拼音搜索——全量加载后内存过滤
+		var all []models.Template
+		if err := query.Find(&all).Error; err != nil {
+			return nil, err
+		}
+		for _, t := range all {
+			if utils.MatchKeyword(keyword, t.Name, t.Description, t.Content) {
+				templates = append(templates, t)
+			}
+		}
+		return templates, nil
 	}
 	if keyword != "" {
 		kw := "%" + keyword + "%"
@@ -325,21 +339,42 @@ func (r *WorkGroupRepository) Search(f WorkGroupSearchFilter) ([]models.WorkGrou
 	var groups []models.WorkGroup
 	var total int64
 
-	query := r.db.Model(&models.WorkGroup{})
+	buildBase := func() *gorm.DB {
+		query := r.db.Model(&models.WorkGroup{})
+		if f.UserID != "" {
+			subQuery := r.db.Model(&models.WorkGroupMember{}).Select("group_id").Where("user_id = ?", f.UserID)
+			query = query.Where("initiator_id = ? OR id IN (?)", f.UserID, subQuery)
+		}
+		if f.DateFrom != "" {
+			query = query.Where("created_at >= ?", f.DateFrom)
+		}
+		if f.DateTo != "" {
+			query = query.Where("created_at <= ?", f.DateTo+"T23:59:59")
+		}
+		return query
+	}
 
+	if f.Keyword != "" && utils.IsPinyinKeyword(f.Keyword) {
+		// 需求36：拼音搜索——全量加载后内存过滤
+		var all []models.WorkGroup
+		if err := buildBase().Preload("Members.User").Preload("Initiator").
+			Order("created_at DESC").Find(&all).Error; err != nil {
+			return nil, 0, err
+		}
+		for _, g := range all {
+			if utils.MatchKeyword(f.Keyword, g.Name, g.Description) {
+				groups = append(groups, g)
+			}
+		}
+		total = int64(len(groups))
+		groups = pageSlice(groups, f.Page, f.PageSize)
+		return groups, total, nil
+	}
+
+	query := buildBase()
 	if f.Keyword != "" {
 		kw := "%" + f.Keyword + "%"
 		query = query.Where("name ILIKE ? OR description ILIKE ?", kw, kw)
-	}
-	if f.UserID != "" {
-		subQuery := r.db.Model(&models.WorkGroupMember{}).Select("group_id").Where("user_id = ?", f.UserID)
-		query = query.Where("initiator_id = ? OR id IN (?)", f.UserID, subQuery)
-	}
-	if f.DateFrom != "" {
-		query = query.Where("created_at >= ?", f.DateFrom)
-	}
-	if f.DateTo != "" {
-		query = query.Where("created_at <= ?", f.DateTo+"T23:59:59")
 	}
 
 	if err := query.Count(&total).Error; err != nil {

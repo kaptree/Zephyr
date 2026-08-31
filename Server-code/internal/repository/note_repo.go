@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"labelpro-server/internal/models"
+	"labelpro-server/internal/utils"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -56,83 +57,78 @@ func (r *NoteRepository) List(filter NoteFilter, scope NoteScope) ([]models.Note
 	var notes []models.Note
 	var total int64
 
-	query := r.db.Model(&models.Note{}).
-		Preload("Tags").
-		Preload("Creator").
-		Preload("Owner").
-		Preload("Department").
-		Preload("Assignees.User").
-		Preload("Ccs.User")
+	buildBase := func() *gorm.DB {
+		query := r.db.Model(&models.Note{}).
+			Preload("Tags").
+			Preload("Creator").
+			Preload("Owner").
+			Preload("Department").
+			Preload("Assignees.User").
+			Preload("Ccs.User")
 
-	switch filter.Status {
-	case "archived":
-		query = query.Where("notes.is_archived = ?", true)
-	case "completed":
-		query = query.Where("notes.color_status = ?", "green")
-	case "active", "":
-		query = query.Where("notes.is_archived = ?", false)
-	}
+		switch filter.Status {
+		case "archived":
+			query = query.Where("notes.is_archived = ?", true)
+		case "completed":
+			query = query.Where("notes.color_status = ?", "green")
+		case "active", "":
+			query = query.Where("notes.is_archived = ?", false)
+		}
 
-	if filter.SourceType != "" {
-		query = query.Where("notes.source_type = ?", filter.SourceType)
-	}
-	if filter.OwnerID != "" {
-		query = query.Where("notes.owner_id = ?", filter.OwnerID)
-	}
-	if filter.CreatorID != "" {
-		query = query.Where("notes.creator_id = ?", filter.CreatorID)
-	}
-	if filter.DepartmentID != "" {
-		query = query.Where("notes.department_id = ?", filter.DepartmentID)
-	}
-	if filter.ColorStatus != "" {
-		query = query.Where("notes.color_status = ?", filter.ColorStatus)
-	}
-	if filter.Keyword != "" {
-		keyword := "%" + filter.Keyword + "%"
-		query = query.Where("notes.title LIKE ? OR notes.content LIKE ?", keyword, keyword)
-	}
-	if filter.DateFrom != "" {
-		query = query.Where("notes.created_at >= ?", filter.DateFrom)
-	}
-	if filter.DateTo != "" {
-		query = query.Where("notes.created_at <= ?", normalizeDateTo(filter.DateTo))
-	}
-	if filter.IsUrgent {
-		query = query.Where("notes.due_time IS NOT NULL AND notes.due_time <= ? AND notes.is_archived = false",
-			time.Now().Add(2*time.Hour))
-	}
+		if filter.SourceType != "" {
+			query = query.Where("notes.source_type = ?", filter.SourceType)
+		}
+		if filter.OwnerID != "" {
+			query = query.Where("notes.owner_id = ?", filter.OwnerID)
+		}
+		if filter.CreatorID != "" {
+			query = query.Where("notes.creator_id = ?", filter.CreatorID)
+		}
+		if filter.DepartmentID != "" {
+			query = query.Where("notes.department_id = ?", filter.DepartmentID)
+		}
+		if filter.ColorStatus != "" {
+			query = query.Where("notes.color_status = ?", filter.ColorStatus)
+		}
+		if filter.DateFrom != "" {
+			query = query.Where("notes.created_at >= ?", filter.DateFrom)
+		}
+		if filter.DateTo != "" {
+			query = query.Where("notes.created_at <= ?", normalizeDateTo(filter.DateTo))
+		}
+		if filter.IsUrgent {
+			query = query.Where("notes.due_time IS NOT NULL AND notes.due_time <= ? AND notes.is_archived = false",
+				time.Now().Add(2*time.Hour))
+		}
 
-	if len(filter.TagIDs) > 0 {
-		subQuery := r.db.Table("note_tags").
-			Select("note_id").
-			Where("tag_id IN ?", filter.TagIDs).
-			Group("note_id").
-			Having("COUNT(DISTINCT tag_id) = ?", len(filter.TagIDs))
-		query = query.Where("notes.id IN (?)", subQuery)
-	}
+		if len(filter.TagIDs) > 0 {
+			subQuery := r.db.Table("note_tags").
+				Select("note_id").
+				Where("tag_id IN ?", filter.TagIDs).
+				Group("note_id").
+				Having("COUNT(DISTINCT tag_id) = ?", len(filter.TagIDs))
+			query = query.Where("notes.id IN (?)", subQuery)
+		}
 
-	switch scope.Role {
-	case "dept_admin":
-		// 部门管理员：本部门（含子部门）任务 + 与自己相关（创建/负责/被指派/抄送）的任务
-		// 修复 Bug2：跨部门指派的被指派人（如系统管理员派给部门管理员）能收到通知
-		// 但此前列表仅按部门过滤导致不显示；此处与 CheckUserAccess 语义保持一致
-		subDeptIDs, _ := r.getSubDeptIDs(scope.DepartmentID)
-		query = query.Where(
-			"notes.department_id IN ? OR notes.creator_id = ? OR notes.owner_id = ? OR notes.id IN (SELECT note_id FROM note_assignees WHERE user_id = ?) OR notes.id IN (SELECT note_id FROM note_ccs WHERE user_id = ?)",
-			subDeptIDs, scope.UserID, scope.UserID, scope.UserID, scope.UserID,
-		)
-	default:
-		// super_admin / group_leader / 普通用户统一按「与自己相关」过滤：
-		// 创建人 / 负责人 / 被指派人 / 抄送人，防止管理员看到所有人员的任务
-		query = query.Where(
-			"notes.creator_id = ? OR notes.owner_id = ? OR notes.id IN (SELECT note_id FROM note_assignees WHERE user_id = ?) OR notes.id IN (SELECT note_id FROM note_ccs WHERE user_id = ?)",
-			scope.UserID, scope.UserID, scope.UserID, scope.UserID,
-		)
-	}
-
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
+		switch scope.Role {
+		case "dept_admin":
+			// 部门管理员：本部门（含子部门）任务 + 与自己相关（创建/负责/被指派/抄送）的任务
+			// 修复 Bug2：跨部门指派的被指派人（如系统管理员派给部门管理员）能收到通知
+			// 但此前列表仅按部门过滤导致不显示；此处与 CheckUserAccess 语义保持一致
+			subDeptIDs, _ := r.getSubDeptIDs(scope.DepartmentID)
+			query = query.Where(
+				"notes.department_id IN ? OR notes.creator_id = ? OR notes.owner_id = ? OR notes.id IN (SELECT note_id FROM note_assignees WHERE user_id = ?) OR notes.id IN (SELECT note_id FROM note_ccs WHERE user_id = ?)",
+				subDeptIDs, scope.UserID, scope.UserID, scope.UserID, scope.UserID,
+			)
+		default:
+			// super_admin / group_leader / 普通用户统一按「与自己相关」过滤：
+			// 创建人 / 负责人 / 被指派人 / 抄送人，防止管理员看到所有人员的任务
+			query = query.Where(
+				"notes.creator_id = ? OR notes.owner_id = ? OR notes.id IN (SELECT note_id FROM note_assignees WHERE user_id = ?) OR notes.id IN (SELECT note_id FROM note_ccs WHERE user_id = ?)",
+				scope.UserID, scope.UserID, scope.UserID, scope.UserID,
+			)
+		}
+		return query
 	}
 
 	sortBy := "notes.created_at"
@@ -148,9 +144,34 @@ func (r *NoteRepository) List(filter NoteFilter, scope NoteScope) ([]models.Note
 	}
 	orderClause := fmt.Sprintf("%s %s", sortBy, sortOrder)
 
-	offset := (filter.Page - 1) * filter.PageSize
-	if err := query.Offset(offset).Limit(filter.PageSize).Order(orderClause).Find(&notes).Error; err != nil {
-		return nil, 0, err
+	if filter.Keyword != "" && utils.IsPinyinKeyword(filter.Keyword) {
+		// 需求36：拼音搜索——数据库无法对中文做拼音匹配，改为全量加载（SQL 排序）后内存过滤
+		var all []models.Note
+		if err := buildBase().Order(orderClause).Find(&all).Error; err != nil {
+			return nil, 0, err
+		}
+		for _, n := range all {
+			if utils.MatchKeyword(filter.Keyword, n.Title, n.Content) {
+				notes = append(notes, n)
+			}
+		}
+		total = int64(len(notes))
+		notes = pageSlice(notes, filter.Page, filter.PageSize)
+	} else {
+		query := buildBase()
+		if filter.Keyword != "" {
+			keyword := "%" + filter.Keyword + "%"
+			query = query.Where("notes.title ILIKE ? OR notes.content ILIKE ?", keyword, keyword)
+		}
+
+		if err := query.Count(&total).Error; err != nil {
+			return nil, 0, err
+		}
+
+		offset := (filter.Page - 1) * filter.PageSize
+		if err := query.Offset(offset).Limit(filter.PageSize).Order(orderClause).Find(&notes).Error; err != nil {
+			return nil, 0, err
+		}
 	}
 
 	return notes, total, nil

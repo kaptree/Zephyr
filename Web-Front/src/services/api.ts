@@ -26,13 +26,20 @@ api.interceptors.response.use(
   (response) => {
     return response;
   },
-  (error) => {
+  async (error) => {
     const { response } = error;
     const status = response?.status;
 
     if (status === 401) {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');
+      // 关闭 WebSocket：token 过期后主动断开连接，避免其他用户仍看到本用户「在线」
+      try {
+        const { useAuthStore } = await import('@/stores/auth');
+        useAuthStore().logout();
+      } catch {
+        /* ignore */
+      }
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }
