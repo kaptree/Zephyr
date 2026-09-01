@@ -10,6 +10,11 @@ import StickyNoteCard from '@/components/note/StickyNoteCard.vue';
 import UserPicker from '@/components/common/UserPicker.vue';
 import MarkdownEditor from '@/components/common/MarkdownEditor.vue';
 import { markdownToHtml, htmlToMarkdown } from '@/utils/markdown';
+import { playArchiveFold, playDeleteOut } from '@/utils/exitAnimations';
+import { useConfirm } from '@/composables/useConfirm';
+
+// 全局确认对话框（轻量级通知美学）
+const { confirm: appConfirm } = useConfirm();
 import FeedbackModal from '@/components/notification/FeedbackModal.vue';
 import { createWorkGroup, searchGroups, deleteWorkGroup } from '@/services/workgroup';
 import type { WorkGroupData } from '@/services/workgroup';
@@ -19,6 +24,9 @@ import { getPresets } from '@/services/presets';
 import type { PresetGroup } from '@/types/preset';
 import { fetchTemplates } from '@/services/templates';
 import type { Template } from '@/types';
+
+// 组件名供 AdminLayout 的 <keep-alive :include> 匹配缓存
+defineOptions({ name: 'WorkbenchPage' });
 
 const router = useRouter();
 const route = useRoute();
@@ -412,6 +420,8 @@ async function handleComplete(note: Note) {
   if (isCcOnlyNote) {
     completing.value = true;
     try {
+      // 优雅退场：卡片折叠 + 淡出（400ms）后再执行归档
+      await playArchiveFold(document.querySelector(`[data-note-id="${note.id}"]`));
       await noteStore.completeNote(note.id, {});
       noteStore.fetchNotes();
       if (showDetailPanel.value && selectedNote.value?.id === note.id) closeDetail();
@@ -433,6 +443,8 @@ async function handleComplete(note: Note) {
   ) {
     completing.value = true;
     try {
+      // 优雅退场：卡片折叠 + 淡出（400ms）后再执行归档
+      await playArchiveFold(document.querySelector(`[data-note-id="${note.id}"]`));
       await noteStore.completeNote(note.id, {});
       noteStore.fetchNotes();
       if (showDetailPanel.value && selectedNote.value?.id === note.id) closeDetail();
@@ -475,8 +487,10 @@ async function handleImportant(note: Note) {
 // 删除任务：确认后软删除，从工作台移除（可在归档中恢复）
 async function handleDelete(note: Note) {
   const title = note.title || '无标题';
-  if (!window.confirm(`确定删除任务「${title}」吗？删除后将从工作台移除，可在归档中恢复。`)) return;
+  if (!(await appConfirm({ message: `确定删除任务「${title}」吗？删除后将从工作台移除，可在归档中恢复。`, danger: true, confirmText: '删除' }))) return;
   try {
+    // 优雅退场：红色闪烁 → 缩小 → 淡出三步动画（600ms）后再执行删除
+    await playDeleteOut(document.querySelector(`[data-note-id="${note.id}"]`));
     await noteStore.archiveNote(note.id);
     noteStore.fetchNotes();
     if (showDetailPanel.value && selectedNote.value?.id === note.id) closeDetail();
@@ -793,192 +807,200 @@ const templateLabels: Record<string, string> = {
       </button>
     </div>
 
-    <!-- ====== 专项行动列表 ====== -->
-    <template v-if="activeTab === 'groups'">
-      <div
-        class="mb-4 p-4 rounded-xl border border-purple-100 dark:border-purple-800 bg-purple-50/30 dark:bg-purple-900/5"
-      >
-        <div class="flex flex-wrap items-center gap-3">
-          <input
-            v-model="groupsFilter.keyword"
-            type="text"
-            class="px-3 py-1.5 text-sm border border-purple-200 dark:border-purple-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-400 placeholder-slate-400 w-48"
-            placeholder="🔍 关键词搜索..."
-            @keydown.enter.prevent="applyGroupsFilter()"
-          />
-          <input
-            v-model="groupsFilter.date_from"
-            type="date"
-            class="px-3 py-1.5 text-sm border border-purple-200 dark:border-purple-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-400"
-            @change="applyGroupsFilter()"
-          />
-          <span class="text-xs text-slate-400">至</span>
-          <input
-            v-model="groupsFilter.date_to"
-            type="date"
-            class="px-3 py-1.5 text-sm border border-purple-200 dark:border-purple-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-400"
-            @change="applyGroupsFilter()"
-          />
-          <button
-            class="px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-smooth"
-            @click="resetGroupsFilter()"
+    <!-- Tab 内容切换：淡入淡出 + 轻微上移 -->
+    <transition name="tab-swap" mode="out-in">
+      <div :key="activeTab">
+        <!-- ====== 专项行动列表 ====== -->
+        <template v-if="activeTab === 'groups'">
+          <div
+            class="mb-4 p-4 rounded-xl border border-purple-100 dark:border-purple-800 bg-purple-50/30 dark:bg-purple-900/5"
           >
-            🔄 重置
-          </button>
-          <span class="ml-auto text-xs text-slate-400 dark:text-slate-500"
-            >共 {{ groupsTotal }} 个专项行动</span
-          >
-        </div>
-      </div>
-
-      <div v-if="wgLoading" class="flex items-center justify-center py-16">
-        <div
-          class="animate-spin rounded-full h-8 w-8 border-2 border-purple-500 border-t-transparent"
-        ></div>
-      </div>
-
-      <div
-        v-else-if="workGroups.length === 0"
-        class="text-center py-16 text-slate-400 dark:text-slate-500"
-      >
-        <p class="text-3xl mb-3">🏢</p>
-        <p class="text-sm">暂无专项行动</p>
-        <p class="text-xs mt-1">点击右上角「一键创建」发起跨部门专项协同工作</p>
-      </div>
-
-      <div v-else class="space-y-3">
-        <div
-          v-for="wg in workGroups"
-          :key="wg.id"
-          class="group p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-md hover:border-purple-200 dark:hover:border-purple-700 transition-smooth cursor-pointer"
-          @click="goToGroup(wg.id)"
-        >
-          <div class="flex items-start justify-between mb-2">
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 mb-1">
-                <span class="text-base font-semibold text-slate-800 dark:text-slate-200 truncate">{{
-                  wg.name
-                }}</span>
-                <span
-                  :class="[
-                    'text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0',
-                    wg.status === 'active'
-                      ? 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400'
-                      : 'bg-slate-100 dark:bg-slate-700 text-slate-500',
-                  ]"
-                  >{{ statusLabel(wg.status) }}</span
-                >
-                <span
-                  class="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-500 dark:text-purple-400 font-medium shrink-0"
-                  >{{ templateLabels[wg.template_type] || wg.template_type }}</span
-                >
-              </div>
-              <p
-                v-if="wg.description"
-                class="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-1.5"
+            <div class="flex flex-wrap items-center gap-3">
+              <input
+                v-model="groupsFilter.keyword"
+                type="text"
+                class="px-3 py-1.5 text-sm border border-purple-200 dark:border-purple-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-400 placeholder-slate-400 w-48"
+                placeholder="🔍 关键词搜索..."
+                @keydown.enter.prevent="applyGroupsFilter()"
+              />
+              <input
+                v-model="groupsFilter.date_from"
+                type="date"
+                class="px-3 py-1.5 text-sm border border-purple-200 dark:border-purple-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-400"
+                @change="applyGroupsFilter()"
+              />
+              <span class="text-xs text-slate-400">至</span>
+              <input
+                v-model="groupsFilter.date_to"
+                type="date"
+                class="px-3 py-1.5 text-sm border border-purple-200 dark:border-purple-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-purple-400"
+                @change="applyGroupsFilter()"
+              />
+              <button
+                class="px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-smooth"
+                @click="resetGroupsFilter()"
               >
-                {{ wg.description }}
-              </p>
-              <div class="flex items-center gap-4 text-[11px] text-slate-400 dark:text-slate-500">
-                <span>👤 {{ wg.initiator?.name || '未知' }}</span>
-                <span>👥 {{ getMemberCount(wg) }} 人</span>
-                <span class="truncate max-w-[200px]">{{ getMemberNames(wg) }}</span>
-                <span v-if="wg.due_time" class="text-red-400"
-                  >📅 截止 {{ wg.due_time.slice(0, 10) }}</span
+                🔄 重置
+              </button>
+              <span class="ml-auto text-xs text-slate-400 dark:text-slate-500"
+                >共 {{ groupsTotal }} 个专项行动</span
+              >
+            </div>
+          </div>
+
+          <div v-if="wgLoading" class="flex items-center justify-center py-16">
+            <div
+              class="animate-spin rounded-full h-8 w-8 border-2 border-purple-500 border-t-transparent"
+            ></div>
+          </div>
+
+          <div
+            v-else-if="workGroups.length === 0"
+            class="text-center py-16 text-slate-400 dark:text-slate-500"
+          >
+            <p class="text-3xl mb-3">🏢</p>
+            <p class="text-sm">暂无专项行动</p>
+            <p class="text-xs mt-1">点击右上角「一键创建」发起跨部门专项协同工作</p>
+          </div>
+
+          <div v-else class="space-y-3">
+            <div
+              v-for="wg in workGroups"
+              :key="wg.id"
+              class="group p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:shadow-md hover:border-purple-200 dark:hover:border-purple-700 transition-smooth cursor-pointer"
+              @click="goToGroup(wg.id)"
+            >
+              <div class="flex items-start justify-between mb-2">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-1">
+                    <span
+                      class="text-base font-semibold text-slate-800 dark:text-slate-200 truncate"
+                      >{{ wg.name }}</span
+                    >
+                    <span
+                      :class="[
+                        'text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0',
+                        wg.status === 'active'
+                          ? 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400'
+                          : 'bg-slate-100 dark:bg-slate-700 text-slate-500',
+                      ]"
+                      >{{ statusLabel(wg.status) }}</span
+                    >
+                    <span
+                      class="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-500 dark:text-purple-400 font-medium shrink-0"
+                      >{{ templateLabels[wg.template_type] || wg.template_type }}</span
+                    >
+                  </div>
+                  <p
+                    v-if="wg.description"
+                    class="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-1.5"
+                  >
+                    {{ wg.description }}
+                  </p>
+                  <div
+                    class="flex items-center gap-4 text-[11px] text-slate-400 dark:text-slate-500"
+                  >
+                    <span>👤 {{ wg.initiator?.name || '未知' }}</span>
+                    <span>👥 {{ getMemberCount(wg) }} 人</span>
+                    <span class="truncate max-w-[200px]">{{ getMemberNames(wg) }}</span>
+                    <span v-if="wg.due_time" class="text-red-400"
+                      >📅 截止 {{ wg.due_time.slice(0, 10) }}</span
+                    >
+                    <span class="text-slate-300 dark:text-slate-600">{{
+                      formatTime(wg.created_at)
+                    }}</span>
+                  </div>
+                </div>
+                <button
+                  class="text-[11px] text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-smooth opacity-0 group-hover:opacity-100 shrink-0 ml-3"
+                  @click.stop="handleDeleteGroup(wg.id)"
+                  title="删除"
                 >
-                <span class="text-slate-300 dark:text-slate-600">{{
-                  formatTime(wg.created_at)
-                }}</span>
+                  🗑
+                </button>
               </div>
             </div>
-            <button
-              class="text-[11px] text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-smooth opacity-0 group-hover:opacity-100 shrink-0 ml-3"
-              @click.stop="handleDeleteGroup(wg.id)"
-              title="删除"
-            >
-              🗑
-            </button>
           </div>
-        </div>
-      </div>
 
-      <div v-if="groupsTotal > groupsPageSize" class="flex items-center justify-between mt-6">
-        <span class="text-xs text-slate-400">共 {{ groupsTotal }} 个专项行动</span>
-        <div class="flex items-center gap-2">
-          <button
-            class="px-3 py-1 text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-smooth disabled:opacity-40"
-            :disabled="groupsPage <= 1"
-            @click="
-              groupsPage--;
-              loadWorkGroups();
-            "
-          >
-            上一页
-          </button>
-          <button
-            class="px-3 py-1 text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-smooth disabled:opacity-40"
-            :disabled="groupsPage * groupsPageSize >= groupsTotal"
-            @click="
-              groupsPage++;
-              loadWorkGroups();
-            "
-          >
-            下一页
-          </button>
-        </div>
-      </div>
-    </template>
+          <div v-if="groupsTotal > groupsPageSize" class="flex items-center justify-between mt-6">
+            <span class="text-xs text-slate-400">共 {{ groupsTotal }} 个专项行动</span>
+            <div class="flex items-center gap-2">
+              <button
+                class="px-3 py-1 text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-smooth disabled:opacity-40"
+                :disabled="groupsPage <= 1"
+                @click="
+                  groupsPage--;
+                  loadWorkGroups();
+                "
+              >
+                上一页
+              </button>
+              <button
+                class="px-3 py-1 text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-smooth disabled:opacity-40"
+                :disabled="groupsPage * groupsPageSize >= groupsTotal"
+                @click="
+                  groupsPage++;
+                  loadWorkGroups();
+                "
+              >
+                下一页
+              </button>
+            </div>
+          </div>
+        </template>
 
-    <!-- ====== 任务内容区 ====== -->
-    <template v-else>
-      <div
-        v-if="noteStore.loading && noteStore.activeNotes.length === 0"
-        class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5"
-      >
-        <div v-for="n in 6" :key="n" class="skeleton h-44 rounded-card" />
-      </div>
-      <div
-        v-else-if="!noteStore.loading && displayedNotes.length === 0 && !noteStore.error"
-        class="flex flex-col items-center justify-center py-24"
-      >
-        <div
-          class="w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mb-6"
-        >
-          <svg
-            class="w-12 h-12 text-slate-300 dark:text-slate-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+        <!-- ====== 任务内容区 ====== -->
+        <template v-else>
+          <div
+            v-if="noteStore.loading && noteStore.activeNotes.length === 0"
+            class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1.5"
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            <div v-for="n in 6" :key="n" class="skeleton h-44 rounded-card" />
+          </div>
+          <div
+            v-else-if="!noteStore.loading && displayedNotes.length === 0 && !noteStore.error"
+            class="flex flex-col items-center justify-center py-24"
+          >
+            <div
+              class="w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mb-6"
+            >
+              <svg
+                class="w-12 h-12 text-slate-300 dark:text-slate-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            </div>
+            <p class="text-slate-400 dark:text-slate-500 text-sm">
+              {{ activeTab === 'completed' ? '暂无已完成任务' : '暂无活跃任务' }}
+            </p>
+            <p class="text-slate-300 dark:text-slate-600 text-xs mt-1">点击右下角 '+' 新建任务</p>
+          </div>
+          <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
+            <StickyNoteCard
+              v-for="note in displayedNotes"
+              :key="note.id"
+              :note="note"
+              mode="web"
+              :archived="false"
+              :extra-actions="true"
+              class="animate-spring-enter"
+              @click="openDetail(note)"
+              @complete="handleComplete"
+              @important="handleImportant"
+              @delete="handleDelete"
             />
-          </svg>
-        </div>
-        <p class="text-slate-400 dark:text-slate-500 text-sm">
-          {{ activeTab === 'completed' ? '暂无已完成任务' : '暂无活跃任务' }}
-        </p>
-        <p class="text-slate-300 dark:text-slate-600 text-xs mt-1">点击右下角 '+' 新建任务</p>
+          </div>
+        </template>
       </div>
-      <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
-        <StickyNoteCard
-          v-for="note in displayedNotes"
-          :key="note.id"
-          :note="note"
-          mode="web"
-          :archived="false"
-          :extra-actions="true"
-          class="animate-spring-enter"
-          @click="openDetail(note)"
-          @complete="handleComplete"
-          @important="handleImportant"
-          @delete="handleDelete"
-        />
-      </div>
-    </template>
+    </transition>
 
     <!-- FAB -->
     <button
@@ -995,612 +1017,638 @@ const templateLabels: Record<string, string> = {
       </svg>
     </button>
 
-    <!-- ====== 新建任务模态框 ====== -->
+    <!-- ====== 新建任务模态框（底页动画） ====== -->
     <Teleport to="body">
-      <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center">
-        <div class="overlay-backdrop" @click="showCreateModal = false" />
-        <div
-          class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-3xl mx-4 animate-fade-in max-h-[90vh] flex flex-col"
-        >
-          <div class="p-6 overflow-y-auto flex-1">
-            <div class="flex items-center justify-between mb-6">
-              <div>
-                <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                  📝 新建任务
-                </h2>
-                <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                  支持 Markdown 语法，可全屏编写
-                </p>
-              </div>
-              <button
-                class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
-                @click="showCreateModal = false"
-              >
-                <svg
-                  class="w-5 h-5 text-slate-400 dark:text-slate-500"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-            <form class="space-y-4" @submit.prevent="handleSubmit">
-              <input
-                v-model="newTitle"
-                class="input-field"
-                placeholder="任务标题"
-                autofocus
-                @keydown.enter.prevent
-              />
-              <div>
-                <label class="block text-xs font-medium text-slate-500 mb-1.5"
-                  >任务内容（支持 Markdown，可全屏）</label
-                >
-                <MarkdownEditor
-                  v-model="newContent"
-                  placeholder="请输入任务内容..."
-                  :min-height="200"
-                />
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-slate-500 mb-1"
-                  >使用模板（可选）</label
-                >
-                <select
-                  v-model="selectedTemplateId"
-                  class="w-full text-sm border border-slate-200 dark:border-slate-600 rounded p-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
-                  @change="onTemplateSelect"
-                >
-                  <option value="">不使用模板</option>
-                  <option v-for="t in userTemplates" :key="t.id" :value="t.id">
-                    {{ t.name }}{{ t.is_system ? ' (系统)' : '' }}
-                  </option>
-                </select>
-              </div>
-              <div>
-                <span class="text-xs text-slate-500 mb-1.5 block">标签</span
-                ><TagSelector v-model="selectedTagIds" :max="5" />
-              </div>
-              <div>
-                <span class="text-xs text-slate-500 mb-2 block">任务类型</span>
-                <div class="flex gap-3">
-                  <label
-                    :class="[
-                      'flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-btn border-2 cursor-pointer transition-smooth',
-                      sourceType === 'self'
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
-                        : 'border-slate-200 dark:border-slate-600 text-slate-500',
-                    ]"
-                    ><input v-model="sourceType" type="radio" value="self" class="sr-only" /><span
-                      class="text-sm font-medium"
-                      >仅自己</span
-                    ></label
-                  >
-                  <label
-                    :class="[
-                      'flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-btn border-2 cursor-pointer transition-smooth',
-                      sourceType === 'assigned'
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
-                        : 'border-slate-200 dark:border-slate-600 text-slate-500',
-                    ]"
-                    ><input
-                      v-model="sourceType"
-                      type="radio"
-                      value="assigned"
-                      class="sr-only"
-                    /><span class="text-sm font-medium">指派他人</span></label
-                  >
+      <transition name="modal-sheet" :duration="{ enter: 350, leave: 300 }">
+        <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center">
+          <div class="overlay-backdrop" @click="showCreateModal = false" />
+          <div
+            class="modal-panel relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col"
+          >
+            <div class="p-6 overflow-y-auto flex-1">
+              <div class="flex items-center justify-between mb-6">
+                <div>
+                  <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    📝 新建任务
+                  </h2>
+                  <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                    支持 Markdown 语法，可全屏编写
+                  </p>
                 </div>
+                <button
+                  class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
+                  @click="showCreateModal = false"
+                >
+                  <svg
+                    class="w-5 h-5 text-slate-400 dark:text-slate-500"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
               </div>
-              <div v-if="sourceType !== 'self'">
-                <span class="text-xs text-slate-500 mb-1.5 block">{{
-                  sourceType === 'assigned'
-                    ? '选择指派人员（可多选，支持一键全选部门/小组）'
-                    : '选择协作人员（可多选）'
-                }}</span
-                ><UserPicker
-                  v-model="selectedAssigneeIds"
-                  :multiple="true"
-                  :max="50"
-                  :drop-up="true"
-                  :disabled-ids="selectedCcIds"
-                  disabled-note="已在抄送人员中"
+              <form class="space-y-4" @submit.prevent="handleSubmit">
+                <input
+                  v-model="newTitle"
+                  class="input-field"
+                  placeholder="任务标题"
+                  autofocus
+                  @keydown.enter.prevent
                 />
-                <div class="mt-3 flex items-center gap-3">
-                  <label class="text-xs text-slate-500 shrink-0">⏱ 工作时间</label>
-                  <select v-model="workTimeSeconds" class="input-field !py-1.5 !text-sm !w-auto">
-                    <option v-for="opt in workTimeOptions" :key="opt.value" :value="opt.value">
-                      {{ opt.label }}
+                <div>
+                  <label class="block text-xs font-medium text-slate-500 mb-1.5"
+                    >任务内容（支持 Markdown，可全屏）</label
+                  >
+                  <MarkdownEditor
+                    v-model="newContent"
+                    placeholder="请输入任务内容..."
+                    :min-height="200"
+                  />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-500 mb-1"
+                    >使用模板（可选）</label
+                  >
+                  <select
+                    v-model="selectedTemplateId"
+                    class="w-full text-sm border border-slate-200 dark:border-slate-600 rounded p-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                    @change="onTemplateSelect"
+                  >
+                    <option value="">不使用模板</option>
+                    <option v-for="t in userTemplates" :key="t.id" :value="t.id">
+                      {{ t.name }}{{ t.is_system ? ' (系统)' : '' }}
                     </option>
                   </select>
-                  <span class="text-[11px] text-slate-400"
-                    >任务下发后开始倒计时，到期前自动提醒</span
-                  >
                 </div>
-                <div
-                  class="mt-3 p-3 rounded-lg border border-dashed border-blue-200 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10"
-                >
-                  <div class="flex items-center gap-2 mb-2">
-                    <span class="text-xs text-slate-500">🔍 工作类型</span>
-                    <select
-                      v-model="selectedWorkType"
-                      class="input-field !py-1 !text-xs !w-auto"
-                      @change="handleRecommend()"
+                <div>
+                  <span class="text-xs text-slate-500 mb-1.5 block">标签</span
+                  ><TagSelector v-model="selectedTagIds" :max="5" />
+                </div>
+                <div>
+                  <span class="text-xs text-slate-500 mb-2 block">任务类型</span>
+                  <div class="flex gap-3">
+                    <label
+                      :class="[
+                        'flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-btn border-2 cursor-pointer transition-smooth',
+                        sourceType === 'self'
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
+                          : 'border-slate-200 dark:border-slate-600 text-slate-500',
+                      ]"
+                      ><input v-model="sourceType" type="radio" value="self" class="sr-only" /><span
+                        class="text-sm font-medium"
+                        >仅自己</span
+                      ></label
                     >
-                      <option value="">选择类型</option>
-                      <option v-for="opt in workTypeOptions" :key="opt.value" :value="opt.value">
+                    <label
+                      :class="[
+                        'flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-btn border-2 cursor-pointer transition-smooth',
+                        sourceType === 'assigned'
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400'
+                          : 'border-slate-200 dark:border-slate-600 text-slate-500',
+                      ]"
+                      ><input
+                        v-model="sourceType"
+                        type="radio"
+                        value="assigned"
+                        class="sr-only"
+                      /><span class="text-sm font-medium">指派他人</span></label
+                    >
+                  </div>
+                </div>
+                <div v-if="sourceType !== 'self'">
+                  <span class="text-xs text-slate-500 mb-1.5 block">{{
+                    sourceType === 'assigned'
+                      ? '选择指派人员（可多选，支持一键全选部门/小组）'
+                      : '选择协作人员（可多选）'
+                  }}</span
+                  ><UserPicker
+                    v-model="selectedAssigneeIds"
+                    :multiple="true"
+                    :max="50"
+                    :drop-up="true"
+                    :disabled-ids="selectedCcIds"
+                    disabled-note="已在抄送人员中"
+                  />
+                  <div class="mt-3 flex items-center gap-3">
+                    <label class="text-xs text-slate-500 shrink-0">⏱ 工作时间</label>
+                    <select v-model="workTimeSeconds" class="input-field !py-1.5 !text-sm !w-auto">
+                      <option v-for="opt in workTimeOptions" :key="opt.value" :value="opt.value">
                         {{ opt.label }}
                       </option>
                     </select>
-                    <button
-                      type="button"
-                      class="text-xs px-2.5 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-btn hover:from-blue-600 hover:to-purple-600 transition-smooth disabled:opacity-50 flex items-center gap-1"
-                      :disabled="!selectedWorkType || recommending"
-                      @click="handleRecommend()"
+                    <span class="text-[11px] text-slate-400"
+                      >任务下发后开始倒计时，到期前自动提醒</span
                     >
-                      <span
-                        v-if="recommending"
-                        class="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"
-                      ></span>
-                      🤖 一键推荐
-                    </button>
                   </div>
-                  <p v-if="recommendError" class="text-xs text-red-500 mb-2">
-                    {{ recommendError }}
-                  </p>
                   <div
-                    v-if="recommendResult.length > 0"
-                    class="flex flex-wrap gap-1 max-h-24 overflow-y-auto"
+                    class="mt-3 p-3 rounded-lg border border-dashed border-blue-200 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10"
                   >
-                    <button
-                      v-for="u in recommendResult"
-                      :key="u.id"
-                      type="button"
-                      :class="[
-                        'text-xs px-2 py-1 rounded-full transition-smooth',
-                        selectedAssigneeIds.includes(u.id)
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-slate-200 dark:border-slate-600',
-                      ]"
-                      @click="selectRecommendUser(u.id)"
+                    <div class="flex items-center gap-2 mb-2">
+                      <span class="text-xs text-slate-500">🔍 工作类型</span>
+                      <select
+                        v-model="selectedWorkType"
+                        class="input-field !py-1 !text-xs !w-auto"
+                        @change="handleRecommend()"
+                      >
+                        <option value="">选择类型</option>
+                        <option v-for="opt in workTypeOptions" :key="opt.value" :value="opt.value">
+                          {{ opt.label }}
+                        </option>
+                      </select>
+                      <button
+                        type="button"
+                        class="text-xs px-2.5 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-btn hover:from-blue-600 hover:to-purple-600 transition-smooth disabled:opacity-50 flex items-center gap-1"
+                        :disabled="!selectedWorkType || recommending"
+                        @click="handleRecommend()"
+                      >
+                        <span
+                          v-if="recommending"
+                          class="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"
+                        ></span>
+                        🤖 一键推荐
+                      </button>
+                    </div>
+                    <p v-if="recommendError" class="text-xs text-red-500 mb-2">
+                      {{ recommendError }}
+                    </p>
+                    <div
+                      v-if="recommendResult.length > 0"
+                      class="flex flex-wrap gap-1 max-h-24 overflow-y-auto"
                     >
-                      {{ u.name }}
-                      <span v-if="u.dept_name" class="text-[10px] opacity-60 ml-0.5">{{
-                        u.dept_name
-                      }}</span>
-                      <span v-if="selectedAssigneeIds.includes(u.id)" class="ml-1">✓</span>
-                    </button>
+                      <button
+                        v-for="u in recommendResult"
+                        :key="u.id"
+                        type="button"
+                        :class="[
+                          'text-xs px-2 py-1 rounded-full transition-smooth',
+                          selectedAssigneeIds.includes(u.id)
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-slate-200 dark:border-slate-600',
+                        ]"
+                        @click="selectRecommendUser(u.id)"
+                      >
+                        {{ u.name }}
+                        <span v-if="u.dept_name" class="text-[10px] opacity-60 ml-0.5">{{
+                          u.dept_name
+                        }}</span>
+                        <span v-if="selectedAssigneeIds.includes(u.id)" class="ml-1">✓</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div>
-                <span class="text-xs text-slate-500 mb-1.5 block"
-                  >抄送人员（可多选，抄送人可查看该任务——紫色卡片 +「抄送」徽章）</span
-                ><UserPicker
-                  v-model="selectedCcIds"
-                  :multiple="true"
-                  :max="50"
-                  :drop-up="true"
-                  :disabled-ids="selectedAssigneeIds"
-                  disabled-note="已在指派人员中"
-                />
-              </div>
-              <p v-if="createError" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-btn">
-                {{ createError }}
-              </p>
-              <div
-                class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700"
-              >
-                <button
-                  type="button"
-                  class="px-5 py-2.5 text-sm text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 rounded-btn hover:bg-slate-200 dark:hover:bg-slate-600 transition-smooth"
-                  @click="showCreateModal = false"
-                  :disabled="creating"
+                <div>
+                  <span class="text-xs text-slate-500 mb-1.5 block"
+                    >抄送人员（可多选，抄送人可查看该任务——紫色卡片 +「抄送」徽章）</span
+                  ><UserPicker
+                    v-model="selectedCcIds"
+                    :multiple="true"
+                    :max="50"
+                    :drop-up="true"
+                    :disabled-ids="selectedAssigneeIds"
+                    disabled-note="已在指派人员中"
+                  />
+                </div>
+                <p v-if="createError" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-btn">
+                  {{ createError }}
+                </p>
+                <div
+                  class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700"
                 >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  class="px-5 py-2.5 text-sm text-white bg-[#3B82F6] rounded-btn hover:bg-blue-600 transition-smooth disabled:opacity-50"
-                  :disabled="creating"
-                >
-                  {{ creating ? '创建中...' : '创建任务' }}
-                </button>
-              </div>
-            </form>
+                  <button
+                    type="button"
+                    class="px-5 py-2.5 text-sm text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 rounded-btn hover:bg-slate-200 dark:hover:bg-slate-600 transition-smooth"
+                    @click="showCreateModal = false"
+                    :disabled="creating"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    class="px-5 py-2.5 text-sm text-white bg-[#3B82F6] rounded-btn hover:bg-blue-600 transition-smooth disabled:opacity-50"
+                    :disabled="creating"
+                  >
+                    {{ creating ? '创建中...' : '创建任务' }}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
 
     <!-- ====== 详情编辑模态框（居中） ====== -->
     <Teleport to="body">
-      <div
-        v-if="showDetailPanel && selectedNote"
-        class="fixed inset-0 z-50 flex items-center justify-center"
-      >
-        <div class="overlay-backdrop" @click="closeDetail" />
+      <transition name="modal-sheet" :duration="{ enter: 350, leave: 300 }">
         <div
-          class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-3xl mx-4 animate-fade-in max-h-[90vh] flex flex-col"
+          v-if="showDetailPanel && selectedNote"
+          class="fixed inset-0 z-50 flex items-center justify-center"
         >
-          <div class="p-6 overflow-y-auto flex-1">
-            <div class="flex items-center justify-between mb-6">
-              <div class="flex items-center gap-2">
-                <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                  📝 任务详情
-                </h2>
-                <span
-                  v-if="selectedIsCcOnly"
-                  class="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-tag"
-                  >抄送</span
-                >
-                <span
-                  v-if="selectedIsAssigner"
-                  class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-tag"
-                  >指派</span
-                >
-                <span
-                  v-else-if="selectedNote.color_status === 'red'"
-                  class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-tag"
-                  >盯办中</span
-                >
-                <span
-                  v-if="selectedNote.color_status === 'blue'"
-                  class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-tag"
-                  >协作</span
-                >
-              </div>
-              <button
-                class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
-                @click="closeDetail"
-              >
-                <svg
-                  class="w-5 h-5 text-slate-400 dark:text-slate-500"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-            <div class="space-y-5">
-              <div>
-                <span class="text-xs text-slate-400 mb-1 block">标题</span
-                ><input
-                  v-model="editingTitle"
-                  class="input-field text-base font-semibold"
-                  @keydown.enter.prevent
-                />
-              </div>
-              <div>
-                <span class="text-xs text-slate-400 mb-1 block">内容（支持 Markdown，可全屏）</span>
-                <MarkdownEditor
-                  v-model="editingContent"
-                  placeholder="请输入任务内容..."
-                  :min-height="220"
-                />
-              </div>
-              <div>
-                <span class="text-xs text-slate-400 mb-1 flex items-center gap-2">
-                  标签
-                  <span v-if="tagSaving" class="text-[10px] text-blue-400">保存中...</span>
-                  <span v-if="tagError" class="text-[10px] text-red-400">{{ tagError }}</span>
-                </span>
-                <TagSelector
-                  v-model="selectedEditingTagIds"
-                  :max="10"
-                  scope="all"
-                  @update:model-value="handleUpdateTags"
-                />
-              </div>
-              <div class="bg-slate-50 dark:bg-slate-900 rounded-card p-4 space-y-2">
-                <div class="flex justify-between text-xs">
-                  <span class="text-slate-400">来源类型</span
-                  ><span class="text-slate-700 dark:text-slate-300">{{
-                    selectedNote.source_type === 'self'
-                      ? '自己创建'
-                      : selectedNote.source_type === 'assigned'
-                        ? '上级指派'
-                        : '协同任务'
-                  }}</span>
-                </div>
-                <div class="flex justify-between text-xs" v-if="selectedNote.creator?.name">
-                  <span class="text-slate-400">创建人</span
-                  ><span class="text-slate-700 dark:text-slate-300">{{
-                    selectedNote.creator.name
-                  }}</span>
-                </div>
-                <div class="flex justify-between text-xs" v-if="selectedNote.assignees?.length">
-                  <span class="text-slate-400">负责人</span
-                  ><span
-                    class="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 flex-wrap justify-end"
+          <div class="overlay-backdrop" @click="closeDetail" />
+          <div
+            class="modal-panel relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col"
+          >
+            <div class="p-6 overflow-y-auto flex-1">
+              <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center gap-2">
+                  <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    📝 任务详情
+                  </h2>
+                  <span
+                    v-if="selectedIsCcOnly"
+                    class="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-tag animate-badge-flip"
+                    >抄送</span
                   >
-                    <template v-for="a in selectedNote.assignees" :key="a.user_id || (a as any).id">
-                      <span class="flex items-center gap-1">
-                        <span>{{ a.user?.name || (a as any).name }}</span>
-                        <span
-                          v-if="(a as any).sign_status === 'signed'"
-                          class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-300"
-                          :title="
-                            (a as any).signed_at
-                              ? '签收于 ' + (a as any).signed_at.slice(0, 16).replace('T', ' ')
-                              : ''
-                          "
-                          >已签收</span
-                        >
-                        <span
-                          v-else-if="(a as any).role_in_note !== 'initiator'"
-                          class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500"
-                          >未签收</span
-                        >
-                        <span
-                          v-if="(a as any).is_completed && (a as any).role_in_note !== 'initiator'"
-                          class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-300"
-                          :title="
-                            (a as any).completed_at
-                              ? '完成于 ' + (a as any).completed_at.slice(0, 16).replace('T', ' ')
-                              : ''
-                          "
-                          >已完成</span
-                        >
-                      </span>
-                      <button
-                        v-if="(a.user_id || (a as any).id) !== auth.user?.id"
-                        class="text-blue-500 hover:text-blue-600 hover:underline shrink-0"
-                        title="发起聊天"
-                        @click="notifStore.openChat(a.user_id || (a as any).id)"
-                      >
-                        联系
-                      </button>
-                    </template>
+                  <span
+                    v-if="selectedIsAssigner"
+                    :key="'detail-assign-' + selectedNote.color_status"
+                    class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-tag animate-badge-flip"
+                    >指派</span
+                  >
+                  <span
+                    v-else-if="selectedNote.color_status === 'red'"
+                    key="detail-reminding"
+                    class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-tag animate-badge-flip"
+                    >盯办中</span
+                  >
+                  <span
+                    v-if="selectedNote.color_status === 'blue'"
+                    key="detail-collab"
+                    class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-tag animate-badge-flip"
+                    >协作</span
+                  >
+                </div>
+                <button
+                  class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
+                  @click="closeDetail"
+                >
+                  <svg
+                    class="w-5 h-5 text-slate-400 dark:text-slate-500"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div class="space-y-5">
+                <div>
+                  <span class="text-xs text-slate-400 mb-1 block">标题</span
+                  ><input
+                    v-model="editingTitle"
+                    class="input-field text-base font-semibold"
+                    @keydown.enter.prevent
+                  />
+                </div>
+                <div>
+                  <span class="text-xs text-slate-400 mb-1 block"
+                    >内容（支持 Markdown，可全屏）</span
+                  >
+                  <MarkdownEditor
+                    v-model="editingContent"
+                    placeholder="请输入任务内容..."
+                    :min-height="220"
+                  />
+                </div>
+                <div>
+                  <span class="text-xs text-slate-400 mb-1 flex items-center gap-2">
+                    标签
+                    <span v-if="tagSaving" class="text-[10px] text-blue-400">保存中...</span>
+                    <span v-if="tagError" class="text-[10px] text-red-400">{{ tagError }}</span>
                   </span>
+                  <TagSelector
+                    v-model="selectedEditingTagIds"
+                    :max="10"
+                    scope="all"
+                    @update:model-value="handleUpdateTags"
+                  />
                 </div>
-                <div class="flex justify-between text-xs">
-                  <span class="text-slate-400">创建时间</span
-                  ><span class="text-slate-700 dark:text-slate-300">{{
-                    selectedNote.created_at?.slice(0, 16).replace('T', ' ')
-                  }}</span>
-                </div>
-                <div class="flex justify-between text-xs" v-if="selectedNote.due_time">
-                  <span class="text-slate-400">截止时间</span
-                  ><span class="text-red-500">{{
-                    selectedNote.due_time.slice(0, 16).replace('T', ' ')
-                  }}</span>
+                <div class="bg-slate-50 dark:bg-slate-900 rounded-card p-4 space-y-2">
+                  <div class="flex justify-between text-xs">
+                    <span class="text-slate-400">来源类型</span
+                    ><span class="text-slate-700 dark:text-slate-300">{{
+                      selectedNote.source_type === 'self'
+                        ? '自己创建'
+                        : selectedNote.source_type === 'assigned'
+                          ? '上级指派'
+                          : '协同任务'
+                    }}</span>
+                  </div>
+                  <div class="flex justify-between text-xs" v-if="selectedNote.creator?.name">
+                    <span class="text-slate-400">创建人</span
+                    ><span class="text-slate-700 dark:text-slate-300">{{
+                      selectedNote.creator.name
+                    }}</span>
+                  </div>
+                  <div class="flex justify-between text-xs" v-if="selectedNote.assignees?.length">
+                    <span class="text-slate-400">负责人</span
+                    ><span
+                      class="text-slate-700 dark:text-slate-300 flex items-center gap-1.5 flex-wrap justify-end"
+                    >
+                      <template
+                        v-for="a in selectedNote.assignees"
+                        :key="a.user_id || (a as any).id"
+                      >
+                        <span class="flex items-center gap-1">
+                          <span>{{ a.user?.name || (a as any).name }}</span>
+                          <span
+                            v-if="(a as any).sign_status === 'signed'"
+                            class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-300"
+                            :title="
+                              (a as any).signed_at
+                                ? '签收于 ' + (a as any).signed_at.slice(0, 16).replace('T', ' ')
+                                : ''
+                            "
+                            >已签收</span
+                          >
+                          <span
+                            v-else-if="(a as any).role_in_note !== 'initiator'"
+                            class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500"
+                            >未签收</span
+                          >
+                          <span
+                            v-if="
+                              (a as any).is_completed && (a as any).role_in_note !== 'initiator'
+                            "
+                            class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-300"
+                            :title="
+                              (a as any).completed_at
+                                ? '完成于 ' + (a as any).completed_at.slice(0, 16).replace('T', ' ')
+                                : ''
+                            "
+                            >已完成</span
+                          >
+                        </span>
+                        <button
+                          v-if="(a.user_id || (a as any).id) !== auth.user?.id"
+                          class="text-blue-500 hover:text-blue-600 hover:underline shrink-0"
+                          title="发起聊天"
+                          @click="notifStore.openChat(a.user_id || (a as any).id)"
+                        >
+                          联系
+                        </button>
+                      </template>
+                    </span>
+                  </div>
+                  <div class="flex justify-between text-xs">
+                    <span class="text-slate-400">创建时间</span
+                    ><span class="text-slate-700 dark:text-slate-300">{{
+                      selectedNote.created_at?.slice(0, 16).replace('T', ' ')
+                    }}</span>
+                  </div>
+                  <div class="flex justify-between text-xs" v-if="selectedNote.due_time">
+                    <span class="text-slate-400">截止时间</span
+                    ><span class="text-red-500">{{
+                      selectedNote.due_time.slice(0, 16).replace('T', ' ')
+                    }}</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          <div class="pt-4 border-t border-slate-100 dark:border-slate-700 p-6 space-y-3">
-            <button
-              v-if="canSignSelected"
-              class="w-full py-2.5 text-sm bg-blue-500 text-white rounded-btn hover:bg-blue-600 active:scale-[0.99] transition-smooth"
-              @click="handleSign"
-            >
-              签收任务
-            </button>
-            <div class="flex gap-2">
+            <div class="pt-4 border-t border-slate-100 dark:border-slate-700 p-6 space-y-3">
               <button
-                v-if="!selectedIsCcOnly"
-                class="flex-1 py-2.5 btn-primary text-sm disabled:opacity-50"
-                :disabled="saving"
-                @click="handleSaveDetail"
+                v-if="canSignSelected"
+                class="w-full py-2.5 text-sm bg-blue-500 text-white rounded-btn hover:bg-blue-600 active:scale-[0.99] transition-smooth"
+                @click="handleSign"
               >
-                {{ saving ? '保存中...' : '保存' }}
+                签收任务
               </button>
-              <button
-                v-if="selectedCompleteLabel"
-                class="flex-1 py-2.5 text-sm bg-green-500 text-white rounded-btn hover:bg-green-600 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="completing || selectedCompleteDisabled"
-                :title="
-                  selectedCompleteDisabled && !selectedAllCompleted
-                    ? '尚有被指派人未完成任务，暂不能归档'
-                    : ''
-                "
-                @click="handleComplete(selectedNote!)"
-              >
-                {{ completing ? '提交中...' : selectedCompleteLabel }}
-              </button>
-              <button
-                v-if="!selectedIsCcOnly && selectedNote.color_status !== 'red'"
-                class="flex-1 py-2.5 text-sm bg-red-50 text-red-600 rounded-btn hover:bg-red-100 transition-smooth"
-                @click="handleImportant(selectedNote!)"
-              >
-                重要
-              </button>
-              <button
-                class="flex-1 py-2.5 text-sm bg-slate-100 text-slate-600 rounded-btn hover:bg-slate-200 transition-smooth"
-                @click="handleDelete(selectedNote!)"
-              >
-                删除
-              </button>
+              <div class="flex gap-2">
+                <button
+                  v-if="!selectedIsCcOnly"
+                  class="flex-1 py-2.5 btn-primary text-sm disabled:opacity-50"
+                  :disabled="saving"
+                  @click="handleSaveDetail"
+                >
+                  {{ saving ? '保存中...' : '保存' }}
+                </button>
+                <button
+                  v-if="selectedCompleteLabel"
+                  class="flex-1 py-2.5 text-sm bg-green-500 text-white rounded-btn hover:bg-green-600 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
+                  :disabled="completing || selectedCompleteDisabled"
+                  :title="
+                    selectedCompleteDisabled && !selectedAllCompleted
+                      ? '尚有被指派人未完成任务，暂不能归档'
+                      : ''
+                  "
+                  @click="handleComplete(selectedNote!)"
+                >
+                  {{ completing ? '提交中...' : selectedCompleteLabel }}
+                </button>
+                <button
+                  v-if="!selectedIsCcOnly && selectedNote.color_status !== 'red'"
+                  class="flex-1 py-2.5 text-sm bg-red-50 text-red-600 rounded-btn hover:bg-red-100 transition-smooth"
+                  @click="handleImportant(selectedNote!)"
+                >
+                  重要
+                </button>
+                <button
+                  class="flex-1 py-2.5 text-sm bg-slate-100 text-slate-600 rounded-btn hover:bg-slate-200 transition-smooth"
+                  @click="handleDelete(selectedNote!)"
+                >
+                  删除
+                </button>
+              </div>
+              <button class="w-full py-2 btn-secondary text-sm" @click="closeDetail">关闭</button>
             </div>
-            <button class="w-full py-2 btn-secondary text-sm" @click="closeDetail">关闭</button>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
 
     <!-- ====== 专项工作组创建模态框 ====== -->
     <Teleport to="body">
-      <div
-        v-if="showWorkGroupModal"
-        class="fixed inset-0 z-50 flex items-start justify-center pt-[5vh]"
-      >
-        <div class="overlay-backdrop" @click="showWorkGroupModal = false" />
+      <transition name="modal-sheet" :duration="{ enter: 350, leave: 300 }">
         <div
-          class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-2xl mx-4 animate-fade-in max-h-[90vh] flex flex-col"
+          v-if="showWorkGroupModal"
+          class="fixed inset-0 z-50 flex items-start justify-center pt-[5vh]"
         >
-          <div class="p-6 overflow-auto flex-1">
-            <div class="flex items-center justify-between mb-6">
-              <div>
-                <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                  🏢 一键创建专项工作组
-                </h2>
-                <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                  创建工作组并自动将任务分发至每位成员
-                </p>
-              </div>
-              <button
-                class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
-                @click="showWorkGroupModal = false"
-              >
-                <svg
-                  class="w-5 h-5 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-            <form class="space-y-4" @submit.prevent="handleCreateWorkGroup" @keydown.enter.prevent>
-              <div class="grid grid-cols-2 gap-4">
+          <div class="overlay-backdrop" @click="showWorkGroupModal = false" />
+          <div
+            class="modal-panel relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col"
+          >
+            <div class="p-6 overflow-auto flex-1">
+              <div class="flex items-center justify-between mb-6">
                 <div>
-                  <label class="text-xs text-slate-500 mb-1 block">工作组名称 *</label
-                  ><input v-model="wgName" class="input-field" placeholder="如：雷霆2026专项行动" />
+                  <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    🏢 一键创建专项工作组
+                  </h2>
+                  <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                    创建工作组并自动将任务分发至每位成员
+                  </p>
                 </div>
-                <div>
-                  <label class="text-xs text-slate-500 mb-1 block">模板类型</label
-                  ><select v-model="wgTemplate" class="input-field">
-                    <option value="default">日常工作任务</option>
-                    <option value="data_analysis">数据分析研判</option>
-                    <option value="special_project">专项行动方案</option>
-                    <option value="emergency_canvas">紧急协查通报</option>
-                    <option value="collaborative_writing">协同作战方案</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label class="text-xs text-slate-500 mb-1 block">工作要求描述</label
-                ><textarea
-                  v-model="wgDescription"
-                  class="input-field h-20 resize-none"
-                  placeholder="填写专项工作的具体要求、目标、时间节点及交付标准..."
-                />
-              </div>
-              <div>
-                <label class="text-xs text-slate-500 mb-1 block">截止日期</label
-                ><input v-model="wgDueDate" type="date" class="input-field" />
-              </div>
-              <div
-                v-if="availablePresets.length > 0"
-                class="p-3 rounded-lg border border-dashed border-orange-200 bg-orange-50/50"
-              >
-                <label class="text-xs text-slate-500 mb-1.5 flex items-center gap-1">
-                  📋 选择人员预设组
-                  <span class="text-[10px] text-orange-500">（自动填充成员）</span>
-                </label>
-                <select
-                  v-model="selectedPresetId"
-                  class="input-field !py-1.5 !text-sm"
-                  @change="handlePresetSelect"
+                <button
+                  class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
+                  @click="showWorkGroupModal = false"
                 >
-                  <option value="">不使用预设</option>
-                  <option v-for="preset in availablePresets" :key="preset.id" :value="preset.id">
-                    {{ preset.name }} ({{ preset.members?.length || 0 }}人)
-                  </option>
-                </select>
-              </div>
-              <div>
-                <div class="flex items-center justify-between mb-2">
-                  <label class="text-xs text-slate-500">工作小组设置</label
-                  ><button
-                    type="button"
-                    class="text-xs text-blue-500 hover:text-blue-600 font-medium"
-                    @click="addSubGroup"
+                  <svg
+                    class="w-5 h-5 text-slate-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
-                    + 添加小组
-                  </button>
-                </div>
-                <div class="space-y-3">
-                  <div
-                    v-for="(sg, idx) in wgSubGroups"
-                    :key="idx"
-                    class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40"
-                  >
-                    <div class="flex items-center gap-2 mb-2">
-                      <span
-                        class="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                        :class="
-                          idx === 0
-                            ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
-                            : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'
-                        "
-                        >{{ idx === 0 ? '组长组' : `小组${idx + 1}` }}</span
-                      >
-                      <input
-                        v-model="sg.name"
-                        class="flex-1 text-xs px-2 py-1 border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
-                        placeholder="小组名称（可选）"
-                      />
-                      <button
-                        v-if="wgSubGroups.length > 1"
-                        type="button"
-                        class="text-xs text-red-400 hover:text-red-600"
-                        @click="removeSubGroup(idx)"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    <UserPicker
-                      :model-value="selectedWGUserIds[idx] || []"
-                      :multiple="true"
-                      :max="50"
-                      @update:model-value="onWGUserSelect(idx, $event)"
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M6 18L18 6M6 6l12 12"
                     />
-                    <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                      {{
-                        idx === 0 ? '第一组为组长组，成员角色自动设为组长' : '成员角色自动设为组员'
-                      }}
-                    </p>
+                  </svg>
+                </button>
+              </div>
+              <form
+                class="space-y-4"
+                @submit.prevent="handleCreateWorkGroup"
+                @keydown.enter.prevent
+              >
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="text-xs text-slate-500 mb-1 block">工作组名称 *</label
+                    ><input
+                      v-model="wgName"
+                      class="input-field"
+                      placeholder="如：雷霆2026专项行动"
+                    />
+                  </div>
+                  <div>
+                    <label class="text-xs text-slate-500 mb-1 block">模板类型</label
+                    ><select v-model="wgTemplate" class="input-field">
+                      <option value="default">日常工作任务</option>
+                      <option value="data_analysis">数据分析研判</option>
+                      <option value="special_project">专项行动方案</option>
+                      <option value="emergency_canvas">紧急协查通报</option>
+                      <option value="collaborative_writing">协同作战方案</option>
+                    </select>
                   </div>
                 </div>
-              </div>
-              <p v-if="wgError" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-btn">
-                {{ wgError }}
-              </p>
-              <div
-                class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700"
-              >
-                <button
-                  type="button"
-                  class="px-5 py-2.5 text-sm text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 rounded-btn hover:bg-slate-200 dark:hover:bg-slate-600 transition-smooth"
-                  @click="showWorkGroupModal = false"
-                  :disabled="wgCreating"
+                <div>
+                  <label class="text-xs text-slate-500 mb-1 block">工作要求描述</label
+                  ><textarea
+                    v-model="wgDescription"
+                    class="input-field h-20 resize-none"
+                    placeholder="填写专项工作的具体要求、目标、时间节点及交付标准..."
+                  />
+                </div>
+                <div>
+                  <label class="text-xs text-slate-500 mb-1 block">截止日期</label
+                  ><input v-model="wgDueDate" type="date" class="input-field" />
+                </div>
+                <div
+                  v-if="availablePresets.length > 0"
+                  class="p-3 rounded-lg border border-dashed border-orange-200 bg-orange-50/50"
                 >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  class="px-5 py-2.5 text-sm text-white bg-gradient-to-r from-purple-500 to-blue-500 rounded-btn hover:from-purple-600 hover:to-blue-600 transition-smooth disabled:opacity-50"
-                  :disabled="wgCreating"
+                  <label class="text-xs text-slate-500 mb-1.5 flex items-center gap-1">
+                    📋 选择人员预设组
+                    <span class="text-[10px] text-orange-500">（自动填充成员）</span>
+                  </label>
+                  <select
+                    v-model="selectedPresetId"
+                    class="input-field !py-1.5 !text-sm"
+                    @change="handlePresetSelect"
+                  >
+                    <option value="">不使用预设</option>
+                    <option v-for="preset in availablePresets" :key="preset.id" :value="preset.id">
+                      {{ preset.name }} ({{ preset.members?.length || 0 }}人)
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <label class="text-xs text-slate-500">工作小组设置</label
+                    ><button
+                      type="button"
+                      class="text-xs text-blue-500 hover:text-blue-600 font-medium"
+                      @click="addSubGroup"
+                    >
+                      + 添加小组
+                    </button>
+                  </div>
+                  <div class="space-y-3">
+                    <div
+                      v-for="(sg, idx) in wgSubGroups"
+                      :key="idx"
+                      class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40"
+                    >
+                      <div class="flex items-center gap-2 mb-2">
+                        <span
+                          class="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                          :class="
+                            idx === 0
+                              ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
+                              : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'
+                          "
+                          >{{ idx === 0 ? '组长组' : `小组${idx + 1}` }}</span
+                        >
+                        <input
+                          v-model="sg.name"
+                          class="flex-1 text-xs px-2 py-1 border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                          placeholder="小组名称（可选）"
+                        />
+                        <button
+                          v-if="wgSubGroups.length > 1"
+                          type="button"
+                          class="text-xs text-red-400 hover:text-red-600"
+                          @click="removeSubGroup(idx)"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <UserPicker
+                        :model-value="selectedWGUserIds[idx] || []"
+                        :multiple="true"
+                        :max="50"
+                        @update:model-value="onWGUserSelect(idx, $event)"
+                      />
+                      <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                        {{
+                          idx === 0
+                            ? '第一组为组长组，成员角色自动设为组长'
+                            : '成员角色自动设为组员'
+                        }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <p v-if="wgError" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-btn">
+                  {{ wgError }}
+                </p>
+                <div
+                  class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700"
                 >
-                  {{ wgCreating ? '创建中...' : '一键创建并分发任务' }}
-                </button>
-              </div>
-            </form>
+                  <button
+                    type="button"
+                    class="px-5 py-2.5 text-sm text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 rounded-btn hover:bg-slate-200 dark:hover:bg-slate-600 transition-smooth"
+                    @click="showWorkGroupModal = false"
+                    :disabled="wgCreating"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    class="px-5 py-2.5 text-sm text-white bg-gradient-to-r from-purple-500 to-blue-500 rounded-btn hover:from-purple-600 hover:to-blue-600 transition-smooth disabled:opacity-50"
+                    :disabled="wgCreating"
+                  >
+                    {{ wgCreating ? '创建中...' : '一键创建并分发任务' }}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
 
     <!-- 任务反馈填报弹窗 -->

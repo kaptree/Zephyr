@@ -128,7 +128,7 @@ function navigate(path: string) {
                 ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium border-l-[3px] border-blue-500 dark:border-blue-400'
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border-l-[3px] border-transparent',
             ]"
-            :title="collapsed ? item.label : ''"
+            v-tooltip="collapsed ? item.label : ''"
             @click="navigate(item.path)"
           >
             <!-- 图标占位 -->
@@ -167,7 +167,7 @@ function navigate(path: string) {
                 ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium border-l-[3px] border-blue-500 dark:border-blue-400'
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border-l-[3px] border-transparent',
             ]"
-            :title="collapsed ? item.label : ''"
+            v-tooltip="collapsed ? item.label : ''"
             @click="navigate(item.path)"
           >
             <span class="w-5 h-5 shrink-0 flex items-center justify-center text-lg leading-none"
@@ -196,7 +196,7 @@ function navigate(path: string) {
         <button
           v-if="!collapsed"
           class="shrink-0 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-smooth"
-          title="退出登录"
+          v-tooltip="'退出登录'"
           @click="
             auth.logout();
             router.push('/login');

@@ -225,7 +225,7 @@ function feedbackList(note: Note) {
                   class="rounded-lg bg-green-50 dark:bg-green-900/30 border-l-2 border-green-500 px-2.5 py-1.5 text-xs text-green-700 dark:text-green-300"
                 >
                   <span class="font-semibold">💬 {{ fb.name }}：</span>
-                  <span class="line-clamp-2">{{ fb.content }}</span>
+                  <span class="line-clamp-2" v-html="renderNoteContent(fb.content)"></span>
                 </div>
               </div>
               <div v-else class="mt-2 text-[11px] text-slate-300 dark:text-slate-600">暂无反馈</div>

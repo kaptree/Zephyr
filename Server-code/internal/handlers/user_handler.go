@@ -105,6 +105,23 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	utils.Success(c, user)
 }
 
+// UpdateMyProfile 个人中心自助更新（当前登录用户本人）：基础资料 + 头像 + 平台背景图个性化
+func (h *UserHandler) UpdateMyProfile(c *gin.Context) {
+	var req services.UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "请求参数错误")
+		return
+	}
+
+	user, err := h.userService.UpdateMyProfile(c.GetString("user_id"), req)
+	if err != nil {
+		utils.InternalError(c, "更新个人资料失败")
+		return
+	}
+
+	utils.Success(c, user)
+}
+
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	id := c.Param("id")
 	if err := h.userService.DeleteUser(id); err != nil {
@@ -113,7 +130,6 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	}
 	utils.Success(c, gin.H{"success": true})
 }
-
 func (h *UserHandler) GetUserProfile(c *gin.Context) {
 	id := c.Param("id")
 	user, err := h.userService.GetUser(id)

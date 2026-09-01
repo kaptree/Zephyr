@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { fetchNoteStats } from '@/services/notes';
 import { fetchLedger } from '@/services/admin';
 import { getUsers } from '@/services/admin';
+import AnimatedNumber from '@/components/common/AnimatedNumber.vue';
 
 const router = useRouter();
 
@@ -212,12 +213,11 @@ function timeAgo(ts: string): string {
 
     <!-- 主内容区 -->
     <div class="flex-1 p-6 overflow-auto">
-      <div v-if="loading" class="flex items-center justify-center h-full">
-        <div class="flex flex-col items-center gap-4">
-          <div
-            class="w-10 h-10 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin"
-          />
-          <span class="text-slate-400 text-sm">加载数据中...</span>
+      <div v-if="loading" class="grid grid-cols-4 gap-5">
+        <div v-for="i in 4" :key="i" class="rounded-2xl border border-slate-100 p-5">
+          <div class="skeleton h-3 w-16 mb-4"></div>
+          <div class="skeleton h-10 w-24 mb-3"></div>
+          <div class="skeleton h-3 w-12"></div>
         </div>
       </div>
 
@@ -235,8 +235,8 @@ function timeAgo(ts: string): string {
             <span
               class="text-4xl font-bold text-slate-900 tabular-nums"
               style="font-family: 'JetBrains Mono', 'Inter', monospace"
-              >{{ fmtNum(totalNotes) }}</span
-            >
+              ><AnimatedNumber :value="totalNotes" :format="fmtNum"
+            /></span>
             <span class="text-blue-500 text-xs mt-1 font-medium">系统累计</span>
           </div>
 
@@ -251,8 +251,8 @@ function timeAgo(ts: string): string {
             <span
               class="text-4xl font-bold text-slate-900 tabular-nums"
               style="font-family: 'JetBrains Mono', 'Inter', monospace"
-              >{{ fmtNum(activeNotes) }}</span
-            >
+              ><AnimatedNumber :value="activeNotes" :format="fmtNum"
+            /></span>
             <span class="text-green-500 text-xs mt-1 font-medium">进行中</span>
           </div>
 
@@ -267,8 +267,8 @@ function timeAgo(ts: string): string {
             <span
               class="text-4xl font-bold text-slate-900 tabular-nums"
               style="font-family: 'JetBrains Mono', 'Inter', monospace"
-              >{{ fmtNum(totalNotes - activeNotes) }}</span
-            >
+              ><AnimatedNumber :value="totalNotes - activeNotes" :format="fmtNum"
+            /></span>
             <span class="text-purple-500 text-xs mt-1 font-medium">已完成 & 已归档</span>
           </div>
 
@@ -283,8 +283,8 @@ function timeAgo(ts: string): string {
             <span
               class="text-4xl font-bold text-slate-900 tabular-nums"
               style="font-family: 'JetBrains Mono', 'Inter', monospace"
-              >{{ fmtNum(staffCount) }}</span
-            >
+              ><AnimatedNumber :value="staffCount" :format="fmtNum"
+            /></span>
             <span class="text-amber-500 text-xs mt-1 font-medium">全部门在职</span>
           </div>
         </div>

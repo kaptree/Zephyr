@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { onTableFlowScroll } from '@/utils/tableFlow'
 import {
   getSystemConfig,
   updateSystemConfig,
@@ -801,6 +802,7 @@ onMounted(() => {
 
         <!-- Delete Confirm Dialog -->
         <Teleport to="body">
+          <transition name="shrink-out">
           <div
             v-if="deletingAIId"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
@@ -821,6 +823,7 @@ onMounted(() => {
               </div>
             </div>
           </div>
+          </transition>
         </Teleport>
       </div>
 
@@ -1052,12 +1055,12 @@ onMounted(() => {
         </div>
 
         <div v-else-if="adminLogs.length === 0" class="text-center py-12 text-slate-400 dark:text-slate-500">
-          <p class="text-lg mb-2">📋</p>
-          <p class="text-sm">暂无操作记录</p>
+          <p class="text-lg mb-2"><span class="animate-breathe inline-block">📋</span></p>
+          <p class="text-sm">暂无操作记录，去其他管理页操作试试吧</p>
         </div>
 
         <div v-else>
-          <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+          <div class="table-flow overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700" @scroll="onTableFlowScroll">
             <table class="w-full text-sm">
               <thead>
                 <tr class="bg-slate-50 dark:bg-slate-800/50">
@@ -1068,8 +1071,14 @@ onMounted(() => {
                   <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">IP地址</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                <tr v-for="log in adminLogs" :key="log.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-smooth">
+              <TransitionGroup
+                tag="tbody"
+                class="divide-y divide-slate-100 dark:divide-slate-800"
+                enter-active-class="animate-table-row-enter"
+                enter-from-class="opacity-0"
+                move-class="transition-transform duration-300"
+              >
+                <tr v-for="log in adminLogs" :key="log.id">
                   <td class="px-4 py-3 text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">{{ formatTime(log.created_at) }}</td>
                   <td class="px-4 py-3 text-xs font-medium text-slate-900 dark:text-slate-100">{{ log.admin_name }}</td>
                   <td class="px-4 py-3">
@@ -1080,7 +1089,7 @@ onMounted(() => {
                   <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400 max-w-xs truncate">{{ log.detail }}</td>
                   <td class="px-4 py-3 text-xs text-slate-400 dark:text-slate-500 font-mono">{{ log.ip_address }}</td>
                 </tr>
-              </tbody>
+              </TransitionGroup>
             </table>
           </div>
 

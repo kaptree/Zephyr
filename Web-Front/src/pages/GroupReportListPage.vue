@@ -3,6 +3,10 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { listGroupReports, deleteGroupReport, exportGroupReport } from '@/services/workgroup'
 import type { WorkGroupReport } from '@/services/workgroup'
+import { useConfirm } from '@/composables/useConfirm'
+
+// 全局确认对话框（轻量级通知美学）
+const { confirm: appConfirm } = useConfirm()
 
 const route = useRoute()
 const router = useRouter()
@@ -26,7 +30,7 @@ async function loadReports() {
 }
 
 async function handleDelete(reportId: string) {
-  if (!confirm('确定删除此报告？')) return
+  if (!(await appConfirm({ message: '确定删除此报告？', danger: true, confirmText: '删除' }))) return
   await deleteGroupReport(groupId, reportId)
   loadReports()
 }

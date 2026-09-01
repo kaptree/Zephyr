@@ -262,9 +262,49 @@ router.beforeEach((to, _from, next) => {
   next();
 });
 
-router.afterEach(() => {
+/**
+ * 「空间感知」路由层级表：数值越大层级越深。
+ * afterEach 中对比 to/from 深度，推导下钻（slide-forward）、返回（slide-back）、
+ * 同级切换（fade-up）三种过渡方向，供 AdminLayout 的 <transition :name> 使用。
+ */
+const ROUTE_DEPTH: Record<string, number> = {
+  Workbench: 0,
+  Archive: 0,
+  ArchiveDetail: 1,
+  InspectWorkbench: 0,
+  Collaboration: 1,
+  WorkGroupDetail: 1,
+  Analytics: 0,
+  ReportDetail: 1,
+  Notifications: 0,
+  Issues: 0,
+  IssueDetail: 1,
+  Chat: 0,
+  Departments: 0,
+  Users: 0,
+  Tags: 0,
+  Templates: 0,
+  SystemSettings: 0,
+  OperationLog: 0,
+  Profile: 0,
+  WorkGroupDashboard: 1,
+  WorkGroupReports: 1,
+  WorkGroupReportDetail: 2,
+};
+
+router.afterEach((to, from) => {
   // 滚动到顶部
   window.scrollTo(0, 0);
+
+  // 首次进入 / 刷新：无来源路由，用淡入上移
+  if (!from.name) {
+    to.meta.transitionName = 'fade-up';
+    return;
+  }
+  const toDepth = ROUTE_DEPTH[String(to.name)] ?? 0;
+  const fromDepth = ROUTE_DEPTH[String(from.name)] ?? 0;
+  to.meta.transitionName =
+    toDepth > fromDepth ? 'slide-forward' : toDepth < fromDepth ? 'slide-back' : 'fade-up';
 });
 
 export default router;

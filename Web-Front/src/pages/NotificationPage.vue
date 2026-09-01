@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useNotificationStore } from '@/stores/notification';
 import type { NotificationItem } from '@/types';
 import { renderNoteContent } from '@/utils/richText';
+import { playDeleteOut } from '@/utils/exitAnimations';
 
 const router = useRouter();
 const store = useNotificationStore();
@@ -73,6 +74,7 @@ async function handleMarkRead(n: NotificationItem) {
 }
 
 async function handleDelete(n: NotificationItem) {
+  await playDeleteOut(document.querySelector(`[data-notification-id="${n.id}"]`));
   await store.remove(n.id);
   list.value = list.value.filter((x) => x.id !== n.id);
   total.value = Math.max(0, total.value - 1);
@@ -152,6 +154,7 @@ onMounted(() => {
         <div
           v-for="n in list"
           :key="n.id"
+          :data-notification-id="n.id"
           class="flex items-start gap-3 px-4 py-3.5 border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/40 cursor-pointer transition-smooth"
           :class="{ 'bg-blue-50/60 dark:bg-blue-900/10': !n.is_read }"
           @click="handleMarkRead(n)"
@@ -202,6 +205,7 @@ onMounted(() => {
     </div>
 
     <!-- 通知详情弹窗 -->
+    <transition name="shrink-out">
     <div
       v-if="selected"
       class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
@@ -235,5 +239,6 @@ onMounted(() => {
         </div>
       </div>
     </div>
+    </transition>
   </div>
 </template>

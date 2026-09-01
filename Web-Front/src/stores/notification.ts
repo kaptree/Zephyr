@@ -89,7 +89,7 @@ export const useNotificationStore = defineStore('notification', () => {
       while (popups.value.length < 2 && popupQueue.value.length > 0) {
         const item = popupQueue.value.shift()!;
         popups.value.push(item);
-        window.setTimeout(() => dismissPopup(item.id), 5000);
+        window.setTimeout(() => dismissPopup(item.id), 4000);
       }
       if (popupQueue.value.length > 0) {
         window.setTimeout(step, 700);

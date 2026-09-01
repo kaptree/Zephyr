@@ -5,6 +5,12 @@ import type { User, Department, WorkTypeStat } from '@/types'
 import { WORK_TYPE_LABELS } from '@/types'
 import { getPresets, createPreset, deletePreset } from '@/services/presets'
 import type { PresetGroup } from '@/types/preset'
+import { onTableFlowScroll } from '@/utils/tableFlow'
+import { playDeleteOut } from '@/utils/exitAnimations'
+import { useConfirm } from '@/composables/useConfirm'
+
+// 全局确认对话框（轻量级通知美学）
+const { confirm: appConfirm } = useConfirm()
 
 interface UserRow {
   id: string
@@ -196,7 +202,8 @@ async function handleSubmit() {
 }
 
 async function handleDelete(user: UserRow) {
-  if (!confirm(`确定要删除人员"${user.name}"吗？`)) return
+  if (!(await appConfirm({ message: `确定要删除人员"${user.name}"吗？`, danger: true, confirmText: '删除' }))) return
+  await playDeleteOut(document.querySelector(`[data-user-id="${user.id}"]`))
   try {
     await deleteUser(user.id)
     await loadData()
@@ -224,8 +231,8 @@ function getRoleClass(role: string) {
 
 function getStatusClass(active: boolean) {
   return active
-    ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300'
-    : 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300'
+    ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300 animate-status-pulse-green'
+    : 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 animate-status-pulse-red'
 }
 
 const presets = ref<PresetGroup[]>([])
@@ -295,7 +302,8 @@ async function handleCreatePreset() {
 }
 
 async function handleDeletePreset(id: string) {
-  if (!confirm('确定要删除这个预设组吗？')) return
+  if (!(await appConfirm({ message: '确定要删除这个预设组吗？', danger: true, confirmText: '删除' }))) return
+  await playDeleteOut(document.querySelector(`[data-preset-id="${id}"]`))
   try {
     await deletePreset(id)
     await loadPresets()
@@ -325,7 +333,15 @@ onMounted(async () => {
         {{ loadError }}
         <button class="block mx-auto mt-2 text-xs text-blue-500 hover:underline" @click="loadData">重试</button>
       </div>
-      <table v-else class="w-full">
+      <div v-else-if="users.length === 0" class="text-center py-16 text-slate-400 dark:text-slate-500">
+        <div class="animate-breathe inline-block">
+          <p class="text-4xl mb-3">👥</p>
+        </div>
+        <p class="text-sm">暂无成员数据</p>
+        <p class="text-xs mt-1">点击右上角「新建人员」，创建第一条人员档案</p>
+      </div>
+      <div v-else class="table-flow" @scroll="onTableFlowScroll">
+      <table class="w-full">
         <thead>
           <tr class="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
             <th class="text-left px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">姓名</th>
@@ -338,8 +354,14 @@ onMounted(async () => {
             <th class="text-right px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">操作</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-50 dark:divide-slate-700/60">
-          <tr v-for="user in users" :key="user.id" class="hover:bg-slate-50/50 dark:hover:bg-slate-700/40 transition-smooth">
+        <TransitionGroup
+          tag="tbody"
+          class="divide-y divide-slate-50 dark:divide-slate-700/60"
+          enter-active-class="animate-table-row-enter"
+          enter-from-class="opacity-0"
+          move-class="transition-transform duration-300"
+        >
+          <tr v-for="user in users" :key="user.id" :data-user-id="user.id">
             <td class="px-4 py-3">
               <div class="flex items-center gap-3">
                 <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-xs font-medium text-blue-600 dark:text-blue-300">
@@ -399,8 +421,9 @@ onMounted(async () => {
               </div>
             </td>
           </tr>
-        </tbody>
+        </TransitionGroup>
       </table>
+      </div>
     </div>
 
     <!-- 组预设管理 -->
@@ -417,6 +440,7 @@ onMounted(async () => {
         <div
           v-for="preset in presets"
           :key="preset.id"
+          :data-preset-id="preset.id"
           class="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-card p-4 hover:border-blue-200 dark:hover:border-blue-700 transition-smooth"
         >
           <div class="flex items-start justify-between mb-2">
@@ -449,6 +473,7 @@ onMounted(async () => {
 
     <!-- 人员档案弹窗 -->
     <Teleport to="body">
+      <transition name="shrink-out">
       <div v-if="showProfile && profileUser" class="fixed inset-0 z-50 flex items-start justify-center pt-[8vh]">
         <div class="overlay-backdrop" @click="showProfile = false" />
         <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-lg mx-4 p-6 animate-fade-in">
@@ -533,10 +558,12 @@ onMounted(async () => {
           </div>
         </div>
       </div>
+      </transition>
     </Teleport>
 
     <!-- 新建/编辑人员模态框 -->
     <Teleport to="body">
+      <transition name="shrink-out">
       <div v-if="showModal" class="fixed inset-0 z-50 flex items-start justify-center pt-[8vh]">
         <div class="overlay-backdrop" @click="showModal = false" />
         <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-lg mx-4 p-6 animate-fade-in">
@@ -627,10 +654,12 @@ onMounted(async () => {
           </form>
         </div>
       </div>
+      </transition>
     </Teleport>
 
     <!-- 新建预设组弹窗 -->
     <Teleport to="body">
+      <transition name="shrink-out">
       <div v-if="showPresetModal" class="fixed inset-0 z-50 flex items-start justify-center pt-[8vh]">
         <div class="overlay-backdrop" @click="showPresetModal = false" />
         <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-md mx-4 p-6 animate-fade-in">
@@ -683,6 +712,7 @@ onMounted(async () => {
           </form>
         </div>
       </div>
+      </transition>
     </Teleport>
   </div>
 </template>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { listOperationLogs, getOperationActions } from '@/services/system';
+import { onTableFlowScroll } from '@/utils/tableFlow';
 import type { OperationLogItem } from '@/types/system';
 
 const logs = ref<OperationLogItem[]>([]);
@@ -168,10 +169,11 @@ const actionLabels: Record<string, string> = {
 
 function statusClass(code: number): string {
   if (code >= 200 && code < 300)
-    return 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400';
+    return 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 animate-status-pulse-green';
   if (code >= 400 && code < 500)
-    return 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400';
-  if (code >= 500) return 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400';
+    return 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-400 animate-status-pulse-yellow';
+  if (code >= 500)
+    return 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400 animate-status-pulse-red';
   return 'bg-slate-100 dark:bg-slate-800 text-slate-500';
 }
 
@@ -284,23 +286,30 @@ onMounted(() => {
         </div>
       </div>
 
-      <div v-if="loading" class="flex items-center justify-center py-12">
-        <div
-          class="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent"
-        ></div>
+      <div v-if="loading" class="py-4 space-y-3">
+        <div v-for="i in 6" :key="i" class="flex items-center gap-4 px-4">
+          <div class="skeleton h-4 w-24 shrink-0"></div>
+          <div class="skeleton h-4 w-16 shrink-0"></div>
+          <div class="skeleton h-4 flex-1"></div>
+        </div>
       </div>
 
       <div
         v-else-if="logs.length === 0"
         class="text-center py-16 text-slate-400 dark:text-slate-500"
       >
-        <p class="text-2xl mb-2">📋</p>
+        <div class="animate-breathe inline-block">
+          <p class="text-4xl mb-3">📋</p>
+        </div>
         <p class="text-sm">暂无操作记录</p>
         <p class="text-xs mt-1">用户操作记录将自动出现在这里</p>
       </div>
 
       <div v-else>
-        <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+        <div
+          class="table-flow overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700"
+          @scroll="onTableFlowScroll"
+        >
           <table class="w-full text-sm">
             <thead>
               <tr class="bg-slate-50 dark:bg-slate-800/50">
@@ -346,12 +355,14 @@ onMounted(() => {
                 </th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-              <tr
-                v-for="log in logs"
-                :key="log.id"
-                class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-smooth"
-              >
+            <TransitionGroup
+              tag="tbody"
+              class="divide-y divide-slate-100 dark:divide-slate-800"
+              enter-active-class="animate-table-row-enter"
+              enter-from-class="opacity-0"
+              move-class="transition-transform duration-300"
+            >
+              <tr v-for="log in logs" :key="log.id">
                 <td
                   class="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap"
                 >
@@ -391,8 +402,9 @@ onMounted(() => {
                 </td>
                 <td class="px-4 py-2.5">
                   <span
+                    :key="log.status_code"
                     :class="[
-                      'text-[10px] font-mono px-1.5 py-0.5 rounded',
+                      'inline-block text-[10px] font-mono px-1.5 py-0.5 rounded',
                       statusClass(log.status_code),
                     ]"
                   >
@@ -409,7 +421,7 @@ onMounted(() => {
                   {{ log.ip_address }}
                 </td>
               </tr>
-            </tbody>
+            </TransitionGroup>
           </table>
         </div>
 

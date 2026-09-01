@@ -8,6 +8,10 @@ import {
   type ReportDetailData,
 } from '@/services/analytics';
 import { renderNoteContent } from '@/utils/richText';
+import { useConfirm } from '@/composables/useConfirm';
+
+// 全局确认对话框（轻量级通知美学）
+const { confirm: appConfirm } = useConfirm();
 
 const route = useRoute();
 const router = useRouter();
@@ -187,7 +191,7 @@ function downloadPdf() {
 async function handleDelete() {
   const r = report.value;
   if (!r || deleting.value) return;
-  if (!window.confirm('确定删除该报告吗？删除后不可恢复。')) return;
+  if (!(await appConfirm({ message: '确定删除该报告吗？删除后不可恢复。', danger: true, confirmText: '删除' }))) return;
   deleting.value = true;
   try {
     await deleteReport(r.id);

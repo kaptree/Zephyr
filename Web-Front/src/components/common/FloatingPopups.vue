@@ -36,7 +36,7 @@ function formatTime(ts?: string): string {
       <div
         v-for="p in store.popups"
         :key="p.id"
-        class="pointer-events-auto w-[320px] max-w-[calc(100vw-2rem)] bg-white dark:bg-slate-800 rounded-xl shadow-modal border border-slate-100 dark:border-slate-700 p-3.5 flex items-start gap-3 cursor-pointer hover:shadow-xl transition-smooth"
+        class="pointer-events-auto w-[320px] max-w-[calc(100vw-2rem)] bg-white/85 dark:bg-slate-800/85 backdrop-blur-md rounded-xl shadow-modal border border-slate-100/80 dark:border-slate-700/80 p-3.5 flex items-start gap-3 cursor-pointer hover:shadow-xl transition-smooth"
         @click="onPopupClick(p)"
       >
         <div
@@ -62,7 +62,7 @@ function formatTime(ts?: string): string {
         </div>
         <button
           class="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
-          title="关闭"
+          v-tooltip="'关闭'"
           @click.stop="store.dismissPopup(p.id)"
         >
           <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -75,12 +75,12 @@ function formatTime(ts?: string): string {
 </template>
 
 <style scoped>
-/* 从右上角丝滑弹出：弹性缓动（带轻微回弹） */
+/* 右上角消息弹窗：滑入+淡入 400ms ease-out，滑出+淡出 300ms ease-in（轻量级通知美学） */
 .float-pop-enter-active {
-  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.4s cubic-bezier(0, 0, 0.2, 1);
 }
 .float-pop-leave-active {
-  transition: all 0.25s ease;
+  transition: all 0.3s ease-in;
 }
 .float-pop-enter-from {
   opacity: 0;

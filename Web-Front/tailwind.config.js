@@ -71,6 +71,39 @@ export default {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
         },
+        // ===== 表格"呼吸式数据流"（美化工程 · 表格模块化） =====
+        // 行入场：左侧滑动 + 淡入，背景从 primary/20 渐变为透明（300ms）
+        'table-row-enter': {
+          '0%': { opacity: '0', transform: 'translateX(-24px)', backgroundColor: 'rgba(59, 130, 246, 0.2)' },
+          '100%': { opacity: '1', transform: 'translateX(0)', backgroundColor: 'transparent' },
+        },
+        // 状态突变：脉冲光晕闪烁 600ms（黄/绿/红 对应 待办/完成/盯办 语义）
+        'status-pulse-yellow': {
+          '0%': { boxShadow: '0 0 0 0 rgba(217, 119, 6, 0.45)' },
+          '70%': { boxShadow: '0 0 0 8px rgba(217, 119, 6, 0)' },
+          '100%': { boxShadow: '0 0 0 0 rgba(217, 119, 6, 0)' },
+        },
+        'status-pulse-green': {
+          '0%': { boxShadow: '0 0 0 0 rgba(22, 163, 74, 0.45)' },
+          '70%': { boxShadow: '0 0 0 8px rgba(22, 163, 74, 0)' },
+          '100%': { boxShadow: '0 0 0 0 rgba(22, 163, 74, 0)' },
+        },
+        'status-pulse-red': {
+          '0%': { boxShadow: '0 0 0 0 rgba(220, 38, 38, 0.45)' },
+          '70%': { boxShadow: '0 0 0 8px rgba(220, 38, 38, 0)' },
+          '100%': { boxShadow: '0 0 0 0 rgba(220, 38, 38, 0)' },
+        },
+        // 空状态插画：2s 周期缓慢呼吸脉动
+        breathe: {
+          '0%, 100%': { transform: 'scale(1)', opacity: '0.6' },
+          '50%': { transform: 'scale(1.08)', opacity: '1' },
+        },
+        // ===== 微交互语言（美化工程 · 第 2 项） =====
+        // 状态标签切换：300ms 翻转过渡（:key 变化时重放，正面旧状态翻入新状态）
+        'badge-flip': {
+          '0%': { transform: 'perspective(600px) rotateX(-80deg)', opacity: '0' },
+          '100%': { transform: 'perspective(600px) rotateX(0deg)', opacity: '1' },
+        },
       },
       animation: {
         'pulse-alert': 'pulse-alert 2s ease-in-out infinite',
@@ -80,6 +113,14 @@ export default {
         'slide-in-right': 'slide-in-right 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards',
         'slide-out-right': 'slide-out-right 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards',
         'fade-in': 'fade-in 0.2s ease-out forwards',
+        // ===== 表格"呼吸式数据流" =====
+        'table-row-enter': 'table-row-enter 0.3s cubic-bezier(0.4, 0, 0.2, 1) both',
+        'status-pulse-yellow': 'status-pulse-yellow 0.6s ease-out',
+        'status-pulse-green': 'status-pulse-green 0.6s ease-out',
+        'status-pulse-red': 'status-pulse-red 0.6s ease-out',
+        'breathe': 'breathe 2s ease-in-out infinite',
+        // ===== 微交互语言 =====
+        'badge-flip': 'badge-flip 0.3s cubic-bezier(0.4, 0, 0.2, 1) both',
       },
       transitionTimingFunction: {
         'smooth': 'cubic-bezier(0.4, 0, 0.2, 1)',

@@ -3,6 +3,10 @@ import { ref, computed, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { listEmoticons, uploadEmoticon, batchUploadEmoticons, deleteEmoticon } from '@/services/emoticons';
 import type { Emoticon } from '@/services/emoticons';
+import { useConfirm } from '@/composables/useConfirm';
+
+// 全局确认对话框（轻量级通知美学）
+const { confirm: appConfirm } = useConfirm();
 
 const auth = useAuthStore();
 
@@ -156,7 +160,7 @@ async function onBatchUpload(e: Event) {
 }
 
 async function onDelete(emo: Emoticon) {
-  if (!confirm(`确定删除表情「${emo.name}」吗？`)) return;
+  if (!(await appConfirm({ message: `确定删除表情「${emo.name}」吗？`, danger: true, confirmText: '删除' }))) return;
   deleteId.value = emo.id;
   try {
     await deleteEmoticon(emo.id);
@@ -236,7 +240,7 @@ onMounted(() => {
         >
           <button
             class="w-full aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-700 hover:ring-2 hover:ring-blue-400 transition-smooth"
-            :title="img.name"
+            v-tooltip="img.name"
             @mouseenter="onPreviewEnter($event, img)"
             @mouseleave="onPreviewLeave"
             @click="sendImage(img.path)"
@@ -248,7 +252,7 @@ onMounted(() => {
             v-if="!img.is_system"
             class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] leading-4 text-center opacity-0 group-hover:opacity-100 transition-smooth"
             :disabled="deleteId === img.id"
-            title="删除表情"
+            v-tooltip="'删除表情'"
             @click.stop="onDelete(img)"
           >×</button>
         </div>
@@ -261,7 +265,7 @@ onMounted(() => {
         v-for="e in currentEmojis()"
         :key="e"
         class="w-8 h-8 rounded-lg flex items-center justify-center text-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
-        :title="e"
+        v-tooltip="e"
         @click="pick(e)"
       >
         {{ e }}
@@ -279,7 +283,7 @@ onMounted(() => {
       <label
         v-if="isAdmin"
         class="shrink-0 flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-md cursor-pointer transition-smooth"
-        title="支持多选文件或选择整个文件夹批量导入"
+        v-tooltip="'支持多选文件或选择整个文件夹批量导入'"
       >
         <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple webkitdirectory class="hidden" @change="onBatchUpload" />
         <span>{{ batchUploading ? '批量中...' : '🗂 批量上传' }}</span>

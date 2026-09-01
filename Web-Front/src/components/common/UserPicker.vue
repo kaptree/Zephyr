@@ -416,88 +416,90 @@ const DeptTreeItem: DefineComponent<{
       </button>
     </div>
 
-    <div
-      v-if="open"
-      class="absolute left-0 w-80 bg-white rounded-card shadow-modal border border-slate-100 z-50 overflow-hidden"
-      :class="dropUp ? 'bottom-full mb-1' : 'top-full mt-1'"
-    >
-      <div class="p-3 border-b border-slate-100">
-        <input
-          v-model="searchText"
-          class="input-field !text-xs"
-          placeholder="搜索人员（支持拼音首字母）"
-          @keydown.enter.prevent
-        />
-      </div>
+    <transition name="shrink-out">
+      <div
+        v-if="open"
+        class="absolute left-0 w-80 bg-white rounded-card shadow-modal border border-slate-100 z-50 overflow-hidden"
+        :class="dropUp ? 'bottom-full mb-1' : 'top-full mt-1'"
+      >
+        <div class="p-3 border-b border-slate-100">
+          <input
+            v-model="searchText"
+            class="input-field !text-xs"
+            placeholder="搜索人员（支持拼音首字母）"
+            @keydown.enter.prevent
+          />
+        </div>
 
-      <div class="max-h-72 overflow-y-auto scrollbar-thin p-2">
-        <div v-if="loading" class="text-center py-4 text-xs text-slate-400">加载中...</div>
-        <div v-else-if="loadError" class="text-center py-4">
-          <p class="text-xs text-red-400 mb-2">{{ loadError }}</p>
+        <div class="max-h-72 overflow-y-auto scrollbar-thin p-2">
+          <div v-if="loading" class="text-center py-4 text-xs text-slate-400">加载中...</div>
+          <div v-else-if="loadError" class="text-center py-4">
+            <p class="text-xs text-red-400 mb-2">{{ loadError }}</p>
+            <button
+              type="button"
+              class="text-xs px-3 py-1 bg-red-50 text-red-600 rounded-btn hover:bg-red-100 transition-smooth"
+              @click="loadData"
+            >
+              重新加载
+            </button>
+          </div>
+          <div v-else-if="searchText">
+            <button
+              v-for="user in filteredUsers"
+              :key="user.id"
+              type="button"
+              :class="[
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-btn text-sm text-left transition-smooth',
+                isDisabledUser(user.id)
+                  ? 'opacity-40 cursor-not-allowed'
+                  : isSelected(user.id)
+                    ? 'bg-blue-50'
+                    : 'hover:bg-slate-50',
+              ]"
+              @click="toggleUser(user.id)"
+            >
+              <div
+                class="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-xs font-medium text-slate-600 shrink-0"
+              >
+                {{ user.name.charAt(0) }}
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm text-slate-900 truncate">{{ user.name }}</div>
+                <div class="text-xs text-slate-400 truncate">{{ user.dept_name }}</div>
+              </div>
+              <span
+                v-if="isDisabledUser(user.id)"
+                class="text-[9px] px-1 bg-slate-200 text-slate-500 rounded shrink-0"
+                >{{ disabledNote }}</span
+              >
+              <span v-else-if="isSelected(user.id)" class="text-xs text-[#3B82F6]">✓</span>
+            </button>
+          </div>
+          <DeptTreeItem
+            v-else
+            :departments="departments"
+            :expanded-set="expandedDepts"
+            :user-list="users"
+            :selected-ids="modelValue"
+            :disabled-ids="disabledIds"
+            :disabled-note="disabledNote"
+            @toggle-dept="toggleDept"
+            @toggle-user="toggleUser"
+            @select-all="toggleSelectAllDept"
+          />
+        </div>
+
+        <div class="border-t border-slate-100 p-2 flex justify-between">
+          <span class="text-xs text-slate-400">{{ props.modelValue.length }} 人已选</span>
           <button
             type="button"
-            class="text-xs px-3 py-1 bg-red-50 text-red-600 rounded-btn hover:bg-red-100 transition-smooth"
-            @click="loadData"
+            class="text-xs px-3 py-1.5 bg-slate-100 text-slate-600 rounded-btn hover:bg-slate-200 transition-smooth"
+            @click="open = false"
           >
-            重新加载
+            完成
           </button>
         </div>
-        <div v-else-if="searchText">
-          <button
-            v-for="user in filteredUsers"
-            :key="user.id"
-            type="button"
-            :class="[
-              'w-full flex items-center gap-3 px-3 py-2.5 rounded-btn text-sm text-left transition-smooth',
-              isDisabledUser(user.id)
-                ? 'opacity-40 cursor-not-allowed'
-                : isSelected(user.id)
-                  ? 'bg-blue-50'
-                  : 'hover:bg-slate-50',
-            ]"
-            @click="toggleUser(user.id)"
-          >
-            <div
-              class="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-xs font-medium text-slate-600 shrink-0"
-            >
-              {{ user.name.charAt(0) }}
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="text-sm text-slate-900 truncate">{{ user.name }}</div>
-              <div class="text-xs text-slate-400 truncate">{{ user.dept_name }}</div>
-            </div>
-            <span
-              v-if="isDisabledUser(user.id)"
-              class="text-[9px] px-1 bg-slate-200 text-slate-500 rounded shrink-0"
-              >{{ disabledNote }}</span
-            >
-            <span v-else-if="isSelected(user.id)" class="text-xs text-[#3B82F6]">✓</span>
-          </button>
-        </div>
-        <DeptTreeItem
-          v-else
-          :departments="departments"
-          :expanded-set="expandedDepts"
-          :user-list="users"
-          :selected-ids="modelValue"
-          :disabled-ids="disabledIds"
-          :disabled-note="disabledNote"
-          @toggle-dept="toggleDept"
-          @toggle-user="toggleUser"
-          @select-all="toggleSelectAllDept"
-        />
       </div>
-
-      <div class="border-t border-slate-100 p-2 flex justify-between">
-        <span class="text-xs text-slate-400">{{ props.modelValue.length }} 人已选</span>
-        <button
-          type="button"
-          class="text-xs px-3 py-1.5 bg-slate-100 text-slate-600 rounded-btn hover:bg-slate-200 transition-smooth"
-          @click="open = false"
-        >
-          完成
-        </button>
-      </div>
-    </div>
+    </transition>
   </div>
 </template>

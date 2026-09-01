@@ -21,6 +21,10 @@ import TagSelector from '@/components/common/TagSelector.vue';
 import UserPicker from '@/components/common/UserPicker.vue';
 import { useGroupSocket } from '@/composables/useGroupSocket';
 import type { Note } from '@/types';
+import { useConfirm } from '@/composables/useConfirm';
+
+// 全局确认对话框（轻量级通知美学）
+const { confirm: appConfirm } = useConfirm();
 
 const route = useRoute();
 const router = useRouter();
@@ -333,7 +337,7 @@ async function saveEditMember(m: WorkGroupMemberData) {
   }
 }
 async function handleRemoveMember(m: WorkGroupMemberData) {
-  if (!confirm(`确定将 ${m.user?.name || m.user_id} 移出工作组？`)) return;
+  if (!(await appConfirm({ message: `确定将 ${m.user?.name || m.user_id} 移出工作组？`, danger: true, confirmText: '移出' }))) return;
   try {
     await removeWorkGroupMember(groupId, m.user_id);
     await reloadGroup();
@@ -531,40 +535,42 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
                 </div>
 
                 <!-- Inline edit popup -->
-                <div
-                  v-if="editingMemberId === m.user_id"
-                  class="absolute top-full left-0 mt-1 w-48 p-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg z-20 animate-fade-in"
-                >
-                  <label class="text-[10px] text-slate-400 mb-0.5 block">角色</label>
-                  <select
-                    v-model="editMemberRole"
-                    class="w-full text-[11px] px-2 py-1 border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 mb-2"
+                <transition name="shrink-out">
+                  <div
+                    v-if="editingMemberId === m.user_id"
+                    class="absolute top-full left-0 mt-1 w-48 p-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-lg z-20 animate-fade-in"
                   >
-                    <option value="leader">组长</option>
-                    <option value="sub_leader">副组长</option>
-                    <option value="member">组员</option>
-                  </select>
-                  <label class="text-[10px] text-slate-400 mb-0.5 block">子组名称</label>
-                  <input
-                    v-model="editMemberSubGroup"
-                    class="w-full text-[11px] px-2 py-1 border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 mb-2"
-                    placeholder="如：技术组"
-                  />
-                  <div class="flex gap-1.5">
-                    <button
-                      class="flex-1 text-[10px] px-2 py-1 bg-purple-500 text-white rounded hover:bg-purple-600 transition-smooth"
-                      @click="saveEditMember(m)"
+                    <label class="text-[10px] text-slate-400 mb-0.5 block">角色</label>
+                    <select
+                      v-model="editMemberRole"
+                      class="w-full text-[11px] px-2 py-1 border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 mb-2"
                     >
-                      保存
-                    </button>
-                    <button
-                      class="flex-1 text-[10px] px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 rounded hover:bg-slate-200 dark:hover:bg-slate-600 transition-smooth"
-                      @click="cancelEditMember()"
-                    >
-                      取消
-                    </button>
+                      <option value="leader">组长</option>
+                      <option value="sub_leader">副组长</option>
+                      <option value="member">组员</option>
+                    </select>
+                    <label class="text-[10px] text-slate-400 mb-0.5 block">子组名称</label>
+                    <input
+                      v-model="editMemberSubGroup"
+                      class="w-full text-[11px] px-2 py-1 border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 mb-2"
+                      placeholder="如：技术组"
+                    />
+                    <div class="flex gap-1.5">
+                      <button
+                        class="flex-1 text-[10px] px-2 py-1 bg-purple-500 text-white rounded hover:bg-purple-600 transition-smooth"
+                        @click="saveEditMember(m)"
+                      >
+                        保存
+                      </button>
+                      <button
+                        class="flex-1 text-[10px] px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-500 rounded hover:bg-slate-200 dark:hover:bg-slate-600 transition-smooth"
+                        @click="cancelEditMember()"
+                      >
+                        取消
+                      </button>
+                    </div>
                   </div>
-                </div>
+                </transition>
               </div>
             </div>
           </div>
@@ -657,360 +663,368 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
 
     <!-- Create note modal -->
     <Teleport to="body">
-      <div v-if="showNoteModal" class="fixed inset-0 z-50 flex items-center justify-center">
-        <div class="overlay-backdrop" @click="showNoteModal = false" />
-        <div
-          class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-2xl mx-4 animate-fade-in max-h-[90vh] flex flex-col"
-        >
-          <div class="p-6 overflow-y-auto flex-1">
-            <div class="flex items-center justify-between mb-6">
-              <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                📝 新建专项任务
-              </h2>
-              <button
-                class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
-                @click="showNoteModal = false"
-              >
-                <svg
-                  class="w-5 h-5 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-            <form class="space-y-4" @submit.prevent="handleCreateNote">
-              <input
-                v-model="noteTitle"
-                class="input-field"
-                placeholder="任务标题"
-                autofocus
-                @keydown.enter.prevent
-              />
-              <div>
-                <label class="block text-xs font-medium text-slate-500 mb-1.5"
-                  >任务内容（支持富文本）</label
-                >
-                <RichTextEditor
-                  v-model="noteContent"
-                  placeholder="请输入任务内容..."
-                  :min-height="180"
-                />
-              </div>
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="text-xs text-slate-500 mb-1 block">负责人（可选）</label
-                  ><select v-model="noteOwnerId" class="input-field text-sm">
-                    <option value="">自己</option>
-                    <option v-for="m in group?.members || []" :key="m.user_id" :value="m.user_id">
-                      {{ m.user?.name || m.user_id }} ({{ roleLabel(m.role) }})
-                    </option>
-                  </select>
-                </div>
-                <div>
-                  <label class="text-xs text-slate-500 mb-1 block">截止日期</label
-                  ><input v-model="noteDueDate" type="date" class="input-field" />
-                </div>
-              </div>
-              <div>
-                <label class="text-xs text-slate-500 mb-1 block">标签</label>
-                <TagSelector v-model="selectedTagIds" :max="5" />
-              </div>
-              <p v-if="noteError" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-btn">
-                {{ noteError }}
-              </p>
-              <div
-                class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700"
-              >
+      <transition name="shrink-out">
+        <div v-if="showNoteModal" class="fixed inset-0 z-50 flex items-center justify-center">
+          <div class="overlay-backdrop" @click="showNoteModal = false" />
+          <div
+            class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-2xl mx-4 animate-fade-in max-h-[90vh] flex flex-col"
+          >
+            <div class="p-6 overflow-y-auto flex-1">
+              <div class="flex items-center justify-between mb-6">
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  📝 新建专项任务
+                </h2>
                 <button
-                  type="button"
-                  class="px-5 py-2.5 text-sm text-slate-600 bg-slate-100 rounded-btn hover:bg-slate-200 transition-smooth"
+                  class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
                   @click="showNoteModal = false"
-                  :disabled="noteCreating"
                 >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  class="px-5 py-2.5 text-sm text-white bg-gradient-to-r from-purple-500 to-blue-500 rounded-btn hover:from-purple-600 hover:to-blue-600 transition-smooth disabled:opacity-50"
-                  :disabled="noteCreating"
-                >
-                  {{ noteCreating ? '创建中...' : '创建任务' }}
+                  <svg
+                    class="w-5 h-5 text-slate-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
                 </button>
               </div>
-            </form>
+              <form class="space-y-4" @submit.prevent="handleCreateNote">
+                <input
+                  v-model="noteTitle"
+                  class="input-field"
+                  placeholder="任务标题"
+                  autofocus
+                  @keydown.enter.prevent
+                />
+                <div>
+                  <label class="block text-xs font-medium text-slate-500 mb-1.5"
+                    >任务内容（支持富文本）</label
+                  >
+                  <RichTextEditor
+                    v-model="noteContent"
+                    placeholder="请输入任务内容..."
+                    :min-height="180"
+                  />
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="text-xs text-slate-500 mb-1 block">负责人（可选）</label
+                    ><select v-model="noteOwnerId" class="input-field text-sm">
+                      <option value="">自己</option>
+                      <option v-for="m in group?.members || []" :key="m.user_id" :value="m.user_id">
+                        {{ m.user?.name || m.user_id }} ({{ roleLabel(m.role) }})
+                      </option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="text-xs text-slate-500 mb-1 block">截止日期</label
+                    ><input v-model="noteDueDate" type="date" class="input-field" />
+                  </div>
+                </div>
+                <div>
+                  <label class="text-xs text-slate-500 mb-1 block">标签</label>
+                  <TagSelector v-model="selectedTagIds" :max="5" />
+                </div>
+                <p v-if="noteError" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-btn">
+                  {{ noteError }}
+                </p>
+                <div
+                  class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700"
+                >
+                  <button
+                    type="button"
+                    class="px-5 py-2.5 text-sm text-slate-600 bg-slate-100 rounded-btn hover:bg-slate-200 transition-smooth"
+                    @click="showNoteModal = false"
+                    :disabled="noteCreating"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    class="px-5 py-2.5 text-sm text-white bg-gradient-to-r from-purple-500 to-blue-500 rounded-btn hover:from-purple-600 hover:to-blue-600 transition-smooth disabled:opacity-50"
+                    :disabled="noteCreating"
+                  >
+                    {{ noteCreating ? '创建中...' : '创建任务' }}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
 
     <!-- Detail edit modal (centered) -->
     <Teleport to="body">
-      <div
-        v-if="showDetailPanel && selectedDetailNote"
-        class="fixed inset-0 z-50 flex items-center justify-center"
-      >
-        <div class="overlay-backdrop" @click="closeDetail" />
+      <transition name="shrink-out">
         <div
-          class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-2xl mx-4 animate-fade-in max-h-[90vh] flex flex-col"
+          v-if="showDetailPanel && selectedDetailNote"
+          class="fixed inset-0 z-50 flex items-center justify-center"
         >
-          <div class="p-6 overflow-y-auto flex-1">
-            <div class="flex items-center justify-between mb-6">
-              <div class="flex items-center gap-2">
-                <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">任务详情</h2>
-                <span
-                  v-if="selectedDetailNote.color_status === 'red'"
-                  class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-tag"
-                  >盯办中</span
+          <div class="overlay-backdrop" @click="closeDetail" />
+          <div
+            class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-2xl mx-4 animate-fade-in max-h-[90vh] flex flex-col"
+          >
+            <div class="p-6 overflow-y-auto flex-1">
+              <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center gap-2">
+                  <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">任务详情</h2>
+                  <span
+                    v-if="selectedDetailNote.color_status === 'red'"
+                    class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-tag"
+                    >盯办中</span
+                  >
+                  <span
+                    v-if="selectedDetailNote.color_status === 'blue'"
+                    class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-tag"
+                    >协作</span
+                  >
+                </div>
+                <button
+                  class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
+                  @click="closeDetail"
                 >
-                <span
-                  v-if="selectedDetailNote.color_status === 'blue'"
-                  class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-tag"
-                  >协作</span
-                >
+                  <svg
+                    class="w-5 h-5 text-slate-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
               </div>
-              <button
-                class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
-                @click="closeDetail"
-              >
-                <svg
-                  class="w-5 h-5 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M6 18L18 6M6 6l12 12"
+              <div class="space-y-5">
+                <div>
+                  <span class="text-xs text-slate-400 mb-1 block">标题</span
+                  ><input
+                    v-model="editingTitle"
+                    class="input-field text-base font-semibold"
+                    @keydown.enter.prevent
                   />
-                </svg>
-              </button>
+                </div>
+                <div>
+                  <span class="text-xs text-slate-400 mb-1 block">内容（支持富文本）</span>
+                  <RichTextEditor
+                    v-model="editingContent"
+                    placeholder="请输入任务内容..."
+                    :min-height="200"
+                  />
+                </div>
+                <div v-if="selectedDetailNote">
+                  <span class="text-xs text-slate-400 mb-1 flex items-center gap-2">
+                    标签
+                    <span v-if="tagSaving" class="text-[10px] text-blue-400">保存中...</span>
+                    <span v-if="tagError" class="text-[10px] text-red-400">{{ tagError }}</span>
+                  </span>
+                  <TagSelector
+                    v-model="selectedEditingTagIds"
+                    :max="10"
+                    scope="all"
+                    @update:model-value="handleUpdateTags"
+                  />
+                </div>
+                <div class="bg-slate-50 dark:bg-slate-900 rounded-card p-4 space-y-2">
+                  <div class="flex justify-between text-xs">
+                    <span class="text-slate-400">创建时间</span
+                    ><span class="text-slate-700 dark:text-slate-300">{{
+                      selectedDetailNote.created_at?.slice(0, 16).replace('T', ' ')
+                    }}</span>
+                  </div>
+                  <div v-if="selectedDetailNote.due_time" class="flex justify-between text-xs">
+                    <span class="text-slate-400">截止时间</span
+                    ><span class="text-red-500">{{
+                      selectedDetailNote.due_time.slice(0, 16).replace('T', ' ')
+                    }}</span>
+                  </div>
+                  <div
+                    v-if="selectedDetailNote.assignees?.length"
+                    class="flex justify-between text-xs"
+                  >
+                    <span class="text-slate-400">负责人</span
+                    ><span class="text-slate-700 dark:text-slate-300">{{
+                      selectedDetailNote.assignees
+                        .map((a: any) => a.user?.name || a.name || '')
+                        .filter(Boolean)
+                        .join('、') || '—'
+                    }}</span>
+                  </div>
+                  <div v-if="selectedDetailNote.serial_no" class="flex justify-between text-xs">
+                    <span class="text-slate-400">流水号</span
+                    ><span class="text-slate-700 dark:text-slate-300 font-mono">{{
+                      selectedDetailNote.serial_no
+                    }}</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="space-y-5">
-              <div>
-                <span class="text-xs text-slate-400 mb-1 block">标题</span
-                ><input
-                  v-model="editingTitle"
-                  class="input-field text-base font-semibold"
-                  @keydown.enter.prevent
-                />
-              </div>
-              <div>
-                <span class="text-xs text-slate-400 mb-1 block">内容（支持富文本）</span>
-                <RichTextEditor
-                  v-model="editingContent"
-                  placeholder="请输入任务内容..."
-                  :min-height="200"
-                />
-              </div>
-              <div v-if="selectedDetailNote">
-                <span class="text-xs text-slate-400 mb-1 flex items-center gap-2">
-                  标签
-                  <span v-if="tagSaving" class="text-[10px] text-blue-400">保存中...</span>
-                  <span v-if="tagError" class="text-[10px] text-red-400">{{ tagError }}</span>
-                </span>
-                <TagSelector
-                  v-model="selectedEditingTagIds"
-                  :max="10"
-                  scope="all"
-                  @update:model-value="handleUpdateTags"
-                />
-              </div>
-              <div class="bg-slate-50 dark:bg-slate-900 rounded-card p-4 space-y-2">
-                <div class="flex justify-between text-xs">
-                  <span class="text-slate-400">创建时间</span
-                  ><span class="text-slate-700 dark:text-slate-300">{{
-                    selectedDetailNote.created_at?.slice(0, 16).replace('T', ' ')
-                  }}</span>
-                </div>
-                <div v-if="selectedDetailNote.due_time" class="flex justify-between text-xs">
-                  <span class="text-slate-400">截止时间</span
-                  ><span class="text-red-500">{{
-                    selectedDetailNote.due_time.slice(0, 16).replace('T', ' ')
-                  }}</span>
-                </div>
-                <div
-                  v-if="selectedDetailNote.assignees?.length"
-                  class="flex justify-between text-xs"
+            <div class="pt-4 border-t border-slate-100 dark:border-slate-700 p-6 space-y-3">
+              <div class="flex gap-2">
+                <button
+                  class="flex-1 py-2.5 btn-primary text-sm disabled:opacity-50"
+                  :disabled="saving"
+                  @click="handleSaveDetail"
                 >
-                  <span class="text-slate-400">负责人</span
-                  ><span class="text-slate-700 dark:text-slate-300">{{
-                    selectedDetailNote.assignees
-                      .map((a: any) => a.user?.name || a.name || '')
-                      .filter(Boolean)
-                      .join('、') || '—'
-                  }}</span>
-                </div>
-                <div v-if="selectedDetailNote.serial_no" class="flex justify-between text-xs">
-                  <span class="text-slate-400">流水号</span
-                  ><span class="text-slate-700 dark:text-slate-300 font-mono">{{
-                    selectedDetailNote.serial_no
-                  }}</span>
-                </div>
+                  {{ saving ? '保存中...' : '保存' }}
+                </button>
+                <button
+                  class="flex-1 py-2.5 text-sm bg-green-500 text-white rounded-btn hover:bg-green-600 transition-smooth disabled:opacity-50"
+                  :disabled="completing"
+                  @click="
+                    completing = true;
+                    handleComplete(selectedDetailNote!);
+                  "
+                >
+                  {{ completing ? '归档中...' : '完成并归档' }}
+                </button>
+                <button
+                  v-if="selectedDetailNote.color_status !== 'red'"
+                  class="flex-1 py-2.5 text-sm bg-red-50 text-red-600 rounded-btn hover:bg-red-100 transition-smooth"
+                  @click="handleRemind(selectedDetailNote!)"
+                >
+                  盯办
+                </button>
               </div>
+              <button class="w-full py-2 btn-secondary text-sm" @click="closeDetail">关闭</button>
             </div>
-          </div>
-          <div class="pt-4 border-t border-slate-100 dark:border-slate-700 p-6 space-y-3">
-            <div class="flex gap-2">
-              <button
-                class="flex-1 py-2.5 btn-primary text-sm disabled:opacity-50"
-                :disabled="saving"
-                @click="handleSaveDetail"
-              >
-                {{ saving ? '保存中...' : '保存' }}
-              </button>
-              <button
-                class="flex-1 py-2.5 text-sm bg-green-500 text-white rounded-btn hover:bg-green-600 transition-smooth disabled:opacity-50"
-                :disabled="completing"
-                @click="
-                  completing = true;
-                  handleComplete(selectedDetailNote!);
-                "
-              >
-                {{ completing ? '归档中...' : '完成并归档' }}
-              </button>
-              <button
-                v-if="selectedDetailNote.color_status !== 'red'"
-                class="flex-1 py-2.5 text-sm bg-red-50 text-red-600 rounded-btn hover:bg-red-100 transition-smooth"
-                @click="handleRemind(selectedDetailNote!)"
-              >
-                盯办
-              </button>
-            </div>
-            <button class="w-full py-2 btn-secondary text-sm" @click="closeDetail">关闭</button>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
 
     <!-- Member manager modal -->
     <Teleport to="body">
-      <div
-        v-if="showMemberManager"
-        class="fixed inset-0 z-50 flex items-start justify-center pt-[8vh]"
-      >
-        <div class="overlay-backdrop" @click="showMemberManager = false" />
+      <transition name="shrink-out">
         <div
-          class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-lg mx-4 animate-fade-in"
+          v-if="showMemberManager"
+          class="fixed inset-0 z-50 flex items-start justify-center pt-[8vh]"
         >
-          <div class="p-6">
-            <div class="flex items-center justify-between mb-6">
-              <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">👥 管理成员</h2>
-              <button
-                class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
-                @click="showMemberManager = false"
-              >
-                <svg
-                  class="w-5 h-5 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+          <div class="overlay-backdrop" @click="showMemberManager = false" />
+          <div
+            class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-lg mx-4 animate-fade-in"
+          >
+            <div class="p-6">
+              <div class="flex items-center justify-between mb-6">
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  👥 管理成员
+                </h2>
+                <button
+                  class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
+                  @click="showMemberManager = false"
                 >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
+                  <svg
+                    class="w-5 h-5 text-slate-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
 
-            <!-- Current members -->
-            <div class="mb-5">
-              <p class="text-xs text-slate-500 mb-2">
-                当前成员（{{ group?.members?.length || 0 }}人）
-              </p>
-              <div class="space-y-1 max-h-40 overflow-y-auto">
-                <div
-                  v-for="m in group?.members || []"
-                  :key="m.user_id"
-                  class="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-smooth"
-                >
-                  <div class="flex items-center gap-2 text-sm">
-                    <span class="text-slate-700 dark:text-slate-200">{{
-                      m.user?.name || m.user_id
-                    }}</span>
-                    <span
-                      :class="[
-                        'text-[10px] px-1.5 py-0.5 rounded-full',
-                        m.role === 'leader'
-                          ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
-                          : 'bg-slate-100 dark:bg-slate-600 text-slate-500',
-                      ]"
-                      >{{ roleLabel(m.role) }}</span
-                    >
-                    <span v-if="m.sub_group_name" class="text-[10px] text-slate-400">{{
-                      m.sub_group_name
-                    }}</span>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <select
-                      :value="m.role"
-                      class="text-[10px] px-1.5 py-0.5 border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300"
-                      @change="
-                        updateWorkGroupMember(groupId, m.user_id, {
-                          role: ($event.target as HTMLSelectElement).value,
-                        }).then(() => reloadGroup())
-                      "
-                    >
-                      <option value="leader">组长</option>
-                      <option value="sub_leader">副组长</option>
-                      <option value="member">组员</option>
-                    </select>
-                    <button
-                      class="text-[10px] text-red-400 hover:text-red-600 px-1 transition-smooth"
-                      title="移除"
-                      @click="handleRemoveMember(m)"
-                    >
-                      ✕
-                    </button>
+              <!-- Current members -->
+              <div class="mb-5">
+                <p class="text-xs text-slate-500 mb-2">
+                  当前成员（{{ group?.members?.length || 0 }}人）
+                </p>
+                <div class="space-y-1 max-h-40 overflow-y-auto">
+                  <div
+                    v-for="m in group?.members || []"
+                    :key="m.user_id"
+                    class="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-smooth"
+                  >
+                    <div class="flex items-center gap-2 text-sm">
+                      <span class="text-slate-700 dark:text-slate-200">{{
+                        m.user?.name || m.user_id
+                      }}</span>
+                      <span
+                        :class="[
+                          'text-[10px] px-1.5 py-0.5 rounded-full',
+                          m.role === 'leader'
+                            ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                            : 'bg-slate-100 dark:bg-slate-600 text-slate-500',
+                        ]"
+                        >{{ roleLabel(m.role) }}</span
+                      >
+                      <span v-if="m.sub_group_name" class="text-[10px] text-slate-400">{{
+                        m.sub_group_name
+                      }}</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                      <select
+                        :value="m.role"
+                        class="text-[10px] px-1.5 py-0.5 border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300"
+                        @change="
+                          updateWorkGroupMember(groupId, m.user_id, {
+                            role: ($event.target as HTMLSelectElement).value,
+                          }).then(() => reloadGroup())
+                        "
+                      >
+                        <option value="leader">组长</option>
+                        <option value="sub_leader">副组长</option>
+                        <option value="member">组员</option>
+                      </select>
+                      <button
+                        class="text-[10px] text-red-400 hover:text-red-600 px-1 transition-smooth"
+                        title="移除"
+                        @click="handleRemoveMember(m)"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <!-- Add members -->
-            <div>
-              <p class="text-xs text-slate-500 mb-2">添加新成员</p>
-              <UserPicker v-model="addMemberUserIds" :multiple="true" :max="50" />
-              <p
-                v-if="memberError"
-                class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-btn mt-3"
-              >
-                {{ memberError }}
-              </p>
-            </div>
+              <!-- Add members -->
+              <div>
+                <p class="text-xs text-slate-500 mb-2">添加新成员</p>
+                <UserPicker v-model="addMemberUserIds" :multiple="true" :max="50" />
+                <p
+                  v-if="memberError"
+                  class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-btn mt-3"
+                >
+                  {{ memberError }}
+                </p>
+              </div>
 
-            <div
-              class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700 mt-4"
-            >
-              <button
-                class="px-5 py-2.5 text-sm text-slate-600 bg-slate-100 rounded-btn hover:bg-slate-200 transition-smooth"
-                @click="showMemberManager = false"
+              <div
+                class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700 mt-4"
               >
-                关闭
-              </button>
-              <button
-                class="px-5 py-2.5 text-sm text-white bg-gradient-to-r from-purple-500 to-blue-500 rounded-btn hover:from-purple-600 hover:to-blue-600 transition-smooth disabled:opacity-50"
-                :disabled="addingMembers"
-                @click="handleAddMembers"
-              >
-                {{ addingMembers ? '添加中...' : '确认添加' }}
-              </button>
+                <button
+                  class="px-5 py-2.5 text-sm text-slate-600 bg-slate-100 rounded-btn hover:bg-slate-200 transition-smooth"
+                  @click="showMemberManager = false"
+                >
+                  关闭
+                </button>
+                <button
+                  class="px-5 py-2.5 text-sm text-white bg-gradient-to-r from-purple-500 to-blue-500 rounded-btn hover:from-purple-600 hover:to-blue-600 transition-smooth disabled:opacity-50"
+                  :disabled="addingMembers"
+                  @click="handleAddMembers"
+                >
+                  {{ addingMembers ? '添加中...' : '确认添加' }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
   </div>
 </template>

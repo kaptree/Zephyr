@@ -2,6 +2,11 @@
 import { ref, onMounted } from 'vue'
 import { fetchTags, createTag, deleteTag } from '@/services/tags'
 import type { Tag } from '@/types'
+import { playDeleteOut } from '@/utils/exitAnimations'
+import { useConfirm } from '@/composables/useConfirm'
+
+// 全局确认对话框（轻量级通知美学）
+const { confirm: appConfirm } = useConfirm()
 
 const tags = ref<Tag[]>([])
 const loading = ref(false)
@@ -76,7 +81,8 @@ async function addTag() {
 }
 
 async function handleDelete(tag: Tag) {
-  if (!confirm(`确定删除标签"${tag.name}${tag.sub_tag ? ' › ' + tag.sub_tag : ''}"吗？\n删除后所有任务上的该标签将一并移除。`)) return
+  if (!(await appConfirm({ message: `确定删除标签"${tag.name}${tag.sub_tag ? ' › ' + tag.sub_tag : ''}"吗？\n删除后所有任务上的该标签将一并移除。`, danger: true, confirmText: '删除' }))) return
+  await playDeleteOut(document.querySelector(`[data-tag-id="${tag.id}"]`))
   deletingId.value = tag.id
   try {
     await deleteTag(tag.id)
@@ -111,6 +117,7 @@ async function handleDelete(tag: Tag) {
       <div
         v-for="tag in tags"
         :key="tag.id"
+        :data-tag-id="tag.id"
         class="group bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-4 flex items-center gap-3 hover:shadow-note transition-smooth"
       >
         <span class="w-4 h-4 rounded-full shrink-0" :style="{ backgroundColor: tag.color }" />
@@ -139,6 +146,7 @@ async function handleDelete(tag: Tag) {
 
     <!-- 新建标签模态框 -->
     <Teleport to="body">
+      <transition name="shrink-out">
       <div v-if="showNewModal" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="overlay-backdrop" @click="showNewModal = false" />
         <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-sm mx-4 p-6 animate-fade-in">
@@ -176,6 +184,7 @@ async function handleDelete(tag: Tag) {
           </form>
         </div>
       </div>
+      </transition>
     </Teleport>
   </div>
 </template>

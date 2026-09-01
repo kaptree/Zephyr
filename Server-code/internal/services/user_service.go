@@ -121,3 +121,70 @@ type UpdateUserRequest struct {
 	IsActive     *bool  `json:"is_active"`
 	Password     string `json:"password"`
 }
+
+// UpdateMyProfile 个人中心自助更新（仅本人，不含角色/部门等敏感字段）：
+// 基础资料 + 头像 + 平台背景图个性化（地址/透明度/填充方式）
+func (s *UserService) UpdateMyProfile(userID string, req UpdateProfileRequest) (*models.User, error) {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, apperrors.ErrUserNotFound
+	}
+
+	if req.Name != nil && *req.Name != "" {
+		user.Name = *req.Name
+	}
+	if req.Rank != nil {
+		user.Rank = *req.Rank
+	}
+	if req.Phone != nil {
+		user.Phone = *req.Phone
+	}
+	if req.Email != nil {
+		user.Email = *req.Email
+	}
+	if req.Avatar != nil {
+		user.AvatarURL = *req.Avatar
+	}
+	if req.Background != nil {
+		user.BackgroundURL = *req.Background
+	}
+	if req.BackgroundOpacity != nil {
+		op := *req.BackgroundOpacity
+		if op < 0 {
+			op = 0
+		}
+		if op > 1 {
+			op = 1
+		}
+		user.BackgroundOpacity = op
+	}
+	if req.BackgroundFill != nil {
+		switch *req.BackgroundFill {
+		case "cover", "contain", "fill", "tile":
+			user.BackgroundFill = *req.BackgroundFill
+		case "":
+			user.BackgroundFill = "cover"
+		default:
+			return nil, fmt.Errorf("不支持的填充方式: %s", *req.BackgroundFill)
+		}
+	}
+
+	if err := s.userRepo.Update(user); err != nil {
+		return nil, err
+	}
+	return s.userRepo.FindByID(userID)
+}
+
+type UpdateProfileRequest struct {
+	Name              *string  `json:"name"`
+	Rank              *string  `json:"rank"`
+	Phone             *string  `json:"phone"`
+	Email             *string  `json:"email"`
+	Avatar            *string  `json:"avatar"`
+	Background        *string  `json:"background"`
+	BackgroundOpacity *float64 `json:"bg_opacity"`
+	BackgroundFill    *string  `json:"bg_fill"`
+}

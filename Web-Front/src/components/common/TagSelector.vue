@@ -238,105 +238,107 @@ async function handleCreateTag(subTag?: string) {
     </div>
 
     <Teleport to="body">
-      <div
-        v-if="open"
-        ref="panelRef"
-        class="fixed bg-white rounded-card shadow-modal border border-slate-100 z-[60] overflow-hidden"
-        :style="{ top: panelStyle.top, left: panelStyle.left, minWidth: panelStyle.minWidth }"
-        @click.stop
-      >
-        <div class="p-3 border-b border-slate-100">
-          <input
-            v-model="searchText"
-            class="input-field !text-xs"
-            placeholder="搜索标签...（Enter 创建一级标签）"
-            @keyup.enter.prevent="handleCreateTag()"
-          />
-        </div>
+      <transition name="shrink-out">
+        <div
+          v-if="open"
+          ref="panelRef"
+          class="fixed bg-white rounded-card shadow-modal border border-slate-100 z-[60] overflow-hidden"
+          :style="{ top: panelStyle.top, left: panelStyle.left, minWidth: panelStyle.minWidth }"
+          @click.stop
+        >
+          <div class="p-3 border-b border-slate-100">
+            <input
+              v-model="searchText"
+              class="input-field !text-xs"
+              placeholder="搜索标签...（Enter 创建一级标签）"
+              @keyup.enter.prevent="handleCreateTag()"
+            />
+          </div>
 
-        <div v-if="recentTags.length && !searchText" class="px-3 pt-2">
-          <span class="text-[10px] text-slate-400 uppercase">最近使用</span>
-          <div class="flex flex-wrap gap-1 mt-1">
-            <span
-              v-for="tag in recentTags"
-              :key="tag.id"
-              :class="[
-                'tag-capsule cursor-pointer text-xs transition-smooth',
-                isSelected(tag.id) ? 'ring-2 ring-offset-1 ring-blue-400' : '',
-              ]"
-              :style="{
-                backgroundColor: isSelected(tag.id) ? tag.color || '#64748B' : '#F1F5F9',
-                color: isSelected(tag.id) ? '#fff' : '#475569',
-              }"
-              @click.stop="toggleTag(tag.id)"
-            >
-              {{ tagDisplayLabel(tag) }}
-            </span>
+          <div v-if="recentTags.length && !searchText" class="px-3 pt-2">
+            <span class="text-[10px] text-slate-400 uppercase">最近使用</span>
+            <div class="flex flex-wrap gap-1 mt-1">
+              <span
+                v-for="tag in recentTags"
+                :key="tag.id"
+                :class="[
+                  'tag-capsule cursor-pointer text-xs transition-smooth',
+                  isSelected(tag.id) ? 'ring-2 ring-offset-1 ring-blue-400' : '',
+                ]"
+                :style="{
+                  backgroundColor: isSelected(tag.id) ? tag.color || '#64748B' : '#F1F5F9',
+                  color: isSelected(tag.id) ? '#fff' : '#475569',
+                }"
+                @click.stop="toggleTag(tag.id)"
+              >
+                {{ tagDisplayLabel(tag) }}
+              </span>
+            </div>
           </div>
-        </div>
 
-        <div class="max-h-56 overflow-y-auto scrollbar-thin px-3 py-2">
-          <div v-if="loading" class="text-center py-4 text-xs text-slate-400">加载中...</div>
-          <div v-else-if="loadError" class="text-center py-4 text-xs text-red-400">
-            {{ loadError }}
-          </div>
-          <div v-else-if="filteredTagGroups.length === 0" class="text-center py-4">
-            <p class="text-xs text-slate-400">暂无匹配标签</p>
-            <button
-              type="button"
-              v-if="searchText.trim()"
-              class="text-xs text-[#3B82F6] hover:underline mt-1"
-              @click.stop="handleCreateTag()"
-            >
-              创建一级标签 "{{ searchText }}"
-            </button>
-          </div>
-          <div v-else class="space-y-2">
-            <div
-              v-for="group in filteredTagGroups"
-              :key="group.name"
-              class="border-b border-slate-50 last:border-0 pb-1"
-            >
-              <div class="text-[10px] text-slate-400 uppercase font-medium px-1 pt-0.5">
-                {{ group.name }}
-              </div>
-              <div class="ml-2 space-y-0.5">
-                <button
-                  v-for="tag in group.tags"
-                  :key="tag.id"
-                  :class="[
-                    'w-full flex items-center gap-2 px-3 py-1.5 rounded-btn text-sm text-left transition-smooth',
-                    isSelected(tag.id) ? 'bg-blue-50' : 'hover:bg-slate-50',
-                  ]"
-                  @click.stop="toggleTag(tag.id)"
-                >
-                  <span
-                    class="w-3 h-3 rounded-full shrink-0"
-                    :style="{ backgroundColor: tag.color || '#64748B' }"
-                  />
-                  <span class="flex-1 truncate">
-                    <template v-if="tag.sub_tag">{{ tag.sub_tag }}</template>
-                    <template v-else>
-                      <span class="text-slate-400 text-xs">（通用）</span>
-                    </template>
-                  </span>
-                  <span v-if="isSelected(tag.id)" class="text-xs text-[#3B82F6]">✓</span>
-                </button>
+          <div class="max-h-56 overflow-y-auto scrollbar-thin px-3 py-2">
+            <div v-if="loading" class="text-center py-4 text-xs text-slate-400">加载中...</div>
+            <div v-else-if="loadError" class="text-center py-4 text-xs text-red-400">
+              {{ loadError }}
+            </div>
+            <div v-else-if="filteredTagGroups.length === 0" class="text-center py-4">
+              <p class="text-xs text-slate-400">暂无匹配标签</p>
+              <button
+                type="button"
+                v-if="searchText.trim()"
+                class="text-xs text-[#3B82F6] hover:underline mt-1"
+                @click.stop="handleCreateTag()"
+              >
+                创建一级标签 "{{ searchText }}"
+              </button>
+            </div>
+            <div v-else class="space-y-2">
+              <div
+                v-for="group in filteredTagGroups"
+                :key="group.name"
+                class="border-b border-slate-50 last:border-0 pb-1"
+              >
+                <div class="text-[10px] text-slate-400 uppercase font-medium px-1 pt-0.5">
+                  {{ group.name }}
+                </div>
+                <div class="ml-2 space-y-0.5">
+                  <button
+                    v-for="tag in group.tags"
+                    :key="tag.id"
+                    :class="[
+                      'w-full flex items-center gap-2 px-3 py-1.5 rounded-btn text-sm text-left transition-smooth',
+                      isSelected(tag.id) ? 'bg-blue-50' : 'hover:bg-slate-50',
+                    ]"
+                    @click.stop="toggleTag(tag.id)"
+                  >
+                    <span
+                      class="w-3 h-3 rounded-full shrink-0"
+                      :style="{ backgroundColor: tag.color || '#64748B' }"
+                    />
+                    <span class="flex-1 truncate">
+                      <template v-if="tag.sub_tag">{{ tag.sub_tag }}</template>
+                      <template v-else>
+                        <span class="text-slate-400 text-xs">（通用）</span>
+                      </template>
+                    </span>
+                    <span v-if="isSelected(tag.id)" class="text-xs text-[#3B82F6]">✓</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div class="border-t border-slate-100 p-2 flex justify-end">
-          <button
-            type="button"
-            class="text-xs px-3 py-1.5 bg-slate-100 text-slate-600 rounded-btn hover:bg-slate-200 transition-smooth"
-            @click.stop="open = false"
-          >
-            完成
-          </button>
+          <div class="border-t border-slate-100 p-2 flex justify-end">
+            <button
+              type="button"
+              class="text-xs px-3 py-1.5 bg-slate-100 text-slate-600 rounded-btn hover:bg-slate-200 transition-smooth"
+              @click.stop="open = false"
+            >
+              完成
+            </button>
+          </div>
         </div>
-      </div>
+      </transition>
     </Teleport>
   </div>
 </template>

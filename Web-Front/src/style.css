@@ -88,6 +88,42 @@
     @apply bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-btn px-5 py-2.5 font-medium transition-smooth hover:bg-slate-200 dark:hover:bg-slate-600;
   }
 
+  /* ===== 按钮点击涟漪（美化工程 · 微交互语言） =====
+     宿主裁剪涟漪；涟漪色为按钮主色的半透明版本（由 setupRipple 事件委托注入 ink 元素） */
+  .btn-primary,
+  .btn-secondary {
+    position: relative;
+    overflow: hidden;
+    --ripple-ink: rgba(255, 255, 255, 0.5);
+  }
+
+  .btn-secondary {
+    --ripple-ink: rgba(100, 116, 139, 0.25);
+  }
+
+  /* 品牌蓝任意值类按钮（如工作台筛选）同样启用涟漪 */
+  button[class*='bg-[#3B82F6]'] {
+    position: relative;
+    overflow: hidden;
+    --ripple-ink: rgba(255, 255, 255, 0.5);
+  }
+
+  .ripple-ink {
+    position: absolute;
+    border-radius: 9999px;
+    background: var(--ripple-ink, rgba(255, 255, 255, 0.5));
+    transform: scale(0);
+    animation: ripple-ink 0.4s ease-out forwards;
+    pointer-events: none;
+  }
+
+  @keyframes ripple-ink {
+    to {
+      transform: scale(1);
+      opacity: 0;
+    }
+  }
+
   .btn-disabled {
     @apply bg-[#E2E8F0] text-[#94A3B8] rounded-btn px-5 py-2.5 font-medium cursor-not-allowed;
   }
@@ -117,27 +153,26 @@
     animation: slide-out-right 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
 
-  .toast {
-    @apply fixed top-4 right-4 z-[100] px-4 py-3 rounded-btn shadow-modal text-sm font-medium transition-smooth;
+  /* 危险操作按钮（确认对话框「确认删除」等，警告红） */
+  .btn-danger {
+    @apply bg-red-500 text-white rounded-btn px-5 py-2.5 font-medium transition-smooth hover:bg-red-600 active:scale-[0.98];
   }
 
-  .toast-success { @apply bg-green-50 text-green-700 border border-green-200; }
-  .toast-error { @apply bg-red-50 text-red-700 border border-red-200; }
-  .toast-warning { @apply bg-yellow-50 text-yellow-700 border border-yellow-200; }
-  .toast-info { @apply bg-blue-50 text-blue-700 border border-blue-200; }
-
+  /* 骨架屏：流动渐变 shimmer，渐变条以 1.5s 周期从左向右滑动，模拟"数据正在填充" */
   .skeleton {
-    @apply bg-slate-200 dark:bg-slate-700 rounded-lg;
-    animation: skeleton-pulse 1.5s ease-in-out infinite;
-  }
-
-  @keyframes skeleton-pulse-dark {
-    0%, 100% { opacity: 0.6; }
-    50% { opacity: 0.3; }
+    @apply rounded-lg;
+    background: linear-gradient(90deg, #E2E8F0 25%, #F8FAFC 50%, #E2E8F0 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s linear infinite;
   }
 
   .dark .skeleton {
-    animation: skeleton-pulse-dark 1.5s ease-in-out infinite;
+    background: linear-gradient(90deg, #1E293B 25%, #334155 50%, #1E293B 75%);
+  }
+
+  @keyframes skeleton-shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
   }
 
   .watermark-archived {
@@ -163,6 +198,64 @@
     mask-image: none;
     -webkit-mask-image: none;
   }
+
+  /* ===== 表格"呼吸式数据流"（美化工程 · 表格模块化） =====
+     挂载到表格滚动容器上：吸顶表头 + 细滚动条 + 滚动视差 + 行悬停微交互 */
+  .table-flow {
+    @apply overflow-auto;
+    max-height: 560px;
+    scrollbar-width: thin;
+    scrollbar-color: #E2E8F0 transparent;
+    &::-webkit-scrollbar { width: 6px; height: 6px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 3px; }
+  }
+
+  .dark .table-flow {
+    scrollbar-color: #334155 transparent;
+    &::-webkit-scrollbar-thumb { background: #334155; }
+  }
+
+  /* 表头吸顶：不透明底色，滚动时内容从表头下滑过 */
+  .table-flow thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #F8FAFC;
+    box-shadow: 0 1px 0 0 #E2E8F0;
+  }
+
+  .dark .table-flow thead th {
+    background-color: #1E293B;
+    box-shadow: 0 1px 0 0 #334155;
+  }
+
+  /* 滚动视差：tbody 依 --flow-scroll（由 onTableFlowScroll 写入）轻微滞后，
+     滚动两端自动归零，避免露底空隙 */
+  .table-flow tbody {
+    transform: translateY(calc(var(--flow-scroll, 0) * -0.02px));
+    transition: transform 0.15s ease-out;
+  }
+
+  /* 悬停微交互：200ms 平滑过渡 + 上浮 2px + 阴影加深（卡片式悬浮感）
+     用 :where 归零特异性，避免覆盖行上"选中态"等条件背景类 */
+  :where(.table-flow) tbody tr {
+    transition:
+      transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  :where(.table-flow) tbody tr:hover {
+    transform: translateY(-2px);
+    background-color: rgba(59, 130, 246, 0.06);
+    box-shadow: 0 8px 20px -8px rgba(15, 23, 42, 0.18);
+  }
+
+  .dark :where(.table-flow) tbody tr:hover {
+    background-color: rgba(96, 165, 250, 0.08);
+    box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.45);
+  }
 }
 
 @layer utilities {
@@ -177,5 +270,270 @@
   .dark .scrollbar-thin {
     scrollbar-color: #334155 transparent;
     &::-webkit-scrollbar-thumb { background: #334155; }
+  }
+}
+
+/* ===== 主题切换圆形扩散（美化工程 · 微交互语言） =====
+   禁用 View Transition 默认交叉淡入淡出，改由 useDarkMode 从点击位置
+   以 clip-path 圆形扩散新主题快照（不支持该 API 的浏览器自动降级为普通切换） */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-new(root) {
+  z-index: 2147483646;
+}
+
+/* ===== Tab 内容切换过渡（美化工程 · 空间感知） =====
+   淡入淡出 + 轻微上移，与路由 fade-up 同语言 */
+.tab-swap-enter-active {
+  transition:
+    opacity 0.3s ease-out,
+    transform 0.3s ease-out;
+}
+.tab-swap-leave-active {
+  transition:
+    opacity 0.15s ease-in,
+    transform 0.15s ease-in;
+}
+.tab-swap-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.tab-swap-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* ===== 全屏模态底页动画（美化工程 · 空间感知） =====
+   遮罩淡入淡出，面板自底部上滑浮现（enter 350ms ease-out / leave 300ms ease-in）。
+   用法：<transition name="modal-sheet" :duration="{ enter: 350, leave: 300 }">
+        包裹模态根节点，面板需带 .modal-panel 类 */
+.modal-sheet-enter-active,
+.modal-sheet-leave-active {
+  transition: opacity 0.3s ease;
+}
+.modal-sheet-enter-from,
+.modal-sheet-leave-to {
+  opacity: 0;
+}
+.modal-sheet-enter-active .modal-panel {
+  transition:
+    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.35s ease-out;
+}
+.modal-sheet-leave-active .modal-panel {
+  transition:
+    transform 0.3s ease-in,
+    opacity 0.3s ease-in;
+}
+.modal-sheet-enter-from .modal-panel {
+  transform: translateY(56px) scale(0.98);
+  opacity: 0;
+}
+.modal-sheet-leave-to .modal-panel {
+  transform: translateY(40px) scale(0.98);
+  opacity: 0;
+}
+
+/* ===== 优雅退场动画体系（美化工程 · 优雅退场） ===== */
+
+/* 1. 弹窗/抽屉关闭：收缩 + 淡出退场（250ms，收缩方向与打开方向相反）；
+   入场为「遮罩淡入 300ms + 本体从中心放大 scale 0.9→1（350ms ease-out）」（轻量级通知美学） */
+.shrink-out-enter-active {
+  transition: opacity 0.3s ease-out, transform 0.35s cubic-bezier(0, 0, 0.2, 1);
+}
+.shrink-out-leave-active {
+  transition: opacity 0.25s ease-in, transform 0.25s ease-in;
+}
+.shrink-out-enter-from {
+  opacity: 0;
+  transform: scale(0.9);
+}
+.shrink-out-leave-to {
+  opacity: 0;
+  transform: scale(0.92);
+}
+
+/* 2. 页面关闭收拢：内容从四周向中心收缩并淡出（500ms，beforeunload 触发，尽力而为） */
+@keyframes page-fold-out {
+  to {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+}
+.page-fold-out {
+  /* !important：覆盖任务卡 pulse-alert 等内联 animation，保证退场动画必定播放 */
+  animation: page-fold-out 0.5s cubic-bezier(0.4, 0, 1, 1) forwards !important;
+  transform-origin: center center;
+}
+
+/* 3. 任务归档：卡片折叠 + 淡出（400ms，从底部向上折叠 + 纸张翻动的视觉代替） */
+@keyframes archive-fold-out {
+  0% {
+    opacity: 1;
+    transform: perspective(800px) rotateX(0deg);
+  }
+  45% {
+    opacity: 1;
+    transform: perspective(800px) rotateX(14deg) translateY(-3px);
+  }
+  100% {
+    opacity: 0;
+    transform: perspective(800px) rotateX(-72deg) scale(0.92);
+  }
+}
+.archive-fold-out {
+  animation: archive-fold-out 0.4s ease-in forwards !important;
+  transform-origin: center bottom;
+  pointer-events: none;
+}
+
+/* 4. 删除操作三步动画：红色闪烁 → 缩小 → 淡出（600ms） */
+@keyframes delete-out {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  12% {
+    background-color: rgba(239, 68, 68, 0.28);
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.45);
+  }
+  26% {
+    background-color: transparent;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.12);
+  }
+  40% {
+    background-color: rgba(239, 68, 68, 0.28);
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.35);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(0.96);
+    background-color: transparent;
+    box-shadow: none;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+.delete-out {
+  animation: delete-out 0.6s ease-in forwards !important;
+  border-radius: 8px;
+}
+
+/* 5. 会话关闭：聊天窗口从右下角收缩为一个小点（300ms，模拟收起对话） */
+@keyframes chat-collapse {
+  to {
+    opacity: 0;
+    transform: translate(38%, 38%) scale(0);
+  }
+}
+.chat-collapse {
+  animation: chat-collapse 0.3s cubic-bezier(0.4, 0, 1, 1) forwards !important;
+  transform-origin: bottom right;
+}
+
+/* 无障碍：偏好减少动效时关闭所有退场动画（!important 与上方动画同级覆盖） */
+@media (prefers-reduced-motion: reduce) {
+  .page-fold-out,
+  .archive-fold-out,
+  .delete-out,
+  .chat-collapse {
+    animation: none !important;
+  }
+}
+
+/* ===== 轻量级通知美学（美化工程 · 通知） ===== */
+
+/* Toast 进度条倒计时：线性走完（时长由内联 animation-duration 按条动态指定） */
+@keyframes toast-progress {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+.toast-progress {
+  animation-name: toast-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+/* 确认对话框按钮「错位出现」：取消先现，确认按钮延迟 200ms 依次浮现 */
+@keyframes confirm-btn-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.confirm-btn-stagger {
+  animation: confirm-btn-in 0.2s ease-out both;
+}
+
+/* 工具提示（v-tooltip 指令）：上浮 + 淡入 200ms，小三角指示箭头，12px */
+.v-tooltip {
+  position: fixed;
+  z-index: 9999;
+  max-width: 260px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.9);
+  color: #f8fafc;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+.v-tooltip.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+.v-tooltip::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  margin-left: -4px;
+  border: 4px solid transparent;
+  border-top-color: rgba(15, 23, 42, 0.9);
+  border-bottom: none;
+}
+.v-tooltip.v-tooltip-below::after {
+  bottom: auto;
+  top: -4px;
+  border: 4px solid transparent;
+  border-bottom-color: rgba(15, 23, 42, 0.9);
+  border-top: none;
+}
+
+/* 离线模式横幅：从顶部滑入 400ms，重连后滑出 */
+.offline-banner-enter-active {
+  transition: transform 0.4s cubic-bezier(0, 0, 0.2, 1), opacity 0.4s ease-out;
+}
+.offline-banner-leave-active {
+  transition: transform 0.3s ease-in, opacity 0.3s ease-in;
+}
+.offline-banner-enter-from,
+.offline-banner-leave-to {
+  transform: translateY(-100%);
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-progress,
+  .confirm-btn-stagger {
+    animation: none !important;
+  }
+  .v-tooltip {
+    transition: none;
   }
 }

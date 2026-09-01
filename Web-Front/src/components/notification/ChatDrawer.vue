@@ -274,12 +274,21 @@ onMounted(() => {
 .drawer-fade-leave-to {
   opacity: 0;
 }
-.drawer-slide-enter-active,
-.drawer-slide-leave-active {
-  transition: transform 0.25s ease;
+.drawer-slide-enter-active {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.drawer-slide-enter-from,
-.drawer-slide-leave-to {
+/* 会话关闭：从右下角收缩为一个小点（300ms），模拟“收起对话”的物理感 */
+.drawer-slide-leave-active {
+  transition:
+    transform 0.3s cubic-bezier(0.4, 0, 1, 1),
+    opacity 0.3s ease-in;
+  transform-origin: bottom right;
+}
+.drawer-slide-enter-from {
   transform: translateX(100%);
+}
+.drawer-slide-leave-to {
+  opacity: 0;
+  transform: translate(38%, 38%) scale(0);
 }
 </style>

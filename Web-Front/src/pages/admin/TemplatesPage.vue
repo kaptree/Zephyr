@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import MarkdownEditor from '@/components/common/MarkdownEditor.vue'
 import { markdownToHtml } from '@/utils/markdown'
 import type { Template } from '@/types'
+import { playDeleteOut } from '@/utils/exitAnimations'
 
 const auth = useAuthStore()
 const templates = ref<Template[]>([])
@@ -119,6 +120,7 @@ function confirmDelete(id: string) {
 
 async function handleDelete() {
   if (!deletingId.value) return
+  await playDeleteOut(document.querySelector(`[data-template-id="${deletingId.value}"]`))
   try {
     await deleteTemplate(deletingId.value)
     showDeleteConfirm.value = false
@@ -197,6 +199,7 @@ onMounted(loadTemplates)
       <div
         v-for="t in templates"
         :key="t.id"
+        :data-template-id="t.id"
         class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-5 hover:shadow-note transition-smooth"
       >
         <div class="flex items-start justify-between mb-2">
@@ -248,6 +251,7 @@ onMounted(loadTemplates)
     </div>
 
     <!-- Create/Edit Modal -->
+    <transition name="shrink-out">
     <div v-if="showModal" class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showModal = false">
       <div class="bg-white dark:bg-slate-800 rounded-lg w-[560px] max-h-[85vh] overflow-y-auto p-6 shadow-xl">
         <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100 mb-4">
@@ -322,8 +326,10 @@ onMounted(loadTemplates)
         </div>
       </div>
     </div>
+    </transition>
 
     <!-- Delete Confirm -->
+    <transition name="shrink-out">
     <div v-if="showDeleteConfirm" class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showDeleteConfirm = false">
       <div class="bg-white dark:bg-slate-800 rounded-lg w-[360px] p-6 shadow-xl">
         <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100 mb-2">确认删除</h3>
@@ -344,5 +350,6 @@ onMounted(loadTemplates)
         </div>
       </div>
     </div>
+    </transition>
   </div>
 </template>

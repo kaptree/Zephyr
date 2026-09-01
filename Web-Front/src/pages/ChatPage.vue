@@ -525,6 +525,7 @@ onUnmounted(() => {
           </div>
 
           <!-- emoji 面板 -->
+          <transition name="shrink-out">
           <div
             v-if="showEmoji"
             ref="emojiPanelEl"
@@ -533,6 +534,7 @@ onUnmounted(() => {
           >
             <EmojiPicker @select="insertEmoji" @send-image="sendEmoticon" />
           </div>
+          </transition>
 
           <div class="flex items-end gap-2">
             <textarea
@@ -557,10 +559,12 @@ onUnmounted(() => {
 
     <!-- 图片预览 -->
     <Teleport to="body">
+      <transition name="shrink-out">
       <div v-if="previewUrl" class="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-6" @click="previewUrl = ''">
         <img :src="previewUrl" class="max-w-[90vw] max-h-[90vh] rounded-lg object-contain" />
         <button class="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/40 text-white text-xl flex items-center justify-center hover:bg-black/60 transition-smooth">✕</button>
       </div>
+      </transition>
     </Teleport>
   </div>
 </template>

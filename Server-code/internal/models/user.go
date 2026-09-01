@@ -20,7 +20,11 @@ type User struct {
 	Phone        string         `gorm:"type:varchar(20)" json:"phone"`
 	Email        string         `gorm:"type:varchar(100)" json:"email"`
 	AvatarURL    string         `gorm:"type:varchar(500)" json:"avatar"`
-	PasswordHash string         `gorm:"type:varchar(255);not null" json:"-"`
+	// 个人中心平台背景图个性化：图片地址 / 透明度（0~1）/ 填充方式（cover/contain/fill/tile）
+	BackgroundURL     string  `gorm:"type:varchar(500)" json:"background"`
+	BackgroundOpacity float64 `gorm:"type:decimal(3,2);default:1" json:"bg_opacity"`
+	BackgroundFill    string  `gorm:"type:varchar(20);default:'cover'" json:"bg_fill"`
+	PasswordHash      string  `gorm:"type:varchar(255);not null" json:"-"`
 	IsActive     bool           `gorm:"default:true" json:"is_active"`
 	LastLoginAt  *time.Time     `json:"last_login_at"`
 	CreatedAt    time.Time      `json:"created_at"`

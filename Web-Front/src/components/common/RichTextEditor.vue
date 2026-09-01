@@ -127,7 +127,7 @@ function handleBlur() {
       <button
         type="button"
         class="rich-tool-btn"
-        title="撤销"
+        v-tooltip="'撤销'"
         @mousedown.prevent="undo"
       >
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -142,7 +142,7 @@ function handleBlur() {
       <button
         type="button"
         class="rich-tool-btn"
-        title="重做"
+        v-tooltip="'重做'"
         @mousedown.prevent="redo"
       >
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -155,13 +155,13 @@ function handleBlur() {
         </svg>
       </button>
       <span class="w-px h-4 bg-slate-200 dark:bg-slate-600 mx-1" />
-      <button type="button" class="rich-tool-btn" title="标题" @mousedown.prevent="toggleBlock('h3')">
+      <button type="button" class="rich-tool-btn" v-tooltip="'标题'" @mousedown.prevent="toggleBlock('h3')">
         <span class="text-xs font-bold">H</span>
       </button>
       <button
         type="button"
         class="rich-tool-btn"
-        title="正文"
+        v-tooltip="'正文'"
         @mousedown.prevent="toggleBlock('div')"
       >
         <span class="text-xs">¶</span>
@@ -170,7 +170,7 @@ function handleBlur() {
       <button
         type="button"
         class="rich-tool-btn"
-        title="加粗"
+        v-tooltip="'加粗'"
         @mousedown.prevent="execCommand('bold')"
       >
         <span class="font-bold text-sm">B</span>
@@ -178,7 +178,7 @@ function handleBlur() {
       <button
         type="button"
         class="rich-tool-btn"
-        title="斜体"
+        v-tooltip="'斜体'"
         @mousedown.prevent="execCommand('italic')"
       >
         <span class="italic text-sm font-serif">I</span>
@@ -186,7 +186,7 @@ function handleBlur() {
       <button
         type="button"
         class="rich-tool-btn"
-        title="下划线"
+        v-tooltip="'下划线'"
         @mousedown.prevent="execCommand('underline')"
       >
         <span class="underline text-sm">U</span>
@@ -194,7 +194,7 @@ function handleBlur() {
       <button
         type="button"
         class="rich-tool-btn"
-        title="删除线"
+        v-tooltip="'删除线'"
         @mousedown.prevent="execCommand('strikeThrough')"
       >
         <span class="line-through text-sm">S</span>
@@ -203,7 +203,7 @@ function handleBlur() {
       <button
         type="button"
         class="rich-tool-btn"
-        title="无序列表"
+        v-tooltip="'无序列表'"
         @mousedown.prevent="insertUnorderedList"
       >
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -218,7 +218,7 @@ function handleBlur() {
       <button
         type="button"
         class="rich-tool-btn"
-        title="有序列表"
+        v-tooltip="'有序列表'"
         @mousedown.prevent="insertOrderedList"
       >
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -233,7 +233,7 @@ function handleBlur() {
       <button
         type="button"
         class="rich-tool-btn"
-        title="引用"
+        v-tooltip="'引用'"
         @mousedown.prevent="insertQuote"
       >
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -248,7 +248,7 @@ function handleBlur() {
       <button
         type="button"
         class="rich-tool-btn"
-        title="代码块"
+        v-tooltip="'代码块'"
         @mousedown.prevent="insertCode"
       >
         <span class="text-xs font-mono">&lt;/&gt;</span>
@@ -257,7 +257,7 @@ function handleBlur() {
       <button
         type="button"
         class="rich-tool-btn"
-        title="清除格式"
+        v-tooltip="'清除格式'"
         @mousedown.prevent="clearFormat"
       >
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

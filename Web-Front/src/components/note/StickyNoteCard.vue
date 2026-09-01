@@ -219,6 +219,7 @@ const isDueUrgent = computed(() => {
 <template>
   <div
     class="relative rounded-card p-5 transition-smooth cursor-pointer select-none"
+    :data-note-id="note.id"
     :class="{
       'opacity-80': isArchived,
       'ring-2 ring-purple-400 ring-offset-2 ring-offset-white dark:ring-offset-slate-950 shadow-lg shadow-purple-200/50':
@@ -234,7 +235,7 @@ const isDueUrgent = computed(() => {
       'bg-amber-100 dark:bg-amber-900/60 border border-amber-100 dark:border-amber-900 border-l-4 border-l-amber-600 dark:border-l-amber-400':
         !showPurpleView && !showRedView && !showBlueView && !isGreen,
     }"
-    :style="{ animation: showRedView ? 'pulse-alert 2s ease-in-out infinite' : 'none' }"
+    :style="{ animation: showRedView ? 'pulse-alert 2s ease-in-out infinite' : '' }"
     @click="handleClick"
     @contextmenu="handleContextMenu"
     draggable="true"
@@ -255,27 +256,46 @@ const isDueUrgent = computed(() => {
       <span class="inline-block w-1 h-3 bg-white/60 rounded-sm animate-pulse ml-0.5"></span>
     </div>
 
-    <!-- 抄送徽章：抄送人仅查看，紫色卡片 +「抄送」 -->
-    <span v-if="showPurpleView && !isArchived" class="badge-corner bg-purple-600 text-white">
+    <!-- 抄送徽章：抄送人仅查看，紫色卡片 +「抄送」（状态变化时 300ms 翻转过渡） -->
+    <span
+      v-if="showPurpleView && !isArchived"
+      key="badge-cc"
+      class="badge-corner bg-purple-600 text-white animate-badge-flip"
+    >
       抄送
     </span>
     <!-- 指派徽章：发起者（创建人）视角看到「指派」，卡片为浅蓝色 -->
-    <span v-else-if="isAssigner && !isArchived" class="badge-corner bg-blue-500 text-white">
+    <span
+      v-else-if="isAssigner && !isArchived"
+      key="badge-assign"
+      class="badge-corner bg-blue-500 text-white animate-badge-flip"
+    >
       指派
     </span>
     <!-- 已签收徽章：接收者已签收任务 -->
     <span
       v-else-if="showRedView && mySigned && !isArchived"
-      class="badge-corner bg-green-600 text-white"
+      key="badge-signed"
+      class="badge-corner bg-green-600 text-white animate-badge-flip"
     >
       已签收
     </span>
     <!-- 盯办徽章：接收者未签收看到的指派任务，或非指派任务被标记为重要（红色） -->
-    <span v-else-if="showRedView && !isArchived" class="badge-corner bg-red-600 text-white">
+    <span
+      v-else-if="showRedView && !isArchived"
+      :key="'badge-remind-' + (note.remind_count || 0)"
+      class="badge-corner bg-red-600 text-white animate-badge-flip"
+    >
       盯办{{ note.remind_count > 0 ? note.remind_count : '' }}
     </span>
     <!-- 协作标识 -->
-    <span v-if="isBlue && !isArchived" class="badge-corner bg-blue-500 text-white"> 协作 </span>
+    <span
+      v-if="isBlue && !isArchived"
+      key="badge-collab"
+      class="badge-corner bg-blue-500 text-white animate-badge-flip"
+    >
+      协作
+    </span>
     <!-- 已归档水印 -->
     <span v-if="isArchived" class="watermark-archived">已归档</span>
 

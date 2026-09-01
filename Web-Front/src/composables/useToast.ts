@@ -1,9 +1,11 @@
 import { ref } from 'vue'
 
-interface ToastItem {
+export interface ToastItem {
   id: number
   type: 'success' | 'error' | 'warning' | 'info'
   message: string
+  /** 展示时长（ms），驱动底部进度条倒计时 */
+  duration: number
 }
 
 const toasts = ref<ToastItem[]>([])
@@ -12,7 +14,7 @@ let nextId = 0
 export function useToast() {
   function addToast(type: ToastItem['type'], message: string, duration = 3000) {
     const id = nextId++
-    toasts.value.push({ id, type, message })
+    toasts.value.push({ id, type, message, duration })
     if (duration > 0) {
       setTimeout(() => {
         removeToast(id)
@@ -33,9 +35,9 @@ export function useToast() {
     addToast,
     removeToast,
     clearAll,
-    success: (msg: string) => addToast('success', msg),
-    error: (msg: string) => addToast('error', msg),
-    warning: (msg: string) => addToast('warning', msg),
-    info: (msg: string) => addToast('info', msg),
+    success: (msg: string, duration?: number) => addToast('success', msg, duration),
+    error: (msg: string, duration?: number) => addToast('error', msg, duration),
+    warning: (msg: string, duration?: number) => addToast('warning', msg, duration),
+    info: (msg: string, duration?: number) => addToast('info', msg, duration),
   }
 }

@@ -117,6 +117,7 @@ onMounted(loadUsers);
             @focus="userListOpen = true"
             @keydown.enter.prevent="userListOpen = !userListOpen"
           />
+          <transition name="shrink-out">
           <div
             v-if="userListOpen"
             class="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 rounded-card shadow-modal border border-slate-100 dark:border-slate-700 z-50 overflow-hidden"
@@ -146,6 +147,7 @@ onMounted(loadUsers);
               </div>
             </div>
           </div>
+          </transition>
         </div>
       </div>
     </div>

@@ -39,7 +39,15 @@ export interface User {
   role: Role
   permissions: Permission[]
   is_active: boolean
+  /** 平台背景图地址（个人中心个性化） */
+  background?: string
+  /** 背景图透明度 0~1 */
+  bg_opacity?: number
+  /** 背景图填充方式 */
+  bg_fill?: BackgroundFill
 }
+
+export type BackgroundFill = 'cover' | 'contain' | 'fill' | 'tile'
 
 export interface UserBrief {
   id: string

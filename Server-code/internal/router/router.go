@@ -131,6 +131,11 @@ func Setup(cfg *config.Config) *gin.Engine {
 			users.POST("", middleware.RequireRoles("super_admin", "dept_admin", "company_leader"), authHandler.Register)
 		}
 
+		// 个人中心自助更新（仅本人）：基础资料 + 头像 + 平台背景图个性化
+		api.PUT("/profile", userHandler.UpdateMyProfile)
+		// 通用图片上传（头像/背景图）
+		api.POST("/uploads/image", uploadHandler.UploadImage)
+
 		notes := api.Group("/notes")
 		{
 			notes.GET("", noteHandler.ListNotes)

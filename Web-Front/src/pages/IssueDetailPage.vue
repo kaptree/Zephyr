@@ -5,6 +5,10 @@ import { useAuthStore } from '@/stores/auth';
 import { getIssue, addIssueComment, updateIssueStatus, subscribeIssue, unsubscribeIssue } from '@/services/issues';
 import type { IssueDetail, IssueCommentItem } from '@/services/issues';
 import { renderNoteContent } from '@/utils/richText';
+import { useConfirm } from '@/composables/useConfirm';
+
+// 全局确认对话框（轻量级通知美学）
+const { confirm: appConfirm } = useConfirm();
 
 const route = useRoute();
 const router = useRouter();
@@ -101,7 +105,7 @@ async function handleComment() {
 
 async function handleToggleStatus() {
   if (!detail.value) return;
-  if (!confirm(isClosed.value ? '确定重新打开这个问题吗？' : '确定关闭这个问题吗？关闭后问题标记为已解决。')) return;
+  if (!(await appConfirm({ message: isClosed.value ? '确定重新打开这个问题吗？' : '确定关闭这个问题吗？关闭后问题标记为已解决。' }))) return;
   updatingStatus.value = true;
   try {
     await updateIssueStatus(detail.value.issue.id, isClosed.value ? 'open' : 'closed');

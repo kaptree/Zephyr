@@ -71,15 +71,9 @@ fi
 ok "配置与密钥已就位"
 
 # ============================================================
-# 3.1 拷贝系统表情包（uploads/emoticons，需求 #22：聊天内置表情）
+# 3.1 uploads 运行时数据不打包（表情包等沿用服务器现有数据，
+#     全新部署可通过管理后台批量上传表情包）
 # ============================================================
-if [[ -d "uploads/emoticons" ]]; then
-    mkdir -p "$OUT_DIR/backend/uploads"
-    cp -R uploads/emoticons "$OUT_DIR/backend/uploads/"
-    ok "系统表情包已就位 ($(find uploads/emoticons -type f | wc -l | tr -d ' ') 个文件)"
-else
-    warn "未找到 uploads/emoticons，部署后需手动导入聊天表情包"
-fi
 
 # ============================================================
 # 4. 构建前端

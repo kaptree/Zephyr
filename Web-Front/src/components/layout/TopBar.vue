@@ -59,7 +59,7 @@ onUnmounted(() => clearInterval(timer))
     <!-- 聊天入口 -->
     <button
       class="relative p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-smooth"
-      title="消息聊天"
+      v-tooltip="'消息聊天'"
       @click="notifStore.openChat()"
     >
       <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -72,7 +72,7 @@ onUnmounted(() => clearInterval(timer))
       </svg>
       <span
         v-if="notifStore.conversations.reduce((sum, c) => sum + (c.unread || 0), 0) > 0"
-        class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-semibold flex items-center justify-center"
+        class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-semibold flex items-center justify-center animate-breathe"
       >
         {{ notifStore.conversations.reduce((sum, c) => sum + (c.unread || 0), 0) > 99 ? '99+' : notifStore.conversations.reduce((sum, c) => sum + (c.unread || 0), 0) }}
       </span>

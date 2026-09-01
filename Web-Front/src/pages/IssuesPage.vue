@@ -4,6 +4,9 @@ import { useRouter } from 'vue-router';
 import { listIssues, createIssue, getIssueWatching, watchIssues, unwatchIssues } from '@/services/issues';
 import type { IssueItem } from '@/services/issues';
 
+// 组件名供 AdminLayout 的 <keep-alive :include> 匹配缓存
+defineOptions({ name: 'IssuesPage' });
+
 const router = useRouter();
 
 const issues = ref<IssueItem[]>([]);
@@ -249,8 +252,12 @@ onMounted(() => {
     </div>
 
     <!-- 加载 -->
-    <div v-if="loading" class="flex items-center justify-center py-16">
-      <div class="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent"></div>
+    <div v-if="loading" class="py-6 space-y-3">
+      <div v-for="i in 6" :key="i" class="flex items-center gap-4 px-4">
+        <div class="skeleton h-4 w-32 shrink-0"></div>
+        <div class="skeleton h-4 flex-1"></div>
+        <div class="skeleton h-4 w-16 shrink-0"></div>
+      </div>
     </div>
 
     <!-- 空态 -->
@@ -307,11 +314,12 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 新建 Issue 弹窗 -->
+    <!-- 新建 Issue 弹窗（底页动画） -->
     <Teleport to="body">
+      <transition name="modal-sheet" :duration="{ enter: 350, leave: 300 }">
       <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="overlay-backdrop" @click="showCreateModal = false" />
-        <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-xl mx-4 p-6 animate-fade-in">
+        <div class="modal-panel relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-xl mx-4 p-6">
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">新建 Issue</h3>
             <button class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth" @click="showCreateModal = false">
@@ -350,6 +358,7 @@ onMounted(() => {
           </form>
         </div>
       </div>
+      </transition>
     </Teleport>
   </div>
 </template>

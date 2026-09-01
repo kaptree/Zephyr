@@ -1,5 +1,5 @@
-import { get, post, put, del } from './api'
-import type { User, Department, LoginCredentials, LoginResponse, TreeNode, UserProfile, WorkTypeOption } from '@/types'
+import { get, post, put, del, postForm } from './api'
+import type { User, BackgroundFill, Department, LoginCredentials, LoginResponse, TreeNode, UserProfile, WorkTypeOption } from '@/types'
 
 export function login(credentials: LoginCredentials) {
   return post<LoginResponse>('/api/v1/auth/login', credentials)
@@ -49,6 +49,27 @@ export function deleteUser(id: string) {
 
 export function getUserProfile(id: string) {
   return get<UserProfile>(`/api/v1/users/${id}/profile`)
+}
+
+// 个人中心自助更新（仅本人）：基础资料 + 头像 + 平台背景图个性化
+export function updateMyProfile(payload: {
+  name?: string
+  rank?: string
+  phone?: string
+  email?: string
+  avatar?: string
+  background?: string
+  bg_opacity?: number
+  bg_fill?: BackgroundFill
+}) {
+  return put<User>('/api/v1/profile', payload)
+}
+
+// 通用图片上传（头像/背景图），返回可直接访问的 /uploads/images/... 地址
+export function uploadImage(file: File) {
+  const fd = new FormData()
+  fd.append('file', file)
+  return postForm<{ url: string; mime_type: string }>('/api/v1/uploads/image', fd)
 }
 
 export function getUsersWithStats(params: { dept_id?: string; role?: string; keyword?: string; page?: number; page_size?: number }) {

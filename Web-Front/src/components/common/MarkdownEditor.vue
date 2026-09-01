@@ -91,59 +91,59 @@ function toggleFullscreen() {
     <div
       class="flex flex-wrap items-center gap-0.5 px-2 py-1.5 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 select-none"
     >
-      <button type="button" class="md-tool-btn" title="一级标题" @mousedown.prevent="prefixLines('# ')">
+      <button type="button" class="md-tool-btn" v-tooltip="'一级标题'" @mousedown.prevent="prefixLines('# ')">
         <span class="text-xs font-bold">H1</span>
       </button>
-      <button type="button" class="md-tool-btn" title="二级标题" @mousedown.prevent="prefixLines('## ')">
+      <button type="button" class="md-tool-btn" v-tooltip="'二级标题'" @mousedown.prevent="prefixLines('## ')">
         <span class="text-xs font-bold">H2</span>
       </button>
-      <button type="button" class="md-tool-btn" title="三级标题" @mousedown.prevent="prefixLines('### ')">
+      <button type="button" class="md-tool-btn" v-tooltip="'三级标题'" @mousedown.prevent="prefixLines('### ')">
         <span class="text-xs font-bold">H3</span>
       </button>
       <span class="w-px h-4 bg-slate-200 dark:bg-slate-600 mx-1" />
-      <button type="button" class="md-tool-btn" title="加粗" @mousedown.prevent="insertWrap('**', '**', '加粗文字')">
+      <button type="button" class="md-tool-btn" v-tooltip="'加粗'" @mousedown.prevent="insertWrap('**', '**', '加粗文字')">
         <span class="font-bold text-sm">B</span>
       </button>
-      <button type="button" class="md-tool-btn" title="斜体" @mousedown.prevent="insertWrap('*', '*', '斜体文字')">
+      <button type="button" class="md-tool-btn" v-tooltip="'斜体'" @mousedown.prevent="insertWrap('*', '*', '斜体文字')">
         <span class="italic text-sm font-serif">I</span>
       </button>
-      <button type="button" class="md-tool-btn" title="删除线" @mousedown.prevent="insertWrap('~~', '~~', '删除线文字')">
+      <button type="button" class="md-tool-btn" v-tooltip="'删除线'" @mousedown.prevent="insertWrap('~~', '~~', '删除线文字')">
         <span class="line-through text-sm">S</span>
       </button>
       <span class="w-px h-4 bg-slate-200 dark:bg-slate-600 mx-1" />
-      <button type="button" class="md-tool-btn" title="无序列表" @mousedown.prevent="prefixLines('- ')">
+      <button type="button" class="md-tool-btn" v-tooltip="'无序列表'" @mousedown.prevent="prefixLines('- ')">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h.01M4 12h.01M4 18h.01M8 6h12M8 12h12M8 18h12" />
         </svg>
       </button>
-      <button type="button" class="md-tool-btn" title="有序列表" @mousedown.prevent="prefixLines('1. ')">
+      <button type="button" class="md-tool-btn" v-tooltip="'有序列表'" @mousedown.prevent="prefixLines('1. ')">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h.01M4 12h.01M4 18h.01M10 7h10M10 13h10M10 19h10" />
         </svg>
       </button>
-      <button type="button" class="md-tool-btn" title="引用" @mousedown.prevent="prefixLines('> ')">
+      <button type="button" class="md-tool-btn" v-tooltip="'引用'" @mousedown.prevent="prefixLines('> ')">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10.5h-3a1 1 0 01-1-1v-3a1 1 0 011-1h3a1 1 0 011 1v5a4 4 0 01-4 4M19 10.5h-3a1 1 0 01-1-1v-3a1 1 0 011-1h3a1 1 0 011 1v5a4 4 0 01-4 4" />
         </svg>
       </button>
       <span class="w-px h-4 bg-slate-200 dark:bg-slate-600 mx-1" />
-      <button type="button" class="md-tool-btn" title="行内代码" @mousedown.prevent="insertWrap('`', '`', 'code')">
+      <button type="button" class="md-tool-btn" v-tooltip="'行内代码'" @mousedown.prevent="insertWrap('`', '`', 'code')">
         <span class="text-xs font-mono">`</span>
       </button>
-      <button type="button" class="md-tool-btn" title="代码块" @mousedown.prevent="insertWrap('```\n', '\n```', '代码')">
+      <button type="button" class="md-tool-btn" v-tooltip="'代码块'" @mousedown.prevent="insertWrap('```\n', '\n```', '代码')">
         <span class="text-xs font-mono">&lt;/&gt;</span>
       </button>
-      <button type="button" class="md-tool-btn" title="链接" @mousedown.prevent="insertWrap('[', '](url)', '链接文字')">
+      <button type="button" class="md-tool-btn" v-tooltip="'链接'" @mousedown.prevent="insertWrap('[', '](url)', '链接文字')">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5M10.172 13.828a4 4 0 010-5.656l3-3a4 4 0 015.656 5.656l-1.5 1.5" />
         </svg>
       </button>
-      <button type="button" class="md-tool-btn" title="图片" @mousedown.prevent="insertWrap('![', '](url)', '图片描述')">
+      <button type="button" class="md-tool-btn" v-tooltip="'图片'" @mousedown.prevent="insertWrap('![', '](url)', '图片描述')">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       </button>
-      <button type="button" class="md-tool-btn" title="表格" @mousedown.prevent="insertTable">
+      <button type="button" class="md-tool-btn" v-tooltip="'表格'" @mousedown.prevent="insertTable">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
         </svg>
@@ -152,7 +152,7 @@ function toggleFullscreen() {
       <button
         type="button"
         class="md-tool-btn"
-        :title="fullscreen ? '退出全屏 (Esc)' : '全屏编辑'"
+        v-tooltip="fullscreen ? '退出全屏 (Esc)' : '全屏编辑'"
         @click="toggleFullscreen"
       >
         <svg v-if="!fullscreen" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

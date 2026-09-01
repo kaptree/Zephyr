@@ -2,13 +2,17 @@
 import { ref, onMounted, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useDarkMode } from '@/composables/useDarkMode';
+import { useToast } from '@/composables/useToast';
 import { fetchNoteStats, fetchHeatmap } from '@/services/notes';
 import { fetchNotes } from '@/services/notes';
-import { updateUser } from '@/services/admin';
+import { updateMyProfile, uploadImage } from '@/services/admin';
 import type { NoteFilters } from '@/types';
+import type { BackgroundFill } from '@/types/user';
+import AnimatedNumber from '@/components/common/AnimatedNumber.vue';
 
 const auth = useAuthStore();
 const { isDark } = useDarkMode();
+const toast = useToast();
 
 const loading = ref(true);
 const loadError = ref('');
@@ -26,6 +30,154 @@ const editName = ref('');
 const editPhone = ref('');
 const editEmail = ref('');
 const editRank = ref('');
+
+// ===== 头像上传（点击头像 → 选图 → 上传 → 自助接口保存）=====
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+const avatarInput = ref<HTMLInputElement | null>(null);
+const uploadingAvatar = ref(false);
+
+function pickAvatar() {
+  avatarInput.value?.click();
+}
+
+// 同步本地用户缓存（全局头像/背景即时生效依赖 auth store 响应式）
+function persistUser() {
+  if (auth.user) localStorage.setItem('auth_user', JSON.stringify(auth.user));
+}
+
+function handleAvatarChange(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = ''; // 允许重复选择同一文件
+  if (!file || uploadingAvatar.value) return;
+  void doUploadAvatar(file);
+}
+
+async function doUploadAvatar(file: File) {
+  if (!file.type.startsWith('image/')) {
+    toast.error('请选择图片文件（png/jpg/gif/webp）');
+    return;
+  }
+  if (file.size > MAX_IMAGE_SIZE) {
+    toast.error('图片大小不能超过 10MB');
+    return;
+  }
+  uploadingAvatar.value = true;
+  try {
+    const up = await uploadImage(file);
+    await updateMyProfile({ avatar: up.data.url });
+    if (auth.user) {
+      auth.user.avatar = up.data.url;
+      persistUser();
+    }
+    toast.success('头像已更新');
+  } catch (err) {
+    const e = err as { friendlyMessage?: string };
+    toast.error(e.friendlyMessage || '头像上传失败');
+  } finally {
+    uploadingAvatar.value = false;
+  }
+}
+
+// ===== 平台背景图（上传 + 透明度 + 填充方式，保存后全局生效）=====
+const FILL_OPTIONS: { value: BackgroundFill; label: string }[] = [
+  { value: 'cover', label: '适应裁剪' },
+  { value: 'contain', label: '完整显示' },
+  { value: 'fill', label: '拉伸填充' },
+  { value: 'tile', label: '平铺' },
+];
+const bgInput = ref<HTMLInputElement | null>(null);
+const uploadingBg = ref(false);
+const savingBg = ref(false);
+const bgSaved = ref(false);
+const bgError = ref('');
+const bgUrl = ref(auth.user?.background || '');
+const bgOpacity = ref(Math.round((typeof auth.user?.bg_opacity === 'number' ? auth.user.bg_opacity : 1) * 100));
+const bgFill = ref<BackgroundFill>(auth.user?.bg_fill || 'cover');
+
+// 填充方式 → background-size/repeat 映射（与 useUserBackground 全局层一致）
+function bgSizeAndRepeat(fill: BackgroundFill) {
+  return {
+    backgroundSize: fill === 'tile' ? 'auto' : fill === 'fill' ? '100% 100%' : fill,
+    backgroundRepeat: fill === 'tile' ? 'repeat' : 'no-repeat',
+  };
+}
+
+const bgPreviewStyle = computed(() => {
+  if (!bgUrl.value) return null;
+  return {
+    backgroundImage: `url(${bgUrl.value})`,
+    backgroundPosition: 'center',
+    opacity: String(bgOpacity.value / 100),
+    ...bgSizeAndRepeat(bgFill.value),
+  };
+});
+
+function handleBgChange(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file || uploadingBg.value) return;
+  void doUploadBackground(file);
+}
+
+async function doUploadBackground(file: File) {
+  if (!file.type.startsWith('image/')) {
+    toast.error('请选择图片文件（png/jpg/gif/webp）');
+    return;
+  }
+  if (file.size > MAX_IMAGE_SIZE) {
+    toast.error('图片大小不能超过 10MB');
+    return;
+  }
+  uploadingBg.value = true;
+  try {
+    const up = await uploadImage(file);
+    bgUrl.value = up.data.url; // 仅本地预览，需点击保存生效
+    // 新图沿用当前透明度与填充方式，用户可继续微调
+    toast.success('背景图已上传，调整后点击保存');
+  } catch (err) {
+    const e = err as { friendlyMessage?: string };
+    toast.error(e.friendlyMessage || '背景图上传失败');
+  } finally {
+    uploadingBg.value = false;
+  }
+}
+
+function removeBackground() {
+  bgUrl.value = ''; // 本地清除，保存后生效
+  bgError.value = '';
+}
+
+async function handleSaveBackground() {
+  savingBg.value = true;
+  bgError.value = '';
+  bgSaved.value = false;
+  try {
+    const opacity = bgOpacity.value / 100;
+    await updateMyProfile({
+      background: bgUrl.value,
+      bg_opacity: opacity,
+      bg_fill: bgFill.value,
+    });
+    if (auth.user) {
+      auth.user.background = bgUrl.value;
+      auth.user.bg_opacity = opacity;
+      auth.user.bg_fill = bgFill.value;
+      persistUser();
+    }
+    bgSaved.value = true;
+    toast.success('背景设置已保存');
+    setTimeout(() => {
+      bgSaved.value = false;
+    }, 2000);
+  } catch (err) {
+    const e = err as { friendlyMessage?: string; response?: { data?: { message?: string } } };
+    bgError.value = e.response?.data?.message || e.friendlyMessage || '保存失败';
+  } finally {
+    savingBg.value = false;
+  }
+}
 
 const thisYear = new Date().getFullYear();
 const yearOptions = computed(() => {
@@ -183,7 +335,8 @@ async function handleSaveProfile() {
   profileSaved.value = false;
   profileError.value = '';
   try {
-    await updateUser(auth.user.id, {
+    // 自助接口（仅本人字段），普通用户也可保存
+    await updateMyProfile({
       name: editName.value.trim(),
       phone: editPhone.value.trim() || '',
       email: editEmail.value.trim() || '',
@@ -231,11 +384,39 @@ async function handleSaveProfile() {
         <div
           class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300 flex items-center gap-4"
         >
-          <div
-            class="w-14 h-14 rounded-full bg-blue-500 flex items-center justify-center text-lg font-semibold text-white shrink-0"
+          <!-- 头像：点击更换，悬停显示遮罩提示 -->
+          <button
+            type="button"
+            class="relative group w-14 h-14 rounded-full shrink-0 overflow-hidden focus:outline-none"
+            title="点击更换头像"
+            :disabled="uploadingAvatar"
+            @click="pickAvatar"
           >
-            {{ auth.user?.name?.charAt(0) || '用' }}
-          </div>
+            <img
+              v-if="auth.user?.avatar"
+              :src="auth.user.avatar"
+              alt="头像"
+              class="w-full h-full object-cover"
+            />
+            <div
+              v-else
+              class="w-full h-full bg-blue-500 flex items-center justify-center text-lg font-semibold text-white"
+            >
+              {{ auth.user?.name?.charAt(0) || '用' }}
+            </div>
+            <div
+              class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center justify-center text-white text-[10px] font-medium"
+            >
+              {{ uploadingAvatar ? '上传中…' : '更换头像' }}
+            </div>
+          </button>
+          <input
+            ref="avatarInput"
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            class="hidden"
+            @change="handleAvatarChange"
+          />
           <div class="min-w-0">
             <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100 truncate">
               {{ auth.user?.name || '未登录' }}
@@ -253,7 +434,7 @@ async function handleSaveProfile() {
             class="rounded-card p-4 text-center bg-amber-50 dark:bg-amber-900/20 transition-colors duration-300"
           >
             <div class="text-2xl font-bold text-amber-700 dark:text-amber-400 tabular-nums">
-              {{ fmtNum(activeNotes) }}
+              <AnimatedNumber :value="activeNotes" :format="fmtNum" />
             </div>
             <div class="text-xs text-amber-600 dark:text-amber-500 mt-1">活跃任务</div>
           </div>
@@ -261,7 +442,7 @@ async function handleSaveProfile() {
             class="rounded-card p-4 text-center bg-green-50 dark:bg-green-900/20 transition-colors duration-300"
           >
             <div class="text-2xl font-bold text-green-700 dark:text-green-400 tabular-nums">
-              {{ fmtNum(completedNotes) }}
+              <AnimatedNumber :value="completedNotes" :format="fmtNum" />
             </div>
             <div class="text-xs text-green-600 dark:text-green-500 mt-1">已完成</div>
           </div>
@@ -269,7 +450,7 @@ async function handleSaveProfile() {
             class="rounded-card p-4 text-center bg-red-50 dark:bg-red-900/20 transition-colors duration-300"
           >
             <div class="text-2xl font-bold text-red-700 dark:text-red-400 tabular-nums">
-              {{ fmtNum(archivedNotes) }}
+              <AnimatedNumber :value="archivedNotes" :format="fmtNum" />
             </div>
             <div class="text-xs text-red-600 dark:text-red-500 mt-1">已归档</div>
           </div>
@@ -277,7 +458,7 @@ async function handleSaveProfile() {
             class="rounded-card p-4 text-center bg-slate-50 dark:bg-slate-800 transition-colors duration-300"
           >
             <div class="text-2xl font-bold text-slate-700 dark:text-slate-300 tabular-nums">
-              {{ fmtNum(totalNotes) }}
+              <AnimatedNumber :value="totalNotes" :format="fmtNum" />
             </div>
             <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">任务总数</div>
           </div>
@@ -428,6 +609,103 @@ async function handleSaveProfile() {
               {{ savingProfile ? '保存中...' : '保存修改' }}
             </button>
           </form>
+        </div>
+      </div>
+
+      <!-- 平台背景设置：上传背景图 + 透明度 + 填充方式，保存后全局生效 -->
+      <div class="mb-6">
+        <div
+          class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300 max-w-lg"
+        >
+          <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4">平台背景</h4>
+
+          <!-- 预览区：实时反映透明度 / 填充方式调整 -->
+          <div
+            class="relative h-36 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 mb-4"
+          >
+            <div v-if="bgPreviewStyle" class="absolute inset-0" :style="bgPreviewStyle" />
+            <div
+              v-else
+              class="absolute inset-0 flex items-center justify-center text-xs text-slate-400 dark:text-slate-500"
+            >
+              暂未设置背景图
+            </div>
+          </div>
+
+          <input
+            ref="bgInput"
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            class="hidden"
+            @change="handleBgChange"
+          />
+          <div class="flex items-center gap-2 mb-4">
+            <button
+              type="button"
+              class="btn-primary text-xs !py-1.5 disabled:opacity-50"
+              :disabled="uploadingBg"
+              @click="bgInput?.click()"
+            >
+              {{ uploadingBg ? '上传中…' : bgUrl ? '更换背景图' : '上传背景图' }}
+            </button>
+            <button
+              v-if="bgUrl"
+              type="button"
+              class="btn-secondary text-xs !py-1.5"
+              @click="removeBackground"
+            >
+              移除
+            </button>
+          </div>
+
+          <!-- 透明度滑块 -->
+          <div class="mb-4" :class="!bgUrl && 'opacity-40 pointer-events-none'">
+            <div class="flex justify-between text-xs text-slate-400 dark:text-slate-500 mb-1">
+              <span>透明度</span>
+              <span class="tabular-nums">{{ bgOpacity }}%</span>
+            </div>
+            <input
+              v-model.number="bgOpacity"
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              class="w-full accent-blue-500 cursor-pointer"
+            />
+          </div>
+
+          <!-- 填充方式 -->
+          <div class="mb-4" :class="!bgUrl && 'opacity-40 pointer-events-none'">
+            <span class="text-xs text-slate-400 dark:text-slate-500 mb-1.5 block">填充方式</span>
+            <div class="grid grid-cols-4 gap-2">
+              <button
+                v-for="opt in FILL_OPTIONS"
+                :key="opt.value"
+                type="button"
+                class="px-2 py-1.5 text-xs rounded-lg border transition-colors duration-150"
+                :class="
+                  bgFill === opt.value
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+                    : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'
+                "
+                @click="bgFill = opt.value"
+              >
+                {{ opt.label }}
+              </button>
+            </div>
+          </div>
+
+          <p v-if="bgError" class="text-xs text-red-500 mb-2">{{ bgError }}</p>
+          <p v-if="bgSaved" class="text-xs text-green-500 mb-2">✓ 已保存，背景全局生效</p>
+
+          <button
+            type="button"
+            class="w-full btn-primary text-sm !py-2 disabled:opacity-50"
+            :disabled="savingBg || !bgUrl"
+            @click="handleSaveBackground"
+          >
+            {{ savingBg ? '保存中...' : '保存背景设置' }}
+          </button>
         </div>
       </div>
     </template>

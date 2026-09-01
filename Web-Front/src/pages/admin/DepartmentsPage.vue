@@ -2,6 +2,11 @@
 import { ref, onMounted } from 'vue'
 import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '@/services/admin'
 import type { Department } from '@/types'
+import { playDeleteOut } from '@/utils/exitAnimations'
+import { useConfirm } from '@/composables/useConfirm'
+
+// 全局确认对话框（轻量级通知美学）
+const { confirm: appConfirm } = useConfirm()
 
 const departments = ref<Department[]>([])
 const loading = ref(false)
@@ -110,7 +115,8 @@ async function handleSave() {
 
 async function handleDelete() {
   if (!selectedDept.value) return
-  if (!confirm(`确定要删除部门"${selectedDept.value.name}"吗？此操作不可恢复。`)) return
+  if (!(await appConfirm({ message: `确定要删除部门"${selectedDept.value.name}"吗？此操作不可恢复。`, danger: true, confirmText: '删除' }))) return
+  await playDeleteOut(document.querySelector(`[data-dept-id="${selectedDept.value.id}"]`))
   deleting.value = true
   try {
     await deleteDepartment(selectedDept.value.id)
@@ -154,7 +160,7 @@ function getDeptLevelLabel(level?: number): string {
         </div>
         <div v-else class="space-y-1">
           <template v-for="dept in departments" :key="dept.id">
-            <div class="flex items-center gap-1">
+            <div class="flex items-center gap-1" :data-dept-id="dept.id">
               <button
                 class="flex-1 flex items-center gap-2 px-3 py-2 rounded-btn text-sm text-left transition-smooth hover:bg-slate-50 dark:hover:bg-slate-700/50"
                 :class="{ 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 font-medium': selectedDept?.id === dept.id }"
@@ -235,6 +241,7 @@ function getDeptLevelLabel(level?: number): string {
 
     <!-- 新建部门模态框 -->
     <Teleport to="body">
+      <transition name="shrink-out">
       <div v-if="showNewModal" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="overlay-backdrop" @click="showNewModal = false" />
         <div class="relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-sm mx-4 p-6 animate-fade-in">
@@ -259,6 +266,7 @@ function getDeptLevelLabel(level?: number): string {
           </form>
         </div>
       </div>
+      </transition>
     </Teleport>
   </div>
 </template>

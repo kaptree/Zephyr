@@ -253,6 +253,74 @@ func (h *UploadHandler) UploadChatFile(c *gin.Context) {
 	})
 }
 
+// UploadImage 通用图片上传（个人中心头像 / 平台背景图），仅允许 png/jpg/gif/webp，落盘 uploads/images/
+func (h *UploadHandler) UploadImage(c *gin.Context) {
+	if c.Request.ContentLength > maxFileSize {
+		utils.BadRequest(c, fmt.Sprintf("图片大小超过限制，最大允许 %dMB", maxFileSize/(1024*1024)))
+		return
+	}
+
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		utils.BadRequest(c, "请选择要上传的图片")
+		return
+	}
+	defer file.Close()
+
+	if header.Size > maxFileSize {
+		utils.BadRequest(c, fmt.Sprintf("图片大小超过限制，最大允许 %dMB", maxFileSize/(1024*1024)))
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp":
+	default:
+		utils.BadRequest(c, "仅支持 png/jpg/gif/webp 格式图片")
+		return
+	}
+
+	// 魔数校验：必须是真实图片（RIFF 容器需进一步确认 WEBP 标识，避免误放行其他 RIFF 文件）
+	buf := make([]byte, 512)
+	n, _ := file.Read(buf)
+	file.Seek(0, io.SeekStart)
+	mimeType := detectByMagicBytes(buf[:n])
+	if !strings.HasPrefix(mimeType, "image/") {
+		utils.BadRequest(c, "文件内容不是有效的图片")
+		return
+	}
+	if mimeType == "image/webp" && (n < 12 || string(buf[8:12]) != "WEBP") {
+		utils.BadRequest(c, "文件内容不是有效的图片")
+		return
+	}
+
+	if err := os.MkdirAll(filepath.Join(uploadBasePath, "images"), 0755); err != nil {
+		utils.InternalError(c, "创建上传目录失败")
+		return
+	}
+
+	savedName := uuid.New().String() + ext
+	savePath := filepath.Join(uploadBasePath, "images", savedName)
+
+	dst, err := os.Create(savePath)
+	if err != nil {
+		utils.InternalError(c, "保存图片失败")
+		return
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, file); err != nil {
+		os.Remove(savePath)
+		utils.InternalError(c, "写入图片失败")
+		return
+	}
+
+	utils.Created(c, gin.H{
+		"url":       "/" + savePath,
+		"mime_type": mimeType,
+	})
+}
+
 // detectChatMimeType 聊天文件 MIME 检测：图片精确识别（决定 image 消息），其余取 header 或通用类型
 func detectChatMimeType(file multipart.File, header *multipart.FileHeader, ext string) string {
 	switch ext {
