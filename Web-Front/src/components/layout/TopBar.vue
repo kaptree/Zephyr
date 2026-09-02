@@ -14,19 +14,26 @@ const notifStore = useNotificationStore()
 const currentTime = ref('')
 let timer: ReturnType<typeof setInterval>
 
-const breadcrumbs = computed(() => {
-  timer = setInterval(() => {
-    currentTime.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-  }, 1000)
-  currentTime.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-  return route.matched
+// 面包屑：取 matched 中带 title 的层级，并把模式路径（如 /workbench/archive/:id）
+// 用当前路由参数解析成可跳转的真实路径；最后一级为当前页，不可点击
+const breadcrumbs = computed(() =>
+  route.matched
     .filter((r) => r.meta?.title)
-    .map((r) => ({ path: r.path, title: r.meta.title as string }))
-})
+    .map((r) => ({
+      path: r.path.replace(/:(\w+)/g, (_m, key) => String(route.params[key] ?? `:${key}`)),
+      title: r.meta.title as string,
+    }))
+)
 
 onMounted(() => {
   // 登录后建立用户个人通知 WebSocket 通道
   notifStore.connectSocket()
+
+  // 时间显示（定时器只在挂载时建立一次，避免在 computed 中重复创建）
+  currentTime.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  timer = setInterval(() => {
+    currentTime.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  }, 1000)
 })
 
 onUnmounted(() => clearInterval(timer))
@@ -34,18 +41,18 @@ onUnmounted(() => clearInterval(timer))
 
 <template>
   <header class="h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center px-6 shrink-0 gap-3 transition-colors duration-300">
-    <!-- 面包屑 -->
+    <!-- 面包屑：中间层级可点击跳转，最后一级为当前页纯文本 -->
     <div class="flex items-center gap-2 text-sm">
       <template v-for="(crumb, index) in breadcrumbs" :key="crumb.path">
         <span v-if="index > 0" class="text-slate-300 dark:text-slate-600">/</span>
-        <span
-          :class="[
-            'transition-smooth',
-            index === breadcrumbs.length - 1
-              ? 'text-slate-900 dark:text-slate-100 font-medium'
-              : 'text-slate-400 dark:text-slate-500'
-          ]"
+        <RouterLink
+          v-if="index < breadcrumbs.length - 1"
+          :to="crumb.path"
+          class="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:underline underline-offset-4 transition-smooth cursor-pointer"
         >
+          {{ crumb.title }}
+        </RouterLink>
+        <span v-else class="text-slate-900 dark:text-slate-100 font-medium transition-smooth">
           {{ crumb.title }}
         </span>
       </template>

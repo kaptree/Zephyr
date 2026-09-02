@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
 import { useConfirm } from '@/composables/useConfirm'
+import { AppIcon } from '@/components/icons'
 
 const { state, settle } = useConfirm()
 
@@ -30,7 +31,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
                   : 'bg-blue-100 dark:bg-blue-900/50 text-blue-500'
               "
             >
-              {{ state.options.danger ? '⚠' : 'ℹ' }}
+              <AppIcon
+                :name="state.options.danger ? 'warning' : 'info'"
+                variant="solid"
+                :size="20"
+              />
             </div>
             <h4 class="text-base font-semibold text-slate-800 dark:text-slate-100">
               {{ state.options.title || (state.options.danger ? '确认操作' : '提示') }}

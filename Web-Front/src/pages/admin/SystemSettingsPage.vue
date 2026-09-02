@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { onTableFlowScroll } from '@/utils/tableFlow'
+import FormToggle from '@/components/common/FormToggle.vue'
 import {
   getSystemConfig,
   updateSystemConfig,
@@ -116,6 +117,18 @@ async function loadSystemConfig() {
   } finally {
     configLoading.value = false
   }
+}
+
+// 配置字段中文名（未命中时回退显示原始字段名）
+const configFieldLabels: Record<string, string> = {
+  'rate_limit.enabled': '启用接口限流',
+  'rate_limit.api_per_minute': '普通API每分钟请求上限',
+  'rate_limit.login_per_minute': '登录接口每分钟请求上限',
+  'rate_limit.ban_duration_seconds': '触发限流后封禁时长（秒）',
+}
+
+function configFieldLabel(key: string): string {
+  return configFieldLabels[key] || key.split('.')[1]
 }
 
 function getConfigSections(): { key: string; label: string; fields: { key: string; value: unknown }[] }[] {
@@ -593,7 +606,7 @@ onMounted(() => {
                 class="flex flex-col gap-1 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700"
               >
                 <label class="text-[11px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide">
-                  {{ field.key.split('.')[1] }}
+                  {{ configFieldLabel(field.key) }}
                 </label>
                 <template v-if="editingConfigKey === field.key">
                   <div class="flex items-center gap-2">
@@ -709,11 +722,7 @@ onMounted(() => {
               />
             </div>
             <div class="sm:col-span-2 flex items-center gap-2">
-              <label class="relative inline-flex items-center cursor-pointer">
-                <input v-model="aiForm.is_active" type="checkbox" class="sr-only peer" />
-                <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
-              </label>
-              <span class="text-xs text-slate-500 dark:text-slate-400">启用</span>
+              <FormToggle v-model="aiForm.is_active" size="sm" label="启用" />
             </div>
           </div>
           <!-- 连通性测试 -->

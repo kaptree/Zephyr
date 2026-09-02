@@ -8,6 +8,8 @@ import type { PresetGroup } from '@/types/preset'
 import { onTableFlowScroll } from '@/utils/tableFlow'
 import { playDeleteOut } from '@/utils/exitAnimations'
 import { useConfirm } from '@/composables/useConfirm'
+import FormToggle from '@/components/common/FormToggle.vue'
+import FormCheckbox from '@/components/common/FormCheckbox.vue'
 
 // 全局确认对话框（轻量级通知美学）
 const { confirm: appConfirm } = useConfirm()
@@ -637,10 +639,7 @@ onMounted(async () => {
 
             <div v-if="editingUserId" class="flex items-center gap-2">
               <span class="text-xs text-slate-500">账号状态</span>
-              <label class="flex items-center gap-1.5 cursor-pointer">
-                <input v-model="formIsActive" type="checkbox" class="w-4 h-4 text-blue-500 rounded" />
-                <span class="text-xs text-slate-700 dark:text-slate-200">{{ formIsActive ? '正常' : '禁用' }}</span>
-              </label>
+              <FormToggle v-model="formIsActive" size="sm" :label="formIsActive ? '正常' : '禁用'" />
             </div>
 
             <p v-if="formError" class="text-xs text-red-500 bg-red-50 dark:bg-red-900/30 px-3 py-2 rounded-btn">{{ formError }}</p>
@@ -691,12 +690,7 @@ onMounted(async () => {
                   :key="user.id"
                   class="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer"
                 >
-                  <input
-                    v-model="presetMemberIds"
-                    type="checkbox"
-                    :value="user.id"
-                    class="w-4 h-4 text-blue-500 rounded"
-                  />
+                  <FormCheckbox v-model="presetMemberIds" :value="user.id" />
                   <span class="text-sm text-slate-700 dark:text-slate-200">{{ user.name }}</span>
                   <span class="text-xs text-slate-400 dark:text-slate-500">{{ user.dept_name }}</span>
                 </label>

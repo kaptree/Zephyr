@@ -287,7 +287,9 @@ func (r *NoteRepository) Restore(id string) error {
 	if err != nil {
 		return err
 	}
-	return r.db.Model(&models.Note{}).Where("id = ?", uid).
+	// GORM软删除模型会为UPDATE自动附加 deleted_at IS NULL 条件，
+	// 导致对已软删行的恢复UPDATE永远匹配0行，必须Unscoped绕过
+	return r.db.Unscoped().Model(&models.Note{}).Where("id = ?", uid).
 		Updates(map[string]interface{}{
 			"is_archived":  false,
 			"archive_time": nil,
@@ -392,18 +394,28 @@ func (r *NoteRepository) GetNoteCreatorID(noteID string) (string, error) {
 //   - 创建人 / 负责人 / 被指派人 / 抄送人 始终可访问
 //   - dept_admin（部门管理员）可访问本部门（含子部门）的任务，与列表可见范围保持一致
 func (r *NoteRepository) CheckUserAccess(noteID, userID, role, deptID string) (bool, error) {
-	return r.checkAccess(noteID, userID, role, deptID, true)
+	return r.checkAccess(noteID, userID, role, deptID, true, false)
 }
 
 // CheckParticipantAccess 判断用户是否有权管理任务（排除抄送人）：
 // 抄送人仅可查看，不能编辑/删除/完成/盯办
 func (r *NoteRepository) CheckParticipantAccess(noteID, userID, role, deptID string) (bool, error) {
-	return r.checkAccess(noteID, userID, role, deptID, false)
+	return r.checkAccess(noteID, userID, role, deptID, false, false)
 }
 
-func (r *NoteRepository) checkAccess(noteID, userID, role, deptID string, includeCc bool) (bool, error) {
+// CheckUserAccessIncludeDeleted 判断用户对任务（含已软删记录）的访问权限，
+// 用于恢复已删除任务——软删后常规查询不可见，若不含已删记录则恢复接口永远404
+func (r *NoteRepository) CheckUserAccessIncludeDeleted(noteID, userID, role, deptID string) (bool, error) {
+	return r.checkAccess(noteID, userID, role, deptID, true, true)
+}
+
+func (r *NoteRepository) checkAccess(noteID, userID, role, deptID string, includeCc, unscoped bool) (bool, error) {
+	db := r.db
+	if unscoped {
+		db = db.Unscoped()
+	}
 	var note models.Note
-	if err := r.db.Select("creator_id", "owner_id", "department_id").First(&note, "id = ?", noteID).Error; err != nil {
+	if err := db.Select("creator_id", "owner_id", "department_id").First(&note, "id = ?", noteID).Error; err != nil {
 		return false, err
 	}
 

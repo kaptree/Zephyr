@@ -240,139 +240,152 @@ const DeptTreeItem: DefineComponent<{
       return h(
         'div',
         { class: 'space-y-1' },
-        props.departments.map((dept) => {
+        props.departments.map((dept, deptIndex) => {
           const isExpanded = props.expandedSet.has(dept.id);
           const directUsers = getDirect(dept.id);
           const hasChildren = dept.children && dept.children.length > 0;
           const deptUserIds = collectDeptIds(dept).filter((id) => !props.disabledIds.includes(id));
           const allSel = deptUserIds.length > 0 && deptUserIds.every((id) => isSel(id));
 
-          return h('div', { key: dept.id }, [
-            h(
-              'div',
-              {
-                class:
-                  'w-full flex items-center gap-2 px-3 py-2.5 rounded-btn text-sm text-left transition-smooth hover:bg-slate-50',
-              },
-              [
-                h(
-                  'button',
-                  {
-                    type: 'button',
-                    class: 'flex items-center gap-2 flex-1 min-w-0 text-left',
-                    onClick: () => onToggleDept(dept.id),
-                  },
-                  [
-                    h(
-                      'svg',
-                      {
-                        class: `w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${isExpanded ? 'rotate-90' : ''}`,
-                        fill: 'none',
-                        viewBox: '0 0 24 24',
-                        stroke: 'currentColor',
-                      },
-                      [
-                        h('path', {
-                          'stroke-linecap': 'round',
-                          'stroke-linejoin': 'round',
-                          'stroke-width': '2',
-                          d: 'M9 5l7 7-7 7',
-                        }),
-                      ]
-                    ),
-                    h('span', { class: 'font-medium text-slate-700 truncate' }, dept.name),
-                    h('span', { class: 'text-xs text-slate-400' }, String(dept.member_count || 0)),
-                  ]
-                ),
-                h(
-                  'button',
-                  {
-                    type: 'button',
-                    class: `text-[10px] px-1.5 py-0.5 rounded shrink-0 transition-smooth ${
-                      allSel
-                        ? 'bg-blue-500 text-white hover:bg-blue-600'
-                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
-                    }`,
-                    onClick: (e: MouseEvent) => {
-                      e.stopPropagation();
-                      onSelectAll(dept.id);
+          return h(
+            'div',
+            {
+              key: dept.id,
+              class: 'dropdown-item-stagger',
+              style: { '--stagger-index': String(Math.min(deptIndex, 12)) },
+            },
+            [
+              h(
+                'div',
+                {
+                  class:
+                    'w-full flex items-center gap-2 px-3 py-2.5 rounded-btn text-sm text-left transition-smooth hover:bg-slate-50',
+                },
+                [
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      class: 'flex items-center gap-2 flex-1 min-w-0 text-left',
+                      onClick: () => onToggleDept(dept.id),
                     },
-                  },
-                  allSel ? '全不选' : '全选'
-                ),
-              ]
-            ),
-
-            isExpanded
-              ? h('div', { class: 'ml-6 space-y-1' }, [
-                  hasChildren
-                    ? h(DeptTreeItem, {
-                        departments: dept.children!,
-                        expandedSet: props.expandedSet,
-                        userList: props.userList,
-                        selectedIds: props.selectedIds,
-                        disabledIds: props.disabledIds,
-                        disabledNote: props.disabledNote,
-                        'onToggle-dept': onToggleDept,
-                        'onToggle-user': onToggleUser,
-                        'onSelect-all': onSelectAll,
-                      })
-                    : null,
-
-                  ...directUsers.map((user) => {
-                    const isDisabled = props.disabledIds.includes(user.id);
-                    return h(
-                      'button',
-                      {
-                        type: 'button',
-                        class: `w-full flex items-center gap-3 px-3 py-2 rounded-btn text-sm text-left transition-smooth ${
-                          isDisabled
-                            ? 'opacity-40 cursor-not-allowed'
-                            : isSel(user.id)
-                              ? 'bg-blue-50'
-                              : 'hover:bg-slate-50'
-                        }`,
-                        onClick: () => onToggleUser(user.id),
+                    [
+                      h(
+                        'svg',
+                        {
+                          class: `w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${isExpanded ? 'rotate-90' : ''}`,
+                          fill: 'none',
+                          viewBox: '0 0 24 24',
+                          stroke: 'currentColor',
+                        },
+                        [
+                          h('path', {
+                            'stroke-linecap': 'round',
+                            'stroke-linejoin': 'round',
+                            'stroke-width': '2',
+                            d: 'M9 5l7 7-7 7',
+                          }),
+                        ]
+                      ),
+                      h('span', { class: 'font-medium text-slate-700 truncate' }, dept.name),
+                      h(
+                        'span',
+                        { class: 'text-xs text-slate-400' },
+                        String(dept.member_count || 0)
+                      ),
+                    ]
+                  ),
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      class: `text-[10px] px-1.5 py-0.5 rounded shrink-0 transition-smooth ${
+                        allSel
+                          ? 'bg-blue-500 text-white hover:bg-blue-600'
+                          : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                      }`,
+                      onClick: (e: MouseEvent) => {
+                        e.stopPropagation();
+                        onSelectAll(dept.id);
                       },
-                      [
-                        h(
-                          'div',
-                          {
-                            class:
-                              'w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-medium text-slate-600 shrink-0',
-                          },
-                          user.name.charAt(0)
-                        ),
-                        h('span', { class: 'text-sm text-slate-900 truncate' }, user.name),
-                        user.role === 'group_leader'
-                          ? h(
-                              'span',
-                              { class: 'text-[9px] px-1 bg-amber-100 text-amber-700 rounded' },
-                              '组长'
-                            )
-                          : null,
-                        isDisabled
-                          ? h(
-                              'span',
-                              {
-                                class:
-                                  'text-[9px] px-1 bg-slate-200 text-slate-500 rounded shrink-0 ml-auto',
-                              },
-                              props.disabledNote
-                            )
-                          : isSel(user.id)
-                            ? h('span', { class: 'text-xs text-[#3B82F6] ml-auto' }, '✓')
-                            : null,
-                      ]
-                    );
-                  }),
+                    },
+                    allSel ? '全不选' : '全选'
+                  ),
+                ]
+              ),
 
-                  !hasChildren && directUsers.length === 0
-                    ? h('div', { class: 'px-3 py-2 text-xs text-slate-400' }, '暂无人员')
-                    : null,
-                ])
-              : null,
-          ]);
+              isExpanded
+                ? h('div', { class: 'ml-6 space-y-1' }, [
+                    hasChildren
+                      ? h(DeptTreeItem, {
+                          departments: dept.children!,
+                          expandedSet: props.expandedSet,
+                          userList: props.userList,
+                          selectedIds: props.selectedIds,
+                          disabledIds: props.disabledIds,
+                          disabledNote: props.disabledNote,
+                          'onToggle-dept': onToggleDept,
+                          'onToggle-user': onToggleUser,
+                          'onSelect-all': onSelectAll,
+                        })
+                      : null,
+
+                    ...directUsers.map((user, ui) => {
+                      const isDisabled = props.disabledIds.includes(user.id);
+                      return h(
+                        'button',
+                        {
+                          type: 'button',
+                          class: `dropdown-item-stagger w-full flex items-center gap-3 px-3 py-2 rounded-btn text-sm text-left transition-smooth ${
+                            isDisabled
+                              ? 'opacity-40 cursor-not-allowed'
+                              : isSel(user.id)
+                                ? 'bg-blue-50'
+                                : 'hover:bg-slate-50'
+                          }`,
+                          style: { '--stagger-index': String(Math.min(ui, 12)) },
+                          onClick: () => onToggleUser(user.id),
+                        },
+                        [
+                          h(
+                            'div',
+                            {
+                              class:
+                                'w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-medium text-slate-600 shrink-0',
+                            },
+                            user.name.charAt(0)
+                          ),
+                          h('span', { class: 'text-sm text-slate-900 truncate' }, user.name),
+                          user.role === 'group_leader'
+                            ? h(
+                                'span',
+                                { class: 'text-[9px] px-1 bg-amber-100 text-amber-700 rounded' },
+                                '组长'
+                              )
+                            : null,
+                          isDisabled
+                            ? h(
+                                'span',
+                                {
+                                  class:
+                                    'text-[9px] px-1 bg-slate-200 text-slate-500 rounded shrink-0 ml-auto',
+                                },
+                                props.disabledNote
+                              )
+                            : isSel(user.id)
+                              ? h('span', { class: 'text-xs text-[#3B82F6] ml-auto' }, '✓')
+                              : null,
+                        ]
+                      );
+                    }),
+
+                    !hasChildren && directUsers.length === 0
+                      ? h('div', { class: 'px-3 py-2 text-xs text-slate-400' }, '暂无人员')
+                      : null,
+                  ])
+                : null,
+            ]
+          );
         })
       );
     };
@@ -416,7 +429,8 @@ const DeptTreeItem: DefineComponent<{
       </button>
     </div>
 
-    <transition name="shrink-out">
+    <!-- 下拉面板：向下展开 + 淡入 300ms，收起 250ms（美化工程 · 第 6 项） -->
+    <transition name="dropdown-expand">
       <div
         v-if="open"
         class="absolute left-0 w-80 bg-white rounded-card shadow-modal border border-slate-100 z-50 overflow-hidden"
@@ -445,9 +459,11 @@ const DeptTreeItem: DefineComponent<{
           </div>
           <div v-else-if="searchText">
             <button
-              v-for="user in filteredUsers"
+              v-for="(user, i) in filteredUsers"
               :key="user.id"
               type="button"
+              class="dropdown-item-stagger"
+              :style="{ '--stagger-index': String(Math.min(i, 12)) }"
               :class="[
                 'w-full flex items-center gap-3 px-3 py-2.5 rounded-btn text-sm text-left transition-smooth',
                 isDisabledUser(user.id)

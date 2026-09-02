@@ -317,7 +317,13 @@ func (h *NoteHandler) DeleteNote(c *gin.Context) {
 func (h *NoteHandler) RestoreNote(c *gin.Context) {
 	id := c.Param("id")
 	userID := middleware.GetUserID(c)
-	if !h.requireNoteAccess(c, id) {
+	role := middleware.GetUserRole(c)
+	deptID := middleware.GetUserDeptID(c)
+	// 已删除任务被软删后常规查询不可见，需用含已删记录的权限校验，
+	// 否则恢复接口对已删除任务永远返回404
+	ok, err := h.noteService.CanAccessIncludeDeleted(id, userID, role, deptID)
+	if err != nil || !ok {
+		utils.NotFound(c, "任务不存在")
 		return
 	}
 

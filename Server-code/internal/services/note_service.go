@@ -85,6 +85,13 @@ type RemindRequest struct {
 	RemindType string `json:"remind_type"`
 }
 
+// collabTemplateTypes 支持协同画布的模板类型（与种子数据保持一致）
+var collabTemplateTypes = map[string]bool{
+	"emergency_canvas":      true,
+	"collaborative_writing": true,
+	"data_analysis":         true,
+}
+
 func (s *NoteService) Create(userID, role, deptID string, req CreateNoteRequest) (*models.Note, error) {
 	creatorID, err := uuid.Parse(userID)
 	if err != nil {
@@ -216,6 +223,22 @@ func (s *NoteService) Create(userID, role, deptID string, req CreateNoteRequest)
 		return nil, err
 	}
 
+	// 协同房间（需求29）：画布类任务自动创建房间，否则画布/指令接口对新建任务始终404
+	if collabTemplateTypes[note.TemplateType] || req.CanvasConfig != nil {
+		columns := 1
+		if req.CanvasConfig != nil && req.CanvasConfig.Columns > 0 {
+			columns = req.CanvasConfig.Columns
+		}
+		room := &models.CollaborationRoom{
+			NoteID:     note.ID,
+			CanvasData: `{"blocks": [], "connections": []}`,
+			Columns:    columns,
+			IsActive:   true,
+		}
+		// 房间创建失败不阻断任务创建
+		_ = database.DB.Create(room).Error
+	}
+
 	_ = s.recordLedger(note.ID.String(), userID, "create", "任务创建", "", "")
 
 	// 通知被指派者：任务已指派给你
@@ -267,6 +290,11 @@ func (s *NoteService) GetByID(id string) (*models.Note, error) {
 // 部门管理员含本部门及子部门），用于详情查看等只读接口的统一越权拦截
 func (s *NoteService) CanAccess(id, userID, role, deptID string) (bool, error) {
 	return s.noteRepo.CheckUserAccess(id, userID, role, deptID)
+}
+
+// CanAccessIncludeDeleted 含已软删记录的访问校验（恢复已删除任务场景）
+func (s *NoteService) CanAccessIncludeDeleted(id, userID, role, deptID string) (bool, error) {
+	return s.noteRepo.CheckUserAccessIncludeDeleted(id, userID, role, deptID)
 }
 
 // CanManage 判断用户是否有权管理该任务（排除抄送人——抄送人仅可查看，

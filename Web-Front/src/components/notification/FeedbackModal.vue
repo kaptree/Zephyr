@@ -44,12 +44,15 @@ async function submit() {
 </script>
 
 <template>
-  <transition name="shrink-out">
-    <div
-      v-if="visible && note"
-      class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
-      @click.self="cancel"
-    >
+  <!-- 置顶修复：Teleport 到 body，避免被布局层（relative z-10）的层叠上下文压在
+       已 Teleport 的 z-50 模态（如任务详情）之下 -->
+  <Teleport to="body">
+    <transition name="shrink-out">
+      <div
+        v-if="visible && note"
+        class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
+        @click.self="cancel"
+      >
       <div class="w-full max-w-2xl bg-white dark:bg-slate-800 rounded-xl shadow-2xl overflow-hidden">
         <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <div>
@@ -92,5 +95,6 @@ async function submit() {
         </div>
       </div>
     </div>
-  </transition>
+    </transition>
+  </Teleport>
 </template>

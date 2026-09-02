@@ -9,6 +9,8 @@ import { updateMyProfile, uploadImage } from '@/services/admin';
 import type { NoteFilters } from '@/types';
 import type { BackgroundFill } from '@/types/user';
 import AnimatedNumber from '@/components/common/AnimatedNumber.vue';
+import FloatingField from '@/components/common/FloatingField.vue';
+import SubmitButton from '@/components/common/SubmitButton.vue';
 
 const auth = useAuthStore();
 const { isDark } = useDarkMode();
@@ -24,7 +26,9 @@ const completedNotes = ref(0);
 const trendData = ref<{ date: string; count: number }[]>([]);
 
 const savingProfile = ref(false);
-const profileSaved = ref(false);
+// 沉浸式书写：保存按钮状态机（idle/loading/success/fail）
+type SubmitState = 'idle' | 'loading' | 'success' | 'fail';
+const profileSubmitState = ref<SubmitState>('idle');
 const profileError = ref('');
 const editName = ref('');
 const editPhone = ref('');
@@ -92,6 +96,7 @@ const savingBg = ref(false);
 const bgSaved = ref(false);
 const bgError = ref('');
 const bgUrl = ref(auth.user?.background || '');
+const bgInitial = ref(auth.user?.background || '');
 const bgOpacity = ref(Math.round((typeof auth.user?.bg_opacity === 'number' ? auth.user.bg_opacity : 1) * 100));
 const bgFill = ref<BackgroundFill>(auth.user?.bg_fill || 'cover');
 
@@ -166,6 +171,7 @@ async function handleSaveBackground() {
       auth.user.bg_fill = bgFill.value;
       persistUser();
     }
+    bgInitial.value = bgUrl.value;
     bgSaved.value = true;
     toast.success('背景设置已保存');
     setTimeout(() => {
@@ -330,9 +336,9 @@ const roleLabel = computed(() => {
 });
 
 async function handleSaveProfile() {
-  if (!auth.user) return;
+  if (!auth.user || savingProfile.value) return;
   savingProfile.value = true;
-  profileSaved.value = false;
+  profileSubmitState.value = 'loading';
   profileError.value = '';
   try {
     // 自助接口（仅本人字段），普通用户也可保存
@@ -347,13 +353,20 @@ async function handleSaveProfile() {
     auth.user.email = editEmail.value.trim();
     auth.user.rank = editRank.value.trim();
     localStorage.setItem('auth_user', JSON.stringify(auth.user));
-    profileSaved.value = true;
+    // 保存成功：按钮绿色弹动（500ms）
+    profileSubmitState.value = 'success';
+    toast.success('✓ 个人信息已保存');
     setTimeout(() => {
-      profileSaved.value = false;
-    }, 2000);
+      profileSubmitState.value = 'idle';
+    }, 1200);
   } catch (e: unknown) {
     const err = e as { response?: { data?: { message?: string } } };
     profileError.value = err?.response?.data?.message || '保存失败';
+    // 保存失败：按钮红色抖动 2 次，随后恢复可提交状态
+    profileSubmitState.value = 'fail';
+    setTimeout(() => {
+      profileSubmitState.value = 'idle';
+    }, 600);
   } finally {
     savingProfile.value = false;
   }
@@ -557,10 +570,7 @@ async function handleSaveProfile() {
           <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4">个人信息</h4>
 
           <form @submit.prevent="handleSaveProfile" class="space-y-3">
-            <div>
-              <span class="text-xs text-slate-400 dark:text-slate-500 mb-1 block">姓名</span>
-              <input v-model="editName" class="input-field !py-1.5 !text-sm" placeholder="姓名" />
-            </div>
+            <FloatingField v-model="editName" label="姓名" />
             <div>
               <span class="text-xs text-slate-400 dark:text-slate-500 mb-1 block">部门</span>
               <input
@@ -569,26 +579,9 @@ async function handleSaveProfile() {
                 disabled
               />
             </div>
-            <div>
-              <span class="text-xs text-slate-400 dark:text-slate-500 mb-1 block">警衔/职级</span>
-              <input
-                v-model="editRank"
-                class="input-field !py-1.5 !text-sm"
-                placeholder="如：二级警督"
-              />
-            </div>
-            <div>
-              <span class="text-xs text-slate-400 dark:text-slate-500 mb-1 block">手机号</span>
-              <input
-                v-model="editPhone"
-                class="input-field !py-1.5 !text-sm"
-                placeholder="手机号"
-              />
-            </div>
-            <div>
-              <span class="text-xs text-slate-400 dark:text-slate-500 mb-1 block">邮箱</span>
-              <input v-model="editEmail" class="input-field !py-1.5 !text-sm" placeholder="邮箱" />
-            </div>
+            <FloatingField v-model="editRank" label="警衔/职级" placeholder="如：二级警督" />
+            <FloatingField v-model="editPhone" label="手机号" type="tel" inputmode="tel" />
+            <FloatingField v-model="editEmail" label="邮箱" type="email" inputmode="email" />
             <div>
               <span class="text-xs text-slate-400 dark:text-slate-500 mb-1 block">角色</span>
               <input
@@ -598,16 +591,19 @@ async function handleSaveProfile() {
               />
             </div>
 
-            <p v-if="profileError" class="text-xs text-red-500">{{ profileError }}</p>
-            <p v-if="profileSaved" class="text-xs text-green-500">✓ 已保存</p>
+            <transition name="error-slide">
+              <p v-if="profileError" class="text-xs text-red-500">{{ profileError }}</p>
+            </transition>
 
-            <button
+            <SubmitButton
               type="submit"
-              class="w-full btn-primary text-sm !py-2 disabled:opacity-50"
-              :disabled="savingProfile"
-            >
-              {{ savingProfile ? '保存中...' : '保存修改' }}
-            </button>
+              class="w-full"
+              :state="profileSubmitState"
+              label="保存修改"
+              loading-label="保存中..."
+              success-label="✓ 已保存"
+              fail-label="✗ 保存失败"
+            />
           </form>
         </div>
       </div>
@@ -701,7 +697,7 @@ async function handleSaveProfile() {
           <button
             type="button"
             class="w-full btn-primary text-sm !py-2 disabled:opacity-50"
-            :disabled="savingBg || !bgUrl"
+            :disabled="savingBg || (!bgUrl && !bgInitial)"
             @click="handleSaveBackground"
           >
             {{ savingBg ? '保存中...' : '保存背景设置' }}

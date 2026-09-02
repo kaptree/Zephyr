@@ -2,6 +2,8 @@
 import { ref, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { AppIcon, BrandLogo } from '@/components/icons';
+import type { IconName } from '@/components/icons';
 
 const auth = useAuthStore();
 const route = useRoute();
@@ -14,7 +16,7 @@ watch(collapsed, (val) => {
 });
 
 interface MenuItem {
-  icon: string;
+  icon: IconName;
   label: string;
   path: string;
   permission?: string;
@@ -94,24 +96,13 @@ function navigate(path: string) {
         class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-smooth shrink-0"
         @click="collapsed = !collapsed"
       >
-        <svg
-          class="w-5 h-5 text-slate-500 dark:text-slate-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M4 6h16M4 12h16M4 18h16"
-          />
-        </svg>
+        <AppIcon name="bars" :size="20" label="折叠/展开侧边栏" interactive />
       </button>
+      <BrandLogo :size="28" class="ml-2.5 shrink-0" />
       <transition name="fade">
         <span
           v-if="!collapsed"
-          class="ml-3 text-sm font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap truncate"
+          class="ml-2 text-sm font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap truncate"
           >轻燕</span
         >
       </transition>
@@ -120,7 +111,7 @@ function navigate(path: string) {
     <!-- 菜单项 -->
     <nav class="flex-1 overflow-y-auto scrollbar-thin py-2">
       <ul class="space-y-0.5 px-2">
-        <li v-for="item in visibleMenuItems" :key="item.path">
+        <li v-for="(item, idx) in visibleMenuItems" :key="item.path">
           <button
             :class="[
               'w-full flex items-center gap-3 px-3 py-2.5 rounded-btn text-sm transition-smooth',
@@ -131,23 +122,8 @@ function navigate(path: string) {
             v-tooltip="collapsed ? item.label : ''"
             @click="navigate(item.path)"
           >
-            <!-- 图标占位 -->
-            <span class="w-5 h-5 shrink-0 flex items-center justify-center text-lg leading-none">
-              <template v-if="item.icon === 'clipboard'">📋</template>
-              <template v-else-if="item.icon === 'archive'">📁</template>
-              <template v-else-if="item.icon === 'view'">🔍</template>
-              <template v-else-if="item.icon === 'chart'">📈</template>
-              <template v-else-if="item.icon === 'chat'">💬</template>
-              <template v-else-if="item.icon === 'bug'">🐛</template>
-              <template v-else-if="item.icon === 'users'">🏢</template>
-              <template v-else-if="item.icon === 'user'">👤</template>
-              <template v-else-if="item.icon === 'tag'">🏷️</template>
-              <template v-else-if="item.icon === 'template'">📄</template>
-              <template v-else-if="item.icon === 'monitor'">📊</template>
-              <template v-else-if="item.icon === 'settings'">⚙️</template>
-              <template v-else-if="item.icon === 'list'">📋</template>
-              <template v-else>📌</template>
-            </span>
+            <!-- 图标：初次加载 300ms 缩放淡入，60ms 间隔依次点亮 -->
+            <AppIcon :name="item.icon" :size="20" enter :enter-delay="100 + idx * 60" />
             <span v-if="!collapsed" class="truncate">{{ item.label }}</span>
           </button>
         </li>
@@ -159,7 +135,7 @@ function navigate(path: string) {
       class="border-t border-slate-200 dark:border-slate-700 p-2 shrink-0 transition-colors duration-300"
     >
       <ul class="space-y-0.5">
-        <li v-for="item in bottomItems" :key="item.path">
+        <li v-for="(item, idx) in bottomItems" :key="item.path">
           <button
             :class="[
               'w-full flex items-center gap-3 px-3 py-2.5 rounded-btn text-sm transition-smooth',
@@ -170,9 +146,7 @@ function navigate(path: string) {
             v-tooltip="collapsed ? item.label : ''"
             @click="navigate(item.path)"
           >
-            <span class="w-5 h-5 shrink-0 flex items-center justify-center text-lg leading-none"
-              >⚙️</span
-            >
+            <AppIcon :name="item.icon" :size="20" enter :enter-delay="1000 + idx * 60" />
             <span v-if="!collapsed" class="truncate">{{ item.label }}</span>
           </button>
         </li>
@@ -202,19 +176,7 @@ function navigate(path: string) {
             router.push('/login');
           "
         >
-          <svg
-            class="w-4 h-4 text-slate-400 dark:text-slate-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-            />
-          </svg>
+          <AppIcon name="logout" :size="16" label="退出登录" interactive />
         </button>
       </div>
     </div>

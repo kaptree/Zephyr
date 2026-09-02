@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { onTableFlowScroll } from '@/utils/tableFlow';
 import AnimatedNumber from '@/components/common/AnimatedNumber.vue';
+import FormCheckbox from '@/components/common/FormCheckbox.vue';
 import {
   fetchPersonalStats,
   generateAIReport,
@@ -1062,11 +1063,9 @@ onMounted(() => {
                         @click="toggleTeamMember(m.user_id)"
                       >
                         <td class="px-3 py-2.5 text-center" @click.stop>
-                          <input
-                            type="checkbox"
-                            class="w-4 h-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
-                            :checked="selectedUserIds.includes(m.user_id)"
-                            @change="toggleTeamMember(m.user_id)"
+                          <FormCheckbox
+                            :model-value="selectedUserIds.includes(m.user_id)"
+                            @update:model-value="toggleTeamMember(m.user_id)"
                           />
                         </td>
                         <td class="px-4 py-2.5 text-slate-700 dark:text-slate-300 font-medium">

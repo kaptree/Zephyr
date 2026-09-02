@@ -43,6 +43,10 @@ type UserProfile struct {
 	DeptName    string   `json:"dept_name"`
 	Permissions []string `json:"permissions"`
 	IsActive    bool     `json:"is_active"`
+	// 平台背景图个性化（个人中心设置）：登录/获取用户信息时必须带回，否则重登后背景丢失
+	Background        string  `json:"background"`
+	BackgroundOpacity float64 `json:"bg_opacity"`
+	BackgroundFill    string  `json:"bg_fill"`
 }
 
 func (s *AuthService) Login(username, password string) (*LoginResponse, error) {
@@ -91,6 +95,9 @@ func (s *AuthService) Login(username, password string) (*LoginResponse, error) {
 		DeptName:    deptName,
 		Permissions: s.getPermissions(user.Role),
 		IsActive:    user.IsActive,
+		Background:        user.BackgroundURL,
+		BackgroundOpacity: user.BackgroundOpacity,
+		BackgroundFill:    user.BackgroundFill,
 	}
 
 	return &LoginResponse{
@@ -174,6 +181,9 @@ func (s *AuthService) GetUserProfile(userID string) (*UserProfile, error) {
 		DeptName:    deptName,
 		Permissions: s.getPermissions(user.Role),
 		IsActive:    user.IsActive,
+		Background:        user.BackgroundURL,
+		BackgroundOpacity: user.BackgroundOpacity,
+		BackgroundFill:    user.BackgroundFill,
 	}, nil
 }
 

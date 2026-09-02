@@ -65,6 +65,10 @@ func (h *SystemHandler) UpdateConfig(c *gin.Context) {
 
 	var currentCfg map[string]interface{}
 	json.Unmarshal(currentData, &currentCfg)
+
+	// 剥离客户端回传的掩码值（GET 返回敏感字段为 "••••••••"），
+	// 避免把掩码写回配置文件导致真实密码丢失
+	stripMaskedValues(body)
 	mergedConfig := deepMergeMap(currentCfg, body)
 
 	newData, err := json.MarshalIndent(mergedConfig, "", "  ")
@@ -604,6 +608,20 @@ func maskSensitiveFields(m map[string]interface{}) {
 		}
 		if nested, ok := val.(map[string]interface{}); ok {
 			maskSensitiveFields(nested)
+		}
+	}
+}
+
+// stripMaskedValues 递归删除值为掩码占位符的字段，
+// 使 deepMergeMap 保留配置文件中的真实敏感值
+func stripMaskedValues(m map[string]interface{}) {
+	for key, val := range m {
+		if str, ok := val.(string); ok && str == "••••••••" {
+			delete(m, key)
+			continue
+		}
+		if nested, ok := val.(map[string]interface{}); ok {
+			stripMaskedValues(nested)
 		}
 	}
 }

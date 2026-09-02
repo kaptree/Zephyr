@@ -14,6 +14,8 @@ const { isOnline, backendOnline } = useOffline()
 
 // 「优雅退场」：页面关闭（标签页/窗口）前，内容从四周向中心收拢并淡出（500ms），
 // 模拟“文件归档”的隐喻。受浏览器机制限制为尽力而为：卸载流程允许时动画可见。
+// 注意：只能挂在 beforeunload 上；visibilitychange(hidden) 会在切走浏览器标签/
+// 最小化窗口时触发，导致退场动画被误播且无人还原，切回后页面停留在纯白终态。
 function handlePageCollapse() {
   const app = document.getElementById('app')
   if (app) app.classList.add('page-fold-out')
@@ -21,9 +23,6 @@ function handlePageCollapse() {
 
 onMounted(() => {
   window.addEventListener('beforeunload', handlePageCollapse)
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') handlePageCollapse()
-  })
 })
 onUnmounted(() => {
   window.removeEventListener('beforeunload', handlePageCollapse)

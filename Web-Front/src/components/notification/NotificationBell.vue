@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useNotificationStore } from '@/stores/notification';
 import type { NotificationItem } from '@/types';
 import { renderNoteContent } from '@/utils/richText';
 import { playDeleteOut } from '@/utils/exitAnimations';
+import { AppIcon, EmptyIllustration } from '@/components/icons';
 
 const router = useRouter();
 const store = useNotificationStore();
@@ -13,6 +14,20 @@ const open = ref(false);
 const loading = ref(false);
 const selected = ref<NotificationItem | null>(null);
 
+/* ===== 「生命力衰减」生命周期状态 ===== */
+const readingIds = reactive(new Set<string>()); // 单条已读三步过渡中
+const tideIds = reactive(new Set<string>()); // 全部已读潮汐退场中
+const tideDelays = ref<Record<string, number>>({});
+const markAllRunning = ref(false);
+const shaking = ref(false); // 新消息时铃铛晃动
+const popping = ref(false); // 新消息时角标弹跳 +1
+const displayUnread = ref(store.unreadCount); // 角标数字（全部已读时滚动递减）
+let shakeTimer: number | undefined;
+let popTimer: number | undefined;
+let countRaf = 0;
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 const TYPE_LABEL: Record<string, string> = {
   task_assigned: '任务指派',
   task_completed: '任务完成',
@@ -20,6 +35,8 @@ const TYPE_LABEL: Record<string, string> = {
   task_remind: '催办提醒',
   task_cc: '任务抄送',
   task_signed: '任务签收',
+  issue_comment: '问题评论',
+  issue_new: '新建问题',
   system: '系统通知',
 };
 
@@ -30,8 +47,78 @@ const TYPE_COLOR: Record<string, string> = {
   task_remind: 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300',
   task_cc: 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300',
   task_signed: 'bg-teal-100 text-teal-600 dark:bg-teal-900/40 dark:text-teal-300',
+  issue_comment: 'bg-pink-100 text-pink-600 dark:bg-pink-900/40 dark:text-pink-300',
+  issue_new: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/40 dark:text-cyan-300',
   system: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
 };
+
+/* 优先级 → 能量色：紧急=红 / 重要=橙 / 普通=蓝 */
+const PRIORITY_CLASS: Record<string, string> = {
+  task_remind: 'notif-p-urgent',
+  task_assigned: 'notif-p-important',
+  task_feedback: 'notif-p-important',
+};
+function priorityClass(n: NotificationItem) {
+  return PRIORITY_CLASS[n.type] || 'notif-p-normal';
+}
+
+function tideDelayStyle(n: NotificationItem) {
+  const d = tideDelays.value[n.id];
+  return d === undefined ? undefined : { '--tide-delay': `${d}ms` };
+}
+
+/* 新消息入场联动：铃铛晃动 600ms + 角标弹跳 +1 */
+function triggerShake() {
+  shaking.value = false;
+  requestAnimationFrame(() => {
+    shaking.value = true;
+    if (shakeTimer) clearTimeout(shakeTimer);
+    shakeTimer = window.setTimeout(() => (shaking.value = false), 700);
+  });
+}
+
+function triggerPop() {
+  popping.value = false;
+  requestAnimationFrame(() => {
+    popping.value = true;
+    if (popTimer) clearTimeout(popTimer);
+    popTimer = window.setTimeout(() => (popping.value = false), 500);
+  });
+}
+
+function animateCountDown(from: number, duration: number) {
+  const start = performance.now();
+  const tick = (t: number) => {
+    const p = Math.min(1, (t - start) / duration);
+    displayUnread.value = Math.round(from * (1 - p));
+    if (p < 1) countRaf = requestAnimationFrame(tick);
+  };
+  countRaf = requestAnimationFrame(tick);
+}
+
+/* WebSocket 推送新通知（列表头部 id 变化）→ 晃动 + 弹跳 */
+watch(
+  () => store.notifications,
+  (nv, ov) => {
+    const first = nv[0];
+    if (!first || first.is_read) return;
+    if (ov && ov.length > 0 && ov[0]?.id === first.id) return;
+    triggerShake();
+    triggerPop();
+  }
+);
+
+/* 角标数字：全部已读（>0 → 0）时滚动递减归零，其余直接同步 */
+watch(
+  () => store.unreadCount,
+  (nv, ov) => {
+    if (ov > 0 && nv === 0) {
+      animateCountDown(ov, 600);
+    } else {
+      displayUnread.value = nv;
+    }
+  }
+);
 
 const displayList = computed(() => store.notifications.slice(0, 10));
 
@@ -49,13 +136,40 @@ function load() {
     });
 }
 
+/* 单条已读三步过渡（500ms）后打开详情 */
+async function markOneRead(n: NotificationItem) {
+  if (n.is_read || readingIds.has(n.id) || tideIds.has(n.id)) return;
+  readingIds.add(n.id);
+  await sleep(500);
+  readingIds.delete(n.id);
+  if (n.is_read) return;
+  await store.markRead(n.id);
+}
+
 async function handleClickItem(n: NotificationItem) {
-  if (!n.is_read) await store.markRead(n.id);
+  if (!n.is_read) await markOneRead(n);
   selected.value = n;
 }
 
+/* 面板版「信息潮汐」：竖条 50ms 间隔依次收缩变灰 + 圆点消散 */
 async function handleMarkAll() {
+  if (markAllRunning.value) return;
+  const unread = displayList.value.filter((n) => !n.is_read);
+  if (unread.length === 0) {
+    await store.markAllRead();
+    return;
+  }
+  markAllRunning.value = true;
+  const step = Math.min(50, Math.max(15, Math.floor(800 / unread.length)));
+  unread.forEach((n, i) => {
+    tideIds.add(n.id);
+    tideDelays.value[n.id] = i * step;
+  });
+  await sleep((unread.length - 1) * step + 600);
+  tideIds.clear();
+  tideDelays.value = {};
   await store.markAllRead();
+  markAllRunning.value = false;
 }
 
 async function handleDelete(n: NotificationItem, e: Event) {
@@ -102,6 +216,9 @@ onMounted(() => {
 });
 onUnmounted(() => {
   document.removeEventListener('click', closeOnOutside);
+  if (shakeTimer) clearTimeout(shakeTimer);
+  if (popTimer) clearTimeout(popTimer);
+  if (countRaf) cancelAnimationFrame(countRaf);
 });
 </script>
 
@@ -113,14 +230,13 @@ onUnmounted(() => {
       v-tooltip="'通知'"
       @click.stop="toggle"
     >
-      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-        />
-      </svg>
+      <!-- 铃铛：未读 solid / 已读 outline（250ms 交叉淡入）；新消息时晃动 600ms -->
+      <AppIcon
+        name="bell"
+        :size="20"
+        :variant="store.unreadCount > 0 ? 'solid' : 'outline'"
+        :class="shaking ? 'animate-bell-shake' : ''"
+      />
       <span
         v-if="store.unreadCount > 0"
         class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center animate-breathe"
@@ -140,10 +256,15 @@ onUnmounted(() => {
           <div class="flex items-center gap-2">
             <button
               v-if="store.unreadCount > 0"
-              class="text-xs text-blue-500 hover:text-blue-600 transition-smooth"
+              class="text-xs text-blue-500 hover:text-blue-600 transition-smooth inline-flex items-center gap-1 disabled:opacity-60"
+              :disabled="markAllRunning"
               @click="handleMarkAll"
             >
-              全部已读
+              <svg v-if="markAllRunning" class="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+              {{ markAllRunning ? '执行中...' : '全部已读' }}
             </button>
             <button class="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300" @click="open = false">
               关闭
@@ -153,11 +274,9 @@ onUnmounted(() => {
 
         <div class="max-h-[380px] overflow-y-auto scrollbar-thin">
           <div v-if="loading" class="py-10 text-center text-sm text-slate-400">加载中...</div>
-          <div v-else-if="displayList.length === 0" class="py-10 text-center">
-            <svg class="w-10 h-10 mx-auto mb-2 text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-            <p class="text-sm text-slate-400">暂无通知</p>
+          <div v-else-if="displayList.length === 0" class="py-8 text-center">
+            <EmptyIllustration kind="inbox" :size="44" label="暂无通知" class="mx-auto mb-1" />
+            <p class="text-sm text-slate-400 dark:text-slate-500">暂无通知</p>
           </div>
           <div v-else>
             <div

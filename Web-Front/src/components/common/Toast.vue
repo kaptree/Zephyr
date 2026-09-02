@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useToast } from '@/composables/useToast'
+import { AppIcon, type IconName } from '@/components/icons'
 
 const { toasts, removeToast } = useToast()
 
@@ -17,11 +18,12 @@ const barCls: Record<string, string> = {
   info: 'bg-blue-500',
 }
 
-const icons: Record<string, string> = {
-  success: '✓',
-  error: '✗',
-  warning: '⚠',
-  info: 'ℹ',
+// 语义图标：solid 填色版，颜色继承 toast 文本语义色
+const icons: Record<string, IconName> = {
+  success: 'check-circle',
+  error: 'x-circle',
+  warning: 'warning',
+  info: 'info',
 }
 </script>
 
@@ -38,7 +40,7 @@ const icons: Record<string, string> = {
         ]"
         @click="removeToast(toast.id)"
       >
-        <span>{{ icons[toast.type] }}</span>
+        <AppIcon :name="icons[toast.type]" variant="solid" :size="18" />
         {{ toast.message }}
         <!-- 进度条倒计时：线性走完后通知自动消失 -->
         <span

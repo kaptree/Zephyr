@@ -28,7 +28,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	r.Use(middleware.SecurityHeaders())
 	r.Use(middleware.CORS(cfg))
 	r.Use(middleware.RequestLogger())
-	r.Use(middleware.RateLimit(cfg))
+	r.Use(middleware.RateLimit())
 
 	r.GET("/health", healthCheck)
 

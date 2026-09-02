@@ -174,10 +174,11 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
       </svg>
     </button>
 
-    <transition name="picker-pop">
+    <!-- 日期面板：从触发位置"放大 + 淡入"350ms 弹性曲线（美化工程 · 第 6 项） -->
+    <transition name="picker-zoom">
       <div
         v-if="open"
-        class="absolute left-0 top-full mt-2 z-50 w-[300px] bg-white dark:bg-slate-800 rounded-card shadow-modal border border-slate-100 dark:border-slate-700 p-4"
+        class="absolute left-0 top-full mt-2 z-50 w-[300px] bg-white dark:bg-slate-800 rounded-card shadow-modal border border-slate-100 dark:border-slate-700 p-4 origin-top-left"
         @click.stop
       >
         <!-- 快捷选择 -->
@@ -233,16 +234,16 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
           >{{ w }}</span>
         </div>
 
-        <!-- 日期格 -->
+        <!-- 日期格：hover 上浮 1px，选中瞬间蓝色脉冲光晕（500ms） -->
         <div class="grid grid-cols-7 gap-y-0.5">
           <button
             v-for="d in calendarDays"
-            :key="d.date"
+            :key="isSelected(d.date) ? d.date + '-sel' : d.date"
             type="button"
-            class="h-8 text-xs rounded-lg transition-smooth"
+            class="picker-cell h-8 text-xs rounded-lg transition-smooth"
             :class="{
               'text-slate-300 dark:text-slate-600': !d.inMonth,
-              'bg-blue-500 text-white font-semibold shadow-sm': isSelected(d.date),
+              'bg-blue-500 text-white font-semibold shadow-sm animate-date-pulse': isSelected(d.date),
               'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300': isInRange(d.date),
               'ring-2 ring-inset ring-blue-400 dark:ring-blue-500': isRangeEnd(d.date) && !isSelected(d.date),
               'text-blue-500 font-medium': isToday(d.date) && !isSelected(d.date) && !isInRange(d.date),
@@ -260,15 +261,3 @@ onUnmounted(() => document.removeEventListener('click', onDocClick));
     </transition>
   </div>
 </template>
-
-<style scoped>
-.picker-pop-enter-active,
-.picker-pop-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
-.picker-pop-enter-from,
-.picker-pop-leave-to {
-  opacity: 0;
-  transform: translateY(-4px) scale(0.98);
-}
-</style>

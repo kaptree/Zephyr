@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import type { Note } from '@/types';
 import { renderNoteContent } from '@/utils/richText';
 import { useAuthStore } from '@/stores/auth';
+import { AppIcon } from '@/components/icons';
 
 const auth = useAuthStore();
 
@@ -47,6 +48,11 @@ const isAssigner = computed(
 );
 // 红色视角：接收者看到的指派任务，或非指派任务被标记为重要
 const showRedView = computed(() => isRed.value && !isAssigner.value);
+// 右上角红徽章文案：指派任务（接收者）或有盯办记录 → 「盯办N」；非指派任务自己标记的重要（remind_count=0）→ 「重要」
+const redBadgeText = computed(() => {
+  if (!isAssigned.value && !(props.note.remind_count > 0)) return '重要';
+  return `盯办${props.note.remind_count > 0 ? props.note.remind_count : ''}`;
+});
 // 浅蓝视角：发起者看到的指派任务，或协作任务
 const showBlueView = computed(() => isAssigner.value || isBlue.value);
 
@@ -249,9 +255,9 @@ const isDueUrgent = computed(() => {
         box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
       "
     >
-      <span class="w-3.5 h-3.5 rounded-full bg-white/30 flex items-center justify-center text-[8px]"
-        >✎</span
-      >
+      <span class="w-3.5 h-3.5 rounded-full bg-white/30 flex items-center justify-center">
+        <AppIcon name="pencil" :size="9" />
+      </span>
       <span>{{ props.editingBy }}</span>
       <span class="inline-block w-1 h-3 bg-white/60 rounded-sm animate-pulse ml-0.5"></span>
     </div>
@@ -280,13 +286,13 @@ const isDueUrgent = computed(() => {
     >
       已签收
     </span>
-    <!-- 盯办徽章：接收者未签收看到的指派任务，或非指派任务被标记为重要（红色） -->
+    <!-- 红色徽章：接收者未签收看到的指派任务（盯办N），或非指派任务被标记为重要（重要） -->
     <span
       v-else-if="showRedView && !isArchived"
       :key="'badge-remind-' + (note.remind_count || 0)"
       class="badge-corner bg-red-600 text-white animate-badge-flip"
     >
-      盯办{{ note.remind_count > 0 ? note.remind_count : '' }}
+      {{ redBadgeText }}
     </span>
     <!-- 协作标识 -->
     <span
@@ -302,11 +308,12 @@ const isDueUrgent = computed(() => {
     <!-- 左上角倒计时：设定了工作时间/截止时间的任务实时显示剩余时间 -->
     <span
       v-if="countdownText && !isArchived"
-      class="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-semibold z-10 animate-fade-in"
+      class="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-semibold z-10 animate-fade-in inline-flex items-center gap-1"
       :class="isDueUrgent ? 'bg-red-600 text-white' : 'bg-amber-700 text-white'"
       :title="props.note.due_time"
     >
-      ⏱ {{ countdownText }}
+      <AppIcon name="clock" :size="12" />
+      {{ countdownText }}
     </span>
 
     <div class="flex items-center gap-1.5 mb-2 flex-wrap">

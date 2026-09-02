@@ -2,8 +2,10 @@
    事件委托：主要按钮（btn-primary / btn-secondary 及内联蓝色主按钮）点击时，
    从点击位置向外扩散 400ms 圆形涟漪，颜色为按钮主色的半透明版本，营造"触达"感 */
 
+// 排除 .fixed 悬浮按钮：涟漪 ink 依赖宿主 relative 定位与 overflow 裁剪，
+// fixed 按钮不参与（避免 ink 溢出，也不干扰其 fixed 定位）
 const RIPPLE_SELECTOR =
-  'button.btn-primary, a.btn-primary, button.btn-secondary, a.btn-secondary, button.bg-blue-500, button.bg-blue-600, button[class*="bg-[#3B82F6]"]'
+  'button.btn-primary:not(.fixed), a.btn-primary, button.btn-secondary:not(.fixed), a.btn-secondary, button.bg-blue-500:not(.fixed), button.bg-blue-600:not(.fixed), button[class*="bg-[#3B82F6]"]:not(.fixed)'
 
 let listening = false
 

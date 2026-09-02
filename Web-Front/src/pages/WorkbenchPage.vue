@@ -16,6 +16,9 @@ import { useConfirm } from '@/composables/useConfirm';
 // 全局确认对话框（轻量级通知美学）
 const { confirm: appConfirm } = useConfirm();
 import FeedbackModal from '@/components/notification/FeedbackModal.vue';
+import FloatingField from '@/components/common/FloatingField.vue';
+import SubmitButton from '@/components/common/SubmitButton.vue';
+import { useToast } from '@/composables/useToast';
 import { createWorkGroup, searchGroups, deleteWorkGroup } from '@/services/workgroup';
 import type { WorkGroupData } from '@/services/workgroup';
 import { recommendUsers, getWorkTypeOptions } from '@/services/admin';
@@ -33,6 +36,7 @@ const route = useRoute();
 const noteStore = useNoteStore();
 const auth = useAuthStore();
 const notifStore = useNotificationStore();
+const { success: toastSuccess } = useToast();
 const showCreateModal = ref(false);
 const showDetailPanel = ref(false);
 const selectedNote = ref<Note | null>(null);
@@ -45,6 +49,17 @@ const selectedAssigneeIds = ref<string[]>([]);
 const selectedCcIds = ref<string[]>([]);
 const creating = ref(false);
 const createError = ref('');
+// 沉浸式书写：标题校验错误 + 提交按钮状态机 + 庆祝反馈
+const titleError = ref('');
+type SubmitState = 'idle' | 'loading' | 'success' | 'fail';
+const createSubmitState = ref<SubmitState>('idle');
+const saveSubmitState = ref<SubmitState>('idle');
+const celebrateCard = ref(false);
+
+// 标题开始修正时立即清除错误（错误提示收缩 + 淡出 200ms）
+watch(newTitle, () => {
+  if (titleError.value) titleError.value = '';
+});
 
 // 工作时间选项（秒）：指派任务时限，后端据此自动计算截止时间
 const workTimeOptions = [
@@ -225,6 +240,11 @@ watch(
 );
 
 function openNoteFromQuery(noteId: string) {
+  // 打开后立即清除 URL 中的 note 参数：避免刷新页面重复弹出已关闭的任务；
+  // 清除后 query 变化会再次触发上方 watch，noteId 为 undefined 时被守卫跳过
+  if (route.query.note) {
+    router.replace({ query: { ...route.query, note: undefined } });
+  }
   const target = noteStore.activeNotes.find((n) => n.id === noteId);
   if (target) {
     openDetail(target);
@@ -304,6 +324,9 @@ function openCreateModal() {
   sourceType.value = 'self';
   workTimeSeconds.value = 0;
   createError.value = '';
+  titleError.value = '';
+  createSubmitState.value = 'idle';
+  celebrateCard.value = false;
   showCreateModal.value = true;
 }
 function openDetail(note: Note) {
@@ -312,6 +335,7 @@ function openDetail(note: Note) {
   editingContent.value = htmlToMarkdown(note.content || '');
   selectedEditingTagIds.value = (note.tags || []).map((t) => t.id);
   tagError.value = '';
+  saveSubmitState.value = 'idle';
   showDetailPanel.value = true;
 }
 function closeDetail() {
@@ -320,18 +344,30 @@ function closeDetail() {
   completing.value = false;
 }
 
+// 提交失败：按钮红色抖动 2 次（500ms），随后由父级恢复可提交状态
+function triggerCreateFail() {
+  createSubmitState.value = 'fail';
+  setTimeout(() => {
+    createSubmitState.value = 'idle';
+  }, 600);
+}
+
 async function handleSubmit() {
   if (creating.value) return;
   if (!newTitle.value.trim()) {
-    createError.value = '请输入任务标题';
+    titleError.value = '请输入任务标题';
+    triggerCreateFail();
     return;
   }
   if (sourceType.value !== 'self' && selectedAssigneeIds.value.length === 0) {
     createError.value = '请选择指派人员';
+    triggerCreateFail();
     return;
   }
   creating.value = true;
   createError.value = '';
+  titleError.value = '';
+  createSubmitState.value = 'loading';
   try {
     const payload: any = {
       title: newTitle.value.trim(),
@@ -364,9 +400,18 @@ async function handleSubmit() {
         }
       }
     }
-    showCreateModal.value = false;
-    // 局部刷新任务面板，立即展示最新任务（含倒计时）
-    noteStore.fetchNotes();
+    // 提交成功庆祝反馈：按钮弹动 + 卡片上浮绿色光晕 + Toast，随后延迟关闭
+    creating.value = false;
+    createSubmitState.value = 'success';
+    celebrateCard.value = true;
+    toastSuccess('🎉 任务创建成功');
+    setTimeout(() => {
+      showCreateModal.value = false;
+      celebrateCard.value = false;
+      createSubmitState.value = 'idle';
+      // 局部刷新任务面板，立即展示最新任务（含倒计时）
+      noteStore.fetchNotes();
+    }, 950);
   } catch (e: unknown) {
     createError.value =
       (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
@@ -377,17 +422,27 @@ async function handleSubmit() {
 }
 
 async function handleSaveDetail() {
-  if (!selectedNote.value) return;
+  if (!selectedNote.value || saving.value) return;
   saving.value = true;
+  saveSubmitState.value = 'loading';
   try {
     await noteStore.updateNoteLocally(selectedNote.value.id, {
       title: editingTitle.value.trim(),
       content: markdownToHtml(editingContent.value),
       tags: selectedEditingTagIds.value,
     } as any);
-    closeDetail();
+    // 保存成功：按钮绿色弹动，随后延迟关闭详情面板
+    saveSubmitState.value = 'success';
+    toastSuccess('✓ 任务已保存');
+    setTimeout(() => {
+      closeDetail();
+      saveSubmitState.value = 'idle';
+    }, 700);
   } catch {
-    /* ignore */
+    saveSubmitState.value = 'fail';
+    setTimeout(() => {
+      saveSubmitState.value = 'idle';
+    }, 600);
   } finally {
     saving.value = false;
   }
@@ -487,7 +542,14 @@ async function handleImportant(note: Note) {
 // 删除任务：确认后软删除，从工作台移除（可在归档中恢复）
 async function handleDelete(note: Note) {
   const title = note.title || '无标题';
-  if (!(await appConfirm({ message: `确定删除任务「${title}」吗？删除后将从工作台移除，可在归档中恢复。`, danger: true, confirmText: '删除' }))) return;
+  if (
+    !(await appConfirm({
+      message: `确定删除任务「${title}」吗？删除后将从工作台移除，可在归档中恢复。`,
+      danger: true,
+      confirmText: '删除',
+    }))
+  )
+    return;
   try {
     // 优雅退场：红色闪烁 → 缩小 → 淡出三步动画（600ms）后再执行删除
     await playDeleteOut(document.querySelector(`[data-note-id="${note.id}"]`));
@@ -1024,6 +1086,7 @@ const templateLabels: Record<string, string> = {
           <div class="overlay-backdrop" @click="showCreateModal = false" />
           <div
             class="modal-panel relative z-50 bg-white dark:bg-slate-800 rounded-card shadow-modal w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col"
+            :class="{ celebrate: celebrateCard }"
           >
             <div class="p-6 overflow-y-auto flex-1">
               <div class="flex items-center justify-between mb-6">
@@ -1055,11 +1118,12 @@ const templateLabels: Record<string, string> = {
                 </button>
               </div>
               <form class="space-y-4" @submit.prevent="handleSubmit">
-                <input
+                <FloatingField
                   v-model="newTitle"
-                  class="input-field"
-                  placeholder="任务标题"
-                  autofocus
+                  label="任务标题"
+                  placeholder=""
+                  :error="titleError"
+                  :success="newTitle.trim().length > 0"
                   @keydown.enter.prevent
                 />
                 <div>
@@ -1215,9 +1279,14 @@ const templateLabels: Record<string, string> = {
                     disabled-note="已在指派人员中"
                   />
                 </div>
-                <p v-if="createError" class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-btn">
-                  {{ createError }}
-                </p>
+                <transition name="error-slide">
+                  <p
+                    v-if="createError"
+                    class="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-btn"
+                  >
+                    {{ createError }}
+                  </p>
+                </transition>
                 <div
                   class="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-700"
                 >
@@ -1229,13 +1298,14 @@ const templateLabels: Record<string, string> = {
                   >
                     取消
                   </button>
-                  <button
+                  <SubmitButton
                     type="submit"
-                    class="px-5 py-2.5 text-sm text-white bg-[#3B82F6] rounded-btn hover:bg-blue-600 transition-smooth disabled:opacity-50"
-                    :disabled="creating"
-                  >
-                    {{ creating ? '创建中...' : '创建任务' }}
-                  </button>
+                    :state="createSubmitState"
+                    label="创建任务"
+                    loading-label="创建中..."
+                    success-label="✓ 已创建"
+                    fail-label="✗ 失败"
+                  />
                 </div>
               </form>
             </div>
@@ -1276,7 +1346,11 @@ const templateLabels: Record<string, string> = {
                     v-else-if="selectedNote.color_status === 'red'"
                     key="detail-reminding"
                     class="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-tag animate-badge-flip"
-                    >盯办中</span
+                    >{{
+                      selectedNote.source_type === 'assigned' || selectedNote.remind_count > 0
+                        ? '盯办中'
+                        : '重要'
+                    }}</span
                   >
                   <span
                     v-if="selectedNote.color_status === 'blue'"
@@ -1305,14 +1379,12 @@ const templateLabels: Record<string, string> = {
                 </button>
               </div>
               <div class="space-y-5">
-                <div>
-                  <span class="text-xs text-slate-400 mb-1 block">标题</span
-                  ><input
-                    v-model="editingTitle"
-                    class="input-field text-base font-semibold"
-                    @keydown.enter.prevent
-                  />
-                </div>
+                <FloatingField
+                  v-model="editingTitle"
+                  label="任务标题"
+                  :success="editingTitle.trim().length > 0"
+                  @keydown.enter.prevent
+                />
                 <div>
                   <span class="text-xs text-slate-400 mb-1 block"
                     >内容（支持 Markdown，可全屏）</span
@@ -1427,14 +1499,16 @@ const templateLabels: Record<string, string> = {
                 签收任务
               </button>
               <div class="flex gap-2">
-                <button
+                <SubmitButton
                   v-if="!selectedIsCcOnly"
-                  class="flex-1 py-2.5 btn-primary text-sm disabled:opacity-50"
-                  :disabled="saving"
+                  class="flex-1"
+                  :state="saveSubmitState"
+                  label="保存"
+                  loading-label="保存中..."
+                  success-label="✓ 已保存"
+                  fail-label="✗ 保存失败"
                   @click="handleSaveDetail"
-                >
-                  {{ saving ? '保存中...' : '保存' }}
-                </button>
+                />
                 <button
                   v-if="selectedCompleteLabel"
                   class="flex-1 py-2.5 text-sm bg-green-500 text-white rounded-btn hover:bg-green-600 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
