@@ -1,0 +1,296 @@
+=== #1 POST /auth/login -> HTTP 401
+{"code":401,"message":"用户名或密码错误","data":null,"timestamp":1788330957}
+=== #1 POST /auth/login -> HTTP 200
+{"code":200,"message":"success","data":{"access_token":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMjU1ZTllYjEtM2MyNy00YTUxLWJjYmEtYzk4NmNlYmRhZGYyIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJzdXBlcl9hZG1pbiIsImRlcGFydG1lbnRfaWQiOiJlNTgwM2U1NS0wY2YwLTRhNzktYjBlOC00NWJiZGI1Njk3ZjIiLCJpc3MiOiJsYWJ
+=== #1 POST /auth/login -> HTTP 200
+{"code":200,"message":"success","data":{"access_token":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMmY0OGZkMGEtZjhmMi00ODE5LTgzM2YtZTdiZmJmMGViZWJmIiwidXNlcm5hbWUiOiJ3YW5nIiwicm9sZSI6ImRlcHRfYWRtaW4iLCJkZXBhcnRtZW50X2lkIjoiNTMzNjM2ZjAtNzllZS00YTc1LWI3YTgtN2VhMjFmNmJmYzVlIiwiaXNzIjoibGFiZWx
+=== #1 POST /auth/login -> HTTP 200
+{"code":200,"message":"success","data":{"access_token":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzgyZDgwMzUtN2Q4NC00YjM5LTk3NjktZWY1YjhhZDM5NjRlIiwidXNlcm5hbWUiOiJsaSIsInJvbGUiOiJncm91cF9sZWFkZXIiLCJkZXBhcnRtZW50X2lkIjoiZTAxMjczNDMtMDcxZi00OGRhLThmZWYtYTU3ZTllMzY0YzRiIiwiaXNzIjoibGFiZWx
+=== #1 POST /auth/login -> HTTP 200
+{"code":200,"message":"success","data":{"access_token":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZjdlMGFkNGUtNjc5ZC00Y2IwLThhYTYtYTlmMDZmYzIxMzI1IiwidXNlcm5hbWUiOiJ6aGFuZzMiLCJyb2xlIjoibWVtYmVyIiwiZGVwYXJ0bWVudF9pZCI6ImUwMTI3MzQzLTA3MWYtNDhkYS04ZmVmLWE1N2U5ZTM2NGM0YiIsImlzcyI6ImxhYmVscHJ
+=== #1 POST /auth/login -> HTTP 200
+{"code":200,"message":"success","data":{"access_token":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMjU1ZTllYjEtM2MyNy00YTUxLWJjYmEtYzk4NmNlYmRhZGYyIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJzdXBlcl9hZG1pbiIsImRlcGFydG1lbnRfaWQiOiJlNTgwM2U1NS0wY2YwLTRhNzktYjBlOC00NWJiZGI1Njk3ZjIiLCJpc3MiOiJsYWJ
+=== #1 POST /auth/login -> HTTP 200
+{"code":200,"message":"success","data":{"access_token":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMmY0OGZkMGEtZjhmMi00ODE5LTgzM2YtZTdiZmJmMGViZWJmIiwidXNlcm5hbWUiOiJ3YW5nIiwicm9sZSI6ImRlcHRfYWRtaW4iLCJkZXBhcnRtZW50X2lkIjoiNTMzNjM2ZjAtNzllZS00YTc1LWI3YTgtN2VhMjFmNmJmYzVlIiwiaXNzIjoibGFiZWx
+=== #1 POST /auth/login -> HTTP 200
+{"code":200,"message":"success","data":{"access_token":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzgyZDgwMzUtN2Q4NC00YjM5LTk3NjktZWY1YjhhZDM5NjRlIiwidXNlcm5hbWUiOiJsaSIsInJvbGUiOiJncm91cF9sZWFkZXIiLCJkZXBhcnRtZW50X2lkIjoiZTAxMjczNDMtMDcxZi00OGRhLThmZWYtYTU3ZTllMzY0YzRiIiwiaXNzIjoibGFiZWx
+=== #1 POST /auth/login -> HTTP 200
+{"code":200,"message":"success","data":{"access_token":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZjdlMGFkNGUtNjc5ZC00Y2IwLThhYTYtYTlmMDZmYzIxMzI1IiwidXNlcm5hbWUiOiJ6aGFuZzMiLCJyb2xlIjoibWVtYmVyIiwiZGVwYXJ0bWVudF9pZCI6ImUwMTI3MzQzLTA3MWYtNDhkYS04ZmVmLWE1N2U5ZTM2NGM0YiIsImlzcyI6ImxhYmVscHJ
+=== #1 POST /auth/login -> HTTP 200
+{"code":200,"message":"success","data":{"access_token":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZjdlMGFkNGUtNjc5ZC00Y2IwLThhYTYtYTlmMDZmYzIxMzI1IiwidXNlcm5hbWUiOiJ6aGFuZzMiLCJyb2xlIjoibWVtYmVyIiwiZGVwYXJ0bWVudF9pZCI6ImUwMTI3MzQzLTA3MWYtNDhkYS04ZmVmLWE1N2U5ZTM2NGM0YiIsImlzcyI6ImxhYmVscHJ
+=== #1 POST /auth/login -> HTTP 200
+{"code":200,"message":"success","data":{"access_token":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMjU1ZTllYjEtM2MyNy00YTUxLWJjYmEtYzk4NmNlYmRhZGYyIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJzdXBlcl9hZG1pbiIsImRlcGFydG1lbnRfaWQiOiJlNTgwM2U1NS0wY2YwLTRhNzktYjBlOC00NWJiZGI1Njk3ZjIiLCJpc3MiOiJsYWJ
+=== #1 GET /auth/me -> HTTP 200
+{"code":200,"message":"success","data":{"id":"255e9eb1-3c27-4a51-bcba-c986cebdadf2","username":"admin","name":"张振国","role":"super_admin","rank":"一级警监","phone":"13800001001","email":"admin@police.cn","avatar":"","dept_id":"e5803e55-0cf0-4a79-b0e8-45bbdb5697f2","dept_name":"市公安局"
+=== #1 GET /auth/me -> HTTP 200
+{"code":200,"message":"success","data":{"id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325","username":"zhang3","name":"张伟测试","role":"member","rank":"一级警员","phone":"13800001004","email":"zhangwei@police.cn","avatar":"","dept_id":"e0127343-071f-48da-8fef-a57e9e364c4b","dept_name":"技术侦�
+=== #1 POST /auth/login -> HTTP 200
+{"code":200,"message":"success","data":{"access_token":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMjU1ZTllYjEtM2MyNy00YTUxLWJjYmEtYzk4NmNlYmRhZGYyIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJzdXBlcl9hZG1pbiIsImRlcGFydG1lbnRfaWQiOiJlNTgwM2U1NS0wY2YwLTRhNzktYjBlOC00NWJiZGI1Njk3ZjIiLCJpc3MiOiJsYWJ
+=== #1 POST /auth/refresh -> HTTP 200
+{"code":200,"message":"success","data":{"access_token":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMjU1ZTllYjEtM2MyNy00YTUxLWJjYmEtYzk4NmNlYmRhZGYyIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJzdXBlcl9hZG1pbiIsImRlcGFydG1lbnRfaWQiOiJlNTgwM2U1NS0wY2YwLTRhNzktYjBlOC00NWJiZGI1Njk3ZjIiLCJpc3MiOiJsYWJ
+=== #1 GET /departments -> HTTP 200
+{"code":200,"message":"success","data":[{"id":"e5803e55-0cf0-4a79-b0e8-45bbdb5697f2","name":"市公安局","parent_id":"","level":1,"member_count":1,"children":[]}],"timestamp":1788330959}
+=== #1 GET /departments/e5803e55-0cf0-4a79-b0e8-45bbdb5697f2 -> HTTP 200
+{"code":200,"message":"success","data":{"created_at":"2026-09-02T11:17:49.67548+08:00","id":"e5803e55-0cf0-4a79-b0e8-45bbdb5697f2","leader":null,"level":1,"member_count":1,"name":"市公安局","parent_id":null,"updated_at":"2026-09-02T11:17:49.67548+08:00"},"timestamp":1788330960}
+=== #1 POST /departments -> HTTP 201
+{"code":201,"message":"created","data":{"id":"a7967ee8-a0f5-4780-8d24-ac08ed68432a","name":"测试部门-自动化","parent_id":null,"level":1,"leader_id":null,"sort_order":0,"created_at":"2026-09-02T14:36:00.088231+08:00","updated_at":"2026-09-02T14:36:00.088231+08:00"},"timestamp":1788330960}
+=== #1 PUT /departments/a7967ee8-a0f5-4780-8d24-ac08ed68432a -> HTTP 200
+{"code":200,"message":"success","data":{"id":"a7967ee8-a0f5-4780-8d24-ac08ed68432a","name":"测试部门-改名","parent_id":null,"level":1,"leader_id":null,"sort_order":0,"created_at":"2026-09-02T14:36:00.088231+08:00","updated_at":"2026-09-02T14:36:00.801854+08:00"},"timestamp":1788330960}
+=== #1 DELETE /departments/a7967ee8-a0f5-4780-8d24-ac08ed68432a -> HTTP 200
+{"code":200,"message":"success","data":{"deleted":"a7967ee8-a0f5-4780-8d24-ac08ed68432a","name":"测试部门-改名"},"timestamp":1788330960}
+=== #1 POST /departments -> HTTP 403
+{"code":403,"message":"权限不足","data":null,"timestamp":1788330960}
+=== #1 GET /users?page=1&page_size=100 -> HTTP 200
+{"code":200,"message":"success","data":{"data":[{"id":"c924062f-7db1-40b9-a58e-42b180f9a2d7","username":"huang","name":"黄丽","dept_id":"189196fe-f844-41f5-8f7d-c4733664fb6c","department":{"id":"189196fe-f844-41f5-8f7d-c4733664fb6c","name":"经侦支队","parent_id":"e5803e55-0cf0-4a79-b0e8-45bbdb
+=== #1 GET /users?page=1&page_size=50 -> HTTP 200
+{"code":200,"message":"success","data":{"data":[{"id":"c924062f-7db1-40b9-a58e-42b180f9a2d7","username":"huang","name":"黄丽","dept_id":"189196fe-f844-41f5-8f7d-c4733664fb6c","department":{"id":"189196fe-f844-41f5-8f7d-c4733664fb6c","name":"经侦支队","parent_id":"e5803e55-0cf0-4a79-b0e8-45bbdb
+=== #1 GET /users/visible -> HTTP 200
+{"code":200,"message":"success","data":[{"id":"84a5d542-8ab6-4072-9075-f6fa6b8212ed","username":"he","name":"何建华","dept_id":"dd62f62d-9b5c-4e49-85b6-22d7a5a4a1be","role":"dept_admin","rank":"三级警督","position":"支队长","skills":"毒品查缉,卧底侦查,化装侦查,禁毒宣教","ph
+=== #1 GET /users/with-stats -> HTTP 200
+{"code":200,"message":"success","data":{"data":[{"id":"c924062f-7db1-40b9-a58e-42b180f9a2d7","username":"huang","name":"黄丽","dept_id":"189196fe-f844-41f5-8f7d-c4733664fb6c","department":{"id":"189196fe-f844-41f5-8f7d-c4733664fb6c","name":"经侦支队","parent_id":"e5803e55-0cf0-4a79-b0e8-45bbdb
+=== #1 GET /users/recommend?work_type=刑侦&limit=5 -> HTTP 200
+{"code":200,"message":"success","data":[{"id":"84a5d542-8ab6-4072-9075-f6fa6b8212ed","username":"he","name":"何建华","dept_id":"dd62f62d-9b5c-4e49-85b6-22d7a5a4a1be","department":{"id":"dd62f62d-9b5c-4e49-85b6-22d7a5a4a1be","name":"禁毒支队","parent_id":"e5803e55-0cf0-4a79-b0e8-45bbdb5697f2",
+=== #1 GET /users/work-type-options -> HTTP 200
+{"code":200,"message":"success","data":[{"label":"日常任务","value":"default"},{"label":"数据分析","value":"data_analysis"},{"label":"专项行动","value":"special_project"},{"label":"紧急协查","value":"emergency_canvas"},{"label":"协同作战","value":"collaborative_writing"}],"timest
+=== #1 GET /users/f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325 -> HTTP 200
+{"code":200,"message":"success","data":{"id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325","username":"zhang3","name":"张伟测试","dept_id":"e0127343-071f-48da-8fef-a57e9e364c4b","department":{"id":"e0127343-071f-48da-8fef-a57e9e364c4b","name":"技术侦查中队","parent_id":"533636f0-79ee-4a75-b7a8-7e
+=== #1 GET /users/f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325/profile -> HTTP 200
+{"code":200,"message":"success","data":{"id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325","username":"zhang3","name":"张伟测试","dept_id":"e0127343-071f-48da-8fef-a57e9e364c4b","department":{"id":"e0127343-071f-48da-8fef-a57e9e364c4b","name":"技术侦查中队","parent_id":"533636f0-79ee-4a75-b7a8-7e
+=== #1 POST /users -> HTTP 201
+{"code":201,"message":"created","data":{"id":"7eea73bb-40ab-4fd7-b70f-30d426aa9d77","username":"testbot1788330962","name":"测试机器人","dept_id":null,"role":"member","rank":"","position":"","skills":"","phone":"","email":"","avatar":"","background":"","bg_opacity":1,"bg_fill":"cover","is_active
+=== #1 POST /users -> HTTP 400
+{"code":400,"message":"用户名已存在","data":null,"timestamp":1788330962}
+=== #1 POST /users -> HTTP 400
+{"code":400,"message":"password too short","data":null,"timestamp":1788330962}
+=== #1 POST /users -> HTTP 403
+{"code":403,"message":"权限不足","data":null,"timestamp":1788330962}
+=== #1 PUT /users/7eea73bb-40ab-4fd7-b70f-30d426aa9d77 -> HTTP 200
+{"code":200,"message":"success","data":{"id":"7eea73bb-40ab-4fd7-b70f-30d426aa9d77","username":"testbot1788330962","name":"测试机器人改","dept_id":null,"role":"member","rank":"","position":"测试岗","skills":"","phone":"","email":"","avatar":"","background":"","bg_opacity":1,"bg_fill":"cover
+=== #1 PUT /users/7eea73bb-40ab-4fd7-b70f-30d426aa9d77 -> HTTP 403
+{"code":403,"message":"权限不足","data":null,"timestamp":1788330962}
+=== #1 PUT /profile -> HTTP 200
+{"code":200,"message":"success","data":{"id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325","username":"zhang3","name":"张伟测试","dept_id":"e0127343-071f-48da-8fef-a57e9e364c4b","department":{"id":"e0127343-071f-48da-8fef-a57e9e364c4b","name":"技术侦查中队","parent_id":"533636f0-79ee-4a75-b7a8-7e
+=== #1 DELETE /users/7eea73bb-40ab-4fd7-b70f-30d426aa9d77 -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330963}
+=== #1 GET /tags -> HTTP 200
+{"code":200,"message":"success","data":[{"id":"b065dc00-bdd9-4429-a716-3e88568b8be6","name":"刑事案件","sub_tag":"重案要案","color":"#EF4444","category":"案件","scope":"system","creator_id":null,"sort_order":1,"usage_count":3,"parent_id":null,"created_at":"2026-09-02T11:17:49.773837+08:00"
+=== #1 POST /tags -> HTTP 201
+{"code":201,"message":"created","data":{"id":"0a82d047-b96b-4623-9a97-1edfb6ff682f","name":"自动化测试标签","sub_tag":"","color":"#ff0000","category":"","scope":"personal","creator_id":null,"sort_order":0,"usage_count":0,"parent_id":null,"created_at":"2026-09-02T14:36:03.269633+08:00","update
+=== #1 PUT /tags/0a82d047-b96b-4623-9a97-1edfb6ff682f -> HTTP 200
+{"code":200,"message":"success","data":{"id":"0a82d047-b96b-4623-9a97-1edfb6ff682f","name":"自动化测试标签改","sub_tag":"","color":"#00ff00","category":"","scope":"personal","creator_id":null,"sort_order":0,"usage_count":0,"parent_id":null,"created_at":"2026-09-02T14:36:03.269633+08:00","upd
+=== #1 DELETE /tags/0a82d047-b96b-4623-9a97-1edfb6ff682f -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330963}
+=== #1 GET /templates -> HTTP 200
+{"code":200,"message":"success","data":[{"id":"126cc583-f08a-4ead-8ade-0fc4d11277fa","name":"默认","type":"default","description":"","content":"","fields":"[{\"key\": \"title\", \"type\": \"text\", \"label\": \"标题\", \"required\": true}, {\"key\": \"content\", \"type\": \"richtext\", \"label\"
+=== #1 POST /templates -> HTTP 201
+{"code":201,"message":"created","data":{"id":"933369b1-b155-4370-8246-bc71a068f366","name":"测试模板-自动化","type":"default","description":"临时模板","content":"\u003cp\u003e测试内容\u003c/p\u003e","fields":"[]","layout":"1","is_system":false,"creator_id":"f7e0ad4e-679d-4cb0-8aa6-a9f
+=== #1 PUT /templates/933369b1-b155-4370-8246-bc71a068f366 -> HTTP 200
+{"code":200,"message":"success","data":{"id":"933369b1-b155-4370-8246-bc71a068f366","name":"测试模板改","type":"default","description":"临时模板","content":"\u003cp\u003e改\u003c/p\u003e","fields":"[]","layout":"1","is_system":false,"creator_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325","crea
+=== #1 DELETE /templates/933369b1-b155-4370-8246-bc71a068f366 -> HTTP 200
+{"code":200,"message":"success","data":null,"timestamp":1788330963}
+=== #1 DELETE /templates/126cc583-f08a-4ead-8ade-0fc4d11277fa -> HTTP 403
+{"code":403,"message":"仅模板创建者或系统管理员可以删除","data":null,"timestamp":1788330963}
+=== #1 GET /notes?page=1&page_size=20 -> HTTP 200
+{"code":200,"message":"success","data":{"data":[{"id":"131fd189-3bd3-449b-9d34-087dd78fcab2","title":"【证据管理】DNA数据库样本采集与录入","sub_tag":"证据管理","content":"对在押犯罪嫌疑人和重点管控人员开展DNA样本采集工作，按规范完成采样、登记、�
+=== #1 GET /notes/stats -> HTTP 200
+{"code":200,"message":"success","data":{"total_notes":64,"active_notes":56,"trend":[{"date":"2026-08-29T00:00:00Z","count":2},{"date":"2026-08-30T00:00:00Z","count":1},{"date":"2026-08-31T00:00:00Z","count":1},{"date":"2026-09-01T00:00:00Z","count":2},{"date":"2026-09-02T00:00:00Z","count":1}]},"tim
+=== #1 GET /notes/heatmap -> HTTP 200
+{"code":200,"message":"success","data":{"total_archived":1,"year":2026,"daily":[{"date":"2026-07-26","count":1}]},"timestamp":1788330964}
+=== #1 GET /tags -> HTTP 200
+{"code":200,"message":"success","data":[{"id":"b065dc00-bdd9-4429-a716-3e88568b8be6","name":"刑事案件","sub_tag":"重案要案","color":"#EF4444","category":"案件","scope":"system","creator_id":null,"sort_order":1,"usage_count":3,"parent_id":null,"created_at":"2026-09-02T11:17:49.773837+08:00"
+=== #1 POST /tags -> HTTP 201
+{"code":201,"message":"created","data":{"id":"b02fbd97-c506-4e02-935e-f3f73d9eb10f","name":"任务测试标签","sub_tag":"","color":"#123456","category":"","scope":"personal","creator_id":null,"sort_order":0,"usage_count":0,"parent_id":null,"created_at":"2026-09-02T14:36:04.397436+08:00","updated_a
+=== #1 POST /notes -> HTTP 201
+{"code":201,"message":"created","data":{"id":"b37ad6da-2e73-467e-819a-7fb21bf48854","title":"自动化测试任务","sub_tag":"","content":"测试任务内容","content_delta":"{}","color_status":"yellow","source_type":"self","template_type":"default","creator_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc213
+=== #1 GET /notes/b37ad6da-2e73-467e-819a-7fb21bf48854 -> HTTP 200
+{"code":200,"message":"success","data":{"id":"b37ad6da-2e73-467e-819a-7fb21bf48854","title":"自动化测试任务","sub_tag":"","content":"测试任务内容","content_delta":"{}","color_status":"yellow","source_type":"self","template_type":"default","creator_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc213
+=== #1 PUT /notes/b37ad6da-2e73-467e-819a-7fb21bf48854 -> HTTP 200
+{"code":200,"message":"success","data":{"id":"b37ad6da-2e73-467e-819a-7fb21bf48854","title":"自动化测试任务-改","sub_tag":"","content":"内容已更新","content_delta":"{}","color_status":"yellow","source_type":"self","template_type":"default","creator_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21
+=== #1 POST /notes/b37ad6da-2e73-467e-819a-7fb21bf48854/feedback -> HTTP 200
+{"code":200,"message":"success","data":{"id":"b37ad6da-2e73-467e-819a-7fb21bf48854","title":"自动化测试任务-改","sub_tag":"","content":"内容已更新","content_delta":"{}","color_status":"yellow","source_type":"self","template_type":"default","creator_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21
+=== #1 POST /notes/b37ad6da-2e73-467e-819a-7fb21bf48854/sign -> HTTP 403
+{"code":403,"message":"仅被指派人可签收该任务","data":null,"timestamp":1788330964}
+=== #1 POST /notes/b37ad6da-2e73-467e-819a-7fb21bf48854/remind -> HTTP 404
+{"code":404,"message":"任务不存在","data":null,"timestamp":1788330964}
+=== #1 GET /notes/b37ad6da-2e73-467e-819a-7fb21bf48854/attachments -> HTTP 200
+{"code":200,"message":"success","data":[{"id":"d4ac6f47-9f50-43d0-8860-1365269f7b95","note_id":"b37ad6da-2e73-467e-819a-7fb21bf48854","file_name":"zephyr_test.png","file_path":"/uploads/f6a17d29-84f8-4661-b65d-7ce25c9fbf58.png","file_size":70,"mime_type":"image/png"}],"timestamp":1788330965}
+=== #1 POST /notes/b37ad6da-2e73-467e-819a-7fb21bf48854/complete -> HTTP 200
+{"code":200,"message":"success","data":{"id":"b37ad6da-2e73-467e-819a-7fb21bf48854","title":"自动化测试任务-改","sub_tag":"","content":"内容已更新","content_delta":"{}","color_status":"green","source_type":"self","template_type":"default","creator_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc213
+=== #1 DELETE /notes/b37ad6da-2e73-467e-819a-7fb21bf48854 -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330965}
+=== #1 POST /notes/b37ad6da-2e73-467e-819a-7fb21bf48854/restore -> HTTP 200
+{"code":200,"message":"success","data":{"id":"b37ad6da-2e73-467e-819a-7fb21bf48854","title":"自动化测试任务-改","sub_tag":"","content":"内容已更新","content_delta":"{}","color_status":"green","source_type":"self","template_type":"default","creator_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc213
+=== #1 DELETE /notes/b37ad6da-2e73-467e-819a-7fb21bf48854 -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330965}
+=== #2 DELETE /tags/b02fbd97-c506-4e02-935e-f3f73d9eb10f -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330965}
+=== #3 POST /notes -> HTTP 201
+{"code":201,"message":"created","data":{"id":"88b0ba60-b40b-48ec-acca-5e9eec16e114","title":"指派签收测试任务","sub_tag":"","content":"测试签收","content_delta":"{}","color_status":"red","source_type":"assigned","template_type":"default","creator_id":"c82d8035-7d84-4b39-9769-ef5b8ad3964e
+=== #3 POST /notes/88b0ba60-b40b-48ec-acca-5e9eec16e114/sign -> HTTP 200
+{"code":200,"message":"success","data":{"id":"88b0ba60-b40b-48ec-acca-5e9eec16e114","title":"指派签收测试任务","sub_tag":"","content":"测试签收","content_delta":"{}","color_status":"red","source_type":"assigned","template_type":"default","creator_id":"c82d8035-7d84-4b39-9769-ef5b8ad3964e
+=== #3 POST /notes/88b0ba60-b40b-48ec-acca-5e9eec16e114/remind -> HTTP 200
+{"code":200,"message":"success","data":{"id":"88b0ba60-b40b-48ec-acca-5e9eec16e114","title":"指派签收测试任务","sub_tag":"","content":"测试签收","content_delta":"{}","color_status":"red","source_type":"assigned","template_type":"default","creator_id":"c82d8035-7d84-4b39-9769-ef5b8ad3964e
+=== #3 DELETE /notes/88b0ba60-b40b-48ec-acca-5e9eec16e114 -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330965}
+=== #4 GET /groups?page=1&page_size=20 -> HTTP 200
+{"code":200,"message":"success","data":{"data":[{"id":"a118fdf2-7f41-4e74-89ce-5f910ba59b68","name":"重要会议安保工作组","description":"配合市委市政府重要会议安保工作，制定安保方案，组织警力部署，确保会议期间安全稳定。","note_id":null,"initiator_id":
+=== #4 GET /groups/mine -> HTTP 200
+{"code":200,"message":"success","data":[{"id":"668a6826-d4ac-4e99-8126-c6b9e3f2157a","name":"网络舆情监测应对组","description":"针对近期网络热点舆情事件，建立快速响应机制，实时监测、分析研判、及时处置，维护网络空间清朗。","note_id":null,"initiat
+=== #4 GET /groups/a118fdf2-7f41-4e74-89ce-5f910ba59b68 -> HTTP 200
+{"code":200,"message":"success","data":{"id":"a118fdf2-7f41-4e74-89ce-5f910ba59b68","name":"重要会议安保工作组","description":"配合市委市政府重要会议安保工作，制定安保方案，组织警力部署，确保会议期间安全稳定。","note_id":null,"initiator_id":"2e595198
+=== #4 GET /groups/a118fdf2-7f41-4e74-89ce-5f910ba59b68/members -> HTTP 200
+{"code":200,"message":"success","data":[{"group_id":"a118fdf2-7f41-4e74-89ce-5f910ba59b68","user_id":"ee44defb-867f-4c02-942c-668945a573fc","user":{"id":"ee44defb-867f-4c02-942c-668945a573fc","username":"sun","name":"孙建国","dept_id":"eaeb6ae2-84a4-4430-bb5a-cf84fd99a69f","role":"dept_admin","ra
+=== #4 GET /groups/a118fdf2-7f41-4e74-89ce-5f910ba59b68/notes -> HTTP 200
+{"code":200,"message":"success","data":{"data":[],"total":0,"page":1,"page_size":20},"timestamp":1788330966}
+=== #4 GET /groups/a118fdf2-7f41-4e74-89ce-5f910ba59b68/dashboard -> HTTP 200
+{"code":200,"message":"success","data":{"columns":[],"group":{"id":"a118fdf2-7f41-4e74-89ce-5f910ba59b68","name":"重要会议安保工作组","description":"配合市委市政府重要会议安保工作，制定安保方案，组织警力部署，确保会议期间安全稳定。","note_id":null,"i
+=== #4 GET /groups/a118fdf2-7f41-4e74-89ce-5f910ba59b68/reports -> HTTP 200
+{"code":200,"message":"success","data":{"data":[],"total":0,"page":1,"page_size":20},"timestamp":1788330966}
+=== #4 POST /groups -> HTTP 201
+{"code":201,"message":"created","data":{"id":"321051e0-a5e1-47bd-bd8c-81c419c5e6c2","name":"自动化测试工作组","description":"测试用","note_id":null,"initiator_id":"c82d8035-7d84-4b39-9769-ef5b8ad3964e","initiator":{"id":"c82d8035-7d84-4b39-9769-ef5b8ad3964e","username":"li","name":"李志
+=== #4 POST /groups/321051e0-a5e1-47bd-bd8c-81c419c5e6c2/members -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330966}
+=== #4 PUT /groups/321051e0-a5e1-47bd-bd8c-81c419c5e6c2/members/6758de73-2ba6-4eaf-95bc-76f6235ce19f -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330966}
+=== #4 DELETE /groups/321051e0-a5e1-47bd-bd8c-81c419c5e6c2/members/6758de73-2ba6-4eaf-95bc-76f6235ce19f -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330966}
+=== #4 POST /groups/321051e0-a5e1-47bd-bd8c-81c419c5e6c2/notes -> HTTP 201
+{"code":201,"message":"created","data":{"id":"0daf38b2-dfa7-44b4-83e0-edfd5901b5ed","title":"组内测试任务","sub_tag":"","content":"组内任务内容","content_delta":"{}","color_status":"red","source_type":"assigned","template_type":"default","creator_id":"c82d8035-7d84-4b39-9769-ef5b8ad3964e
+=== #4 DELETE /notes/0daf38b2-dfa7-44b4-83e0-edfd5901b5ed -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330967}
+=== #5 POST /groups/321051e0-a5e1-47bd-bd8c-81c419c5e6c2/reports -> HTTP 200
+{"code":200,"message":"success","data":{"generated_at":"2026-09-02T14:36:07+08:00","report":"# 自动化测试工作组 专项工作报告\n\n\u003e 生成时间：2026年09月02日 14:36\n\n---\n\n## 一、工作概述\n本次专项行动\"自动化测试工作组\"共组织成员1人（李志勇�
+=== #5 DELETE /groups/321051e0-a5e1-47bd-bd8c-81c419c5e6c2 -> HTTP 200
+{"code":200,"message":"工作组已删除","data":null,"timestamp":1788330967}
+=== #5 POST /notes -> HTTP 201
+{"code":201,"message":"created","data":{"id":"151e226a-7016-4a38-83b3-56ec16d151f2","title":"自动化画布任务","sub_tag":"","content":"协同画布测试","content_delta":"{}","color_status":"yellow","source_type":"self","template_type":"emergency_canvas","creator_id":"c82d8035-7d84-4b39-9769-e
+=== #5 GET /rooms/151e226a-7016-4a38-83b3-56ec16d151f2/canvas -> HTTP 200
+{"code":200,"message":"success","data":{"canvas_data":"{\"blocks\": [], \"connections\": []}","columns":3,"version":0},"timestamp":1788330967}
+=== #5 GET /rooms/151e226a-7016-4a38-83b3-56ec16d151f2/commands -> HTTP 200
+{"code":200,"message":"success","data":[],"timestamp":1788330967}
+=== #5 POST /rooms/151e226a-7016-4a38-83b3-56ec16d151f2/command -> HTTP 200
+{"code":200,"message":"success","data":{"id":"0a74208e-1ea7-4b74-9631-b10f8b81ef32","note_id":"151e226a-7016-4a38-83b3-56ec16d151f2","user_id":"c82d8035-7d84-4b39-9769-ef5b8ad3964e","user_name":"李志勇","content":"测试指令：立即行动","created_at":"2026-09-02T14:36:07.692775+08:00"},"time
+=== #5 GET /rooms/151e226a-7016-4a38-83b3-56ec16d151f2/commands -> HTTP 200
+{"code":200,"message":"success","data":[{"id":"0a74208e-1ea7-4b74-9631-b10f8b81ef32","note_id":"151e226a-7016-4a38-83b3-56ec16d151f2","user_id":"c82d8035-7d84-4b39-9769-ef5b8ad3964e","user_name":"李志勇","content":"测试指令：立即行动","created_at":"2026-09-02T14:36:07.692775+08:00"}],"ti
+=== #5 POST /rooms/151e226a-7016-4a38-83b3-56ec16d151f2/command -> HTTP 403
+{"code":403,"message":"权限不足","data":null,"timestamp":1788330967}
+=== #5 DELETE /notes/151e226a-7016-4a38-83b3-56ec16d151f2 -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330967}
+=== #6 GET /presets -> HTTP 200
+{"code":200,"message":"success","data":[{"id":"9ef6ed9b-1ba6-4f6e-9d47-a147ec40078f","name":"禁毒工作常用配置","description":"毒品案件侦查与治理常用配置","template_type":"special_project","creator_id":"509d93e8-9f10-4080-826c-ffc323129d6b","creator":{"id":"509d93e8-9f10-4080-826
+=== #6 POST /presets -> HTTP 201
+{"code":201,"message":"created","data":{"id":"ee9a0197-d749-4ff7-9d6b-cfd8a044df35","name":"自动化预设组","description":"测试","template_type":"default","creator_id":"255e9eb1-3c27-4a51-bcba-c986cebdadf2","created_at":"2026-09-02T14:36:08.112173+08:00","updated_at":"2026-09-02T14:36:08.11217
+=== #6 PUT /presets/ee9a0197-d749-4ff7-9d6b-cfd8a044df35 -> HTTP 200
+{"code":200,"message":"success","data":{"id":"ee9a0197-d749-4ff7-9d6b-cfd8a044df35","name":"自动化预设组改","description":"","template_type":"default","creator_id":"255e9eb1-3c27-4a51-bcba-c986cebdadf2","creator":{"id":"255e9eb1-3c27-4a51-bcba-c986cebdadf2","username":"admin","name":"张振�
+=== #6 DELETE /presets/ee9a0197-d749-4ff7-9d6b-cfd8a044df35 -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330968}
+=== #6 POST /presets -> HTTP 403
+{"code":403,"message":"权限不足","data":null,"timestamp":1788330968}
+=== #6 GET /ledger?page=1&page_size=20 -> HTTP 200
+{"code":200,"message":"success","data":{"data":[{"id":"0763dec0-7de6-4a19-ab41-31502bd93d79","note_id":"5ce06b88-00cb-4eca-8b09-ab5788473b46","user_id":"255e9eb1-3c27-4a51-bcba-c986cebdadf2","user":{"id":"255e9eb1-3c27-4a51-bcba-c986cebdadf2","username":"admin","name":"张振国","dept_id":"e5803e55
+=== #6 GET /ledger/stats -> HTTP 200
+{"code":200,"message":"success","data":{"by_action":{"archive":22,"assign":30,"comment":35,"complete":40,"create":51,"feedback":7,"remind":35,"tag":28,"update":49}},"timestamp":1788330968}
+=== #6 GET /notifications?page=1&page_size=10 -> HTTP 200
+{"code":200,"message":"success","data":{"data":[{"id":"12fdd700-ad13-499c-be0f-62af23652f8e","recipient_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325","sender_id":"c82d8035-7d84-4b39-9769-ef5b8ad3964e","sender":{"id":"c82d8035-7d84-4b39-9769-ef5b8ad3964e","username":"li","name":"李志勇","dept_id":"e0
+=== #6 GET /notifications/unread-count -> HTTP 200
+{"code":200,"message":"success","data":{"count":2},"timestamp":1788330968}
+=== #6 POST /notifications/12fdd700-ad13-499c-be0f-62af23652f8e/read -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330968}
+=== #6 DELETE /notifications/12fdd700-ad13-499c-be0f-62af23652f8e -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330968}
+=== #6 POST /notifications/read-all -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330968}
+=== #6 GET /chat/conversations -> HTTP 200
+{"code":200,"message":"success","data":[{"last_at":"2026-09-02T12:06:53.104279+08:00","last_msg":"自动化测试消息","last_type":"text","peer_avatar":"","peer_id":"6758de73-2ba6-4eaf-95bc-76f6235ce19f","peer_name":"赵敏","unread":0}],"timestamp":1788330969}
+=== #6 GET /chat/online -> HTTP 200
+{"code":200,"message":"success","data":{"online_ids":null},"timestamp":1788330969}
+=== #6 POST /chat/6758de73-2ba6-4eaf-95bc-76f6235ce19f/messages -> HTTP 201
+{"code":201,"message":"created","data":{"id":"8c55c935-5234-4eac-bcb2-ab094f91e1e1","sender_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325","receiver_id":"6758de73-2ba6-4eaf-95bc-76f6235ce19f","note_id":null,"type":"text","content":"自动化测试消息","file_name":"","file_path":"","file_size":0,"mime
+=== #6 GET /chat/6758de73-2ba6-4eaf-95bc-76f6235ce19f/messages -> HTTP 200
+{"code":200,"message":"success","data":{"data":[{"id":"aeb00d20-243d-4dcf-8d4a-8224bf656fb1","sender_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325","receiver_id":"6758de73-2ba6-4eaf-95bc-76f6235ce19f","note_id":null,"type":"text","content":"自动化测试消息","file_name":"","file_path":"","file_size
+=== #6 POST /chat/6758de73-2ba6-4eaf-95bc-76f6235ce19f/read -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330969}
+=== #6 GET /emoticons -> HTTP 200
+{"code":200,"message":"success","data":{"categories":["我的表情","熊猫头表情包","狗狗表情包","猫猫表情包"],"list":[{"id":"82766c39-1a35-4472-a01d-a2ca3b1a87d7","name":"001.jpg","category":"熊猫头表情包","path":"/uploads/emoticons/system/熊猫头表情包/001.jpg","uploader
+=== #6 DELETE /emoticons/932c4ef5-da01-4ea0-87ea-9cf6e5f78089 -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330969}
+=== #6 GET /reminders -> HTTP 200
+{"code":200,"message":"success","data":[{"id":"6f3c651d-6877-4b8a-94ed-1a72498463e4","note_id":"88b0ba60-b40b-48ec-acca-5e9eec16e114","reminder_id":"c82d8035-7d84-4b39-9769-ef5b8ad3964e","reminder":{"id":"c82d8035-7d84-4b39-9769-ef5b8ad3964e","username":"li","name":"李志勇","dept_id":"e0127343-07
+=== #6 GET /issues?page=1&page_size=10 -> HTTP 200
+{"code":200,"message":"success","data":{"data":[{"id":"1ea19efa-0af5-4540-bab9-5cd97b234023","issue_no":3,"title":"自动化测试Issue","content":"测试问题描述","type":"bug","status":"closed","user_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325","user_name":"张伟测试","creator":{"id":"f7e0ad4e
+=== #6 POST /issues -> HTTP 201
+{"code":201,"message":"created","data":{"id":"4a7e912c-13f6-430f-96e1-3f5b9ef386a5","issue_no":4,"title":"自动化测试Issue","content":"测试问题描述","type":"bug","status":"open","user_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325","user_name":"张伟测试","created_at":"2026-09-02T14:36:09.97
+=== #6 GET /issues/4a7e912c-13f6-430f-96e1-3f5b9ef386a5 -> HTTP 200
+{"code":200,"message":"success","data":{"comments":[],"issue":{"id":"4a7e912c-13f6-430f-96e1-3f5b9ef386a5","issue_no":4,"title":"自动化测试Issue","content":"测试问题描述","type":"bug","status":"open","user_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325","user_name":"张伟测试","creator":{"i
+=== #6 POST /issues/4a7e912c-13f6-430f-96e1-3f5b9ef386a5/comments -> HTTP 201
+{"code":201,"message":"created","data":{"id":"f38c4467-0b35-414a-806b-ea8b194d68d4","issue_id":"4a7e912c-13f6-430f-96e1-3f5b9ef386a5","user_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325","user_name":"张伟测试","content":"测试评论","created_at":"2026-09-02T14:36:10.182745+08:00"},"timestamp":1788
+=== #6 PUT /issues/4a7e912c-13f6-430f-96e1-3f5b9ef386a5/status -> HTTP 200
+{"code":200,"message":"success","data":{"status":"closed","success":true},"timestamp":1788330970}
+=== #6 POST /issues/4a7e912c-13f6-430f-96e1-3f5b9ef386a5/subscribe -> HTTP 200
+{"code":200,"message":"success","data":{"subscribed":true,"subscriber_count":1},"timestamp":1788330970}
+=== #6 DELETE /issues/4a7e912c-13f6-430f-96e1-3f5b9ef386a5/subscribe -> HTTP 200
+{"code":200,"message":"success","data":{"subscribed":false,"subscriber_count":0},"timestamp":1788330970}
+=== #6 POST /issues/watch -> HTTP 200
+{"code":200,"message":"success","data":{"watching":true},"timestamp":1788330970}
+=== #6 GET /issues/watching -> HTTP 200
+{"code":200,"message":"success","data":{"watching":true},"timestamp":1788330970}
+=== #6 DELETE /issues/watch -> HTTP 200
+{"code":200,"message":"success","data":{"watching":false},"timestamp":1788330970}
+=== #6 DELETE /issues/4a7e912c-13f6-430f-96e1-3f5b9ef386a5 -> HTTP 404
+{"code":404,"message":"接口不存在","data":null,"timestamp":1788330970}
+=== #7 GET /analytics/personal-stats -> HTTP 200
+{"code":200,"message":"success","data":{"total_created":0,"total_completed":0,"completion_rate":0,"remind_received":5,"avg_completion_hours":0,"daily_trend":[],"tag_breakdown":[]},"timestamp":1788330970}
+=== #7 GET /analytics/team-stats -> HTTP 200
+{"code":200,"message":"success","data":{"completion_rate":0,"date_from":"2026-08-31","date_to":"2026-09-02","member_count":25,"members":[{"user_id":"6c890a33-a991-4263-bc38-d6f6ee57ca8b","user_name":"余伟","username":"yu","dept_name":"作战指挥中队","total_created":0,"total_completed":0,"comp
+=== #7 POST /analytics/team-report -> HTTP 200
+{"code":200,"message":"success","data":{"category":"team","generated_at":"2026-09-02T14:36:11+08:00","period":"week","period_label":"周报","report":"## 团队工作成效周报\n\n**统计范围**：2026-08-31 ~ 2026-09-02\n\n**团队成员**：25 人\n\n团队共创建任务 **4** 条，完成 **
+=== #7 GET /analytics/ai-configs -> HTTP 200
+{"code":200,"message":"success","data":[{"id":"686f4190-d72f-41a4-aa26-4d0630a77b42","model_name":"gpt-4o","provider_name":"OpenAI","provider_type":"openai"}],"timestamp":1788330971}
+=== #7 GET /analytics/reports -> HTTP 200
+{"code":200,"message":"success","data":{"data":[{"id":"d1bc3302-58f4-40f3-922c-14d3aac30a34","user_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325","user_name":"zhang3","group_id":null,"period":"month","period_label":"本月","report_type":"template","category":"personal","title":"本月工作报告 - 202
+=== #7 GET /analytics/reports/d1bc3302-58f4-40f3-922c-14d3aac30a34 -> HTTP 200
+{"code":200,"message":"success","data":{"id":"d1bc3302-58f4-40f3-922c-14d3aac30a34","user_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325","user_name":"zhang3","group_id":null,"period":"month","period_label":"本月","report_type":"template","category":"personal","title":"本月工作报告 - 2026-09-02 1
+=== #7 GET /analytics/reports/d1bc3302-58f4-40f3-922c-14d3aac30a34/detail -> HTTP 200
+{"code":200,"message":"success","data":{"detail":{"range":"2026-09-01 ~ 2026-09-02","members":[{"user_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325","user_name":"张伟测试","tasks":[]}]},"report":{"id":"d1bc3302-58f4-40f3-922c-14d3aac30a34","user_id":"f7e0ad4e-679d-4cb0-8aa6-a9f06fc21325","user_name"
+=== #7 GET /analytics/report-template -> HTTP 200
+{"code":200,"message":"success","data":{"id":"default","name":"默认报告模板","content":"# 测试模板 {{userName}}","updated_at":"2026-09-02T12:06:55.565675+08:00"},"timestamp":1788330971}
+=== #7 PUT /analytics/report-template -> HTTP 200
+{"code":200,"message":"模板保存成功","data":{"id":"default","name":"默认报告模板","content":"# 测试模板 {{userName}}","updated_at":"2026-09-02T14:36:11.552694+08:00"},"timestamp":1788330971}
+=== #7 POST /analytics/daily-report -> HTTP 200
+{"code":200,"message":"success","data":{"category":"personal","generated_at":"2026-09-02T14:36:11+08:00","period":"day","period_label":"今日","report":"# 测试模板 zhang3","report_id":"f92930c8-e20a-43ed-9a96-a414058341f2","report_type":"template","source_stats":[],"stats":{"total_created":0,"t
+=== #7 POST /analytics/weekly-report -> HTTP 200
+{"code":200,"message":"success","data":{"category":"personal","generated_at":"2026-09-02T14:36:11+08:00","period":"week","period_label":"本周","report":"# 测试模板 zhang3","report_id":"dcf373f9-b19d-4118-95cd-b9b7ef928220","report_type":"template","source_stats":[],"stats":{"total_created":0,"
+=== #7 POST /analytics/monthly-report -> HTTP 200
+{"code":200,"message":"success","data":{"category":"personal","generated_at":"2026-09-02T14:36:11+08:00","period":"month","period_label":"本月","report":"# 测试模板 zhang3","report_id":"0e2034fd-c33e-40a3-ba86-bc799b63b738","report_type":"template","source_stats":[],"stats":{"total_created":0,
+=== #7 GET /system/config -> HTTP 403
+{"code":403,"message":"权限不足","data":null,"timestamp":1788330971}
+=== #7 GET /system/config -> HTTP 200
+{"code":200,"message":"success","data":{"database":{"conn_max_lifetime_seconds":3600,"dbname":"labelpro","host":"127.0.0.1","log_level":"warn","max_idle_conns":10,"max_open_conns":50,"password":"••••••••","port":5432,"sslmode":"disable","user":"postgres"},"features":{"demo_mode":fals
+=== #7 PUT /system/config -> HTTP 200
+{"code":200,"message":"配置已更新并热加载生效","data":{"database":{"conn_max_lifetime_seconds":3600,"dbname":"labelpro","host":"127.0.0.1","log_level":"warn","max_idle_conns":10,"max_open_conns":50,"password":"••••••••","port":5432,"sslmode":"disable","user":"postgres"},"f
+=== #7 GET /system/ai-configs -> HTTP 200
+{"code":200,"message":"success","data":[{"id":"686f4190-d72f-41a4-aa26-4d0630a77b42","provider_type":"openai","provider_name":"OpenAI","api_endpoint":"https://api.openai.com/v1","api_key_masked":"••••••••","model_name":"gpt-4o","description":"默认AI模型配置（演示环境，请
+=== #7 POST /system/ai-configs -> HTTP 201
+{"code":201,"message":"created","data":{"id":"39b802bd-2334-49f8-a809-5bc7f620ad3a","provider_type":"openai","provider_name":"自动化测试AI","api_endpoint":"http://127.0.0.1:18099","api_key_masked":"sk-m********-123","model_name":"gpt-4","description":"","is_active":true,"created_at":"2026-09-02
+=== #7 PUT /system/ai-configs/39b802bd-2334-49f8-a809-5bc7f620ad3a -> HTTP 200
+{"code":200,"message":"AI配置已更新","data":null,"timestamp":1788330972}
+=== #7 POST /system/ai-configs/test -> HTTP 200
+{"code":200,"message":"success","data":{"success":true,"message":"连通成功","latency_ms":0},"timestamp":1788330972}
+=== #7 DELETE /system/ai-configs/39b802bd-2334-49f8-a809-5bc7f620ad3a -> HTTP 200
+{"code":200,"message":"AI配置已删除","data":null,"timestamp":1788330972}
+=== #7 GET /system/config-files -> HTTP 200
+{"code":200,"message":"success","data":[{"description":"主配置文件","name":"config.json","path":"config.json"}],"timestamp":1788330972}
+=== #7 GET /system/config-files/config.json -> HTTP 200
+{"code":200,"message":"success","data":{"content":"{\n  \"_说明\": \"================================================================\",\n  \"_说明2\": \"  轻燕工作台 服务端配置文件\",\n  \"_说明3\": \"  按功能模块分组，所有敏感信息统一管理\",\n  \"_说明4\": \" 
+=== #7 GET /system/config-files/config.json/history -> HTTP 200
+{"code":200,"message":"success","data":[],"timestamp":1788330972}
+=== #7 GET /system/logs?page=1&page_size=10 -> HTTP 200
+{"code":200,"message":"success","data":{"data":[{"id":"1cc4a3dc-7ee6-4a6a-a110-2fbd2aa5a776","admin_id":"255e9eb1-3c27-4a51-bcba-c986cebdadf2","admin_name":"admin","action":"delete_ai_config","resource":"ai_config","resource_id":"39b802bd-2334-49f8-a809-5bc7f620ad3a","detail":"删除AI服务配置",
+=== #7 GET /system/operations?page=1&page_size=10 -> HTTP 200
+{"code":200,"message":"success","data":{"data":[{"id":"32880075-b353-4b13-ad0f-e74766bceeb9","user_id":"255e9eb1-3c27-4a51-bcba-c986cebdadf2","user_name":"admin","role":"super_admin","action":"delete_ai_config","method":"DELETE","path":"/api/v1/system/ai-configs/39b802bd-2334-49f8-a809-5bc7f620ad3a"
+=== #7 GET /system/operations/actions -> HTTP 200
+{"code":200,"message":"success","data":["delete_user","generate_weekly_report","login","删除任务","delete_notification","add_issue_comment","create_note","create_template","sign_note","delete_tag","create","生成报告","create_department","restore_note","delete_preset","complete_note","create_
+=== #7 GET /system/chat-file-policy -> HTTP 200
+{"code":200,"message":"success","data":{"allow_extensions":"","blocked_extensions":".exe,.bat,.cmd,.com,.scr,.msi,.ps1,.vbs,.js,.jar,.dll,.sys,.sh,.bin,.apk,.msc,.reg,.hta,.cpl,.pif,.wsf,.wsh,.html,.htm,.svg","updated_at":"2026-09-02T12:06:57.314589+08:00"},"timestamp":1788330973}
+=== #7 PUT /system/chat-file-policy -> HTTP 200
+{"code":200,"message":"success","data":{"success":true},"timestamp":1788330973}

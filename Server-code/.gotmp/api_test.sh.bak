@@ -1,0 +1,520 @@
+#!/bin/bash
+# Zephyr 平台全功能 API 测试脚本
+BASE="http://localhost:8090/api/v1"
+PASS=0; FAIL=0; FAILED_TESTS=()
+RESULTS_FILE="/Users/admin/codespace/golang/Zephyr/Server-code/.gotmp/test_results.txt"
+> "$RESULTS_FILE"
+DEBUG_FILE="/Users/admin/codespace/golang/Zephyr/Server-code/.gotmp/api_debug.log"
+> "$DEBUG_FILE"
+REQ_SEQ=0
+
+check() { # name expected actual  (expected 支持 "200|201" 多值)
+  local name="$1" expected="$2" actual="$3"
+  local matched=false
+  if [[ "$expected" == *\|* ]]; then
+    if echo "$actual" | grep -qE "^($expected)\$"; then matched=true; fi
+  elif [ "$expected" = "$actual" ]; then
+    matched=true
+  fi
+  if [ "$matched" = true ]; then
+    PASS=$((PASS+1)); echo "PASS | $name" >> "$RESULTS_FILE"
+  else
+    FAIL=$((FAIL+1)); FAILED_TESTS+=("$name (期望$expected 实际$actual)")
+    echo "FAIL | $name | 期望:$expected 实际:$actual" >> "$RESULTS_FILE"
+  fi
+}
+
+json_code() { echo "$1" | jq -r '.code // empty' 2>/dev/null; }
+# 期望业务成功 code=200
+ok() { check "$1" 200 "$(json_code "$2")"; }
+# 期望业务失败 code=指定
+err_code() { check "$1" "$2" "$(json_code "$3")"; }
+
+api() { # method path token data -> body
+  local m="$1" p="$2" t="$3" d="$4"
+  if [ -n "$d" ]; then
+    curl -s -m 20 -X "$m" -H "Authorization: Bearer $t" -H "Content-Type: application/json" -d "$d" "$BASE$p"
+  else
+    curl -s -m 20 -X "$m" -H "Authorization: Bearer $t" "$BASE$p"
+  fi
+}
+
+########## 0. 准备：测试资源 ##########
+# 1x1 真实PNG（服务端校验魔数），用于附件/表情/聊天文件上传
+printf 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' | openssl base64 -d -A > /tmp/zephyr_test.png
+# 本地mock OpenAI端点由外部长驻进程提供（127.0.0.1:18099），沙箱内后台子进程不可靠
+
+########## 1. 基础 ##########
+H=$(curl -s -m 5 http://localhost:8090/health)
+check "health状态" "ok" "$(echo "$H" | jq -r '.status')"
+P=$(curl -s -m 5 "$BASE/ping")
+ok "ping接口" "$P"
+
+########## 1. 认证模块 ##########
+# 未带token应401
+NOAUTH=$(curl -s -m 5 "$BASE/auth/me")
+check "未授权访问返回401" 401 "$(echo "$NOAUTH" | jq -r '.code')"
+# 错误token应401
+BADTOK=$(curl -s -m 5 -H "Authorization: Bearer invalid.token.here" "$BASE/auth/me")
+check "无效token返回401" 401 "$(echo "$BADTOK" | jq -r '.code')"
+# 错误密码
+BADLOGIN=$(api POST /auth/login "" '{"username":"admin","password":"wrongpass"}')
+err_code "错误密码登录被拒" 401 "$BADLOGIN"
+# 正常登录4个角色
+for u in admin wang li zhang3; do
+  R=$(api POST /auth/login "" "{\"username\":\"$u\",\"password\":\"Admin@123\"}")
+  ok "登录-$u" "$R"
+done
+ADMIN_TOKEN=$(api POST /auth/login "" '{"username":"admin","password":"Admin@123"}' | jq -r '.data.access_token')
+DEPT_TOKEN=$(api POST /auth/login "" '{"username":"wang","password":"Admin@123"}' | jq -r '.data.access_token')
+LEADER_TOKEN=$(api POST /auth/login "" '{"username":"li","password":"Admin@123"}' | jq -r '.data.access_token')
+MEMBER_TOKEN=$(api POST /auth/login "" '{"username":"zhang3","password":"Admin@123"}' | jq -r '.data.access_token')
+MEMBER_ID=$(api POST /auth/login "" '{"username":"zhang3","password":"Admin@123"}' | jq -r '.data.user.id // .data.user_info.id // .data.id // empty')
+ADMIN_ID=$(api POST /auth/login "" '{"username":"admin","password":"Admin@123"}' | jq -r '.data.user.id // .data.user_info.id // .data.id // empty')
+check "登录返回token" true "$([ -n "$ADMIN_TOKEN" ] && [ "$ADMIN_TOKEN" != "null" ] && echo true || echo false)"
+
+ME=$(api GET /auth/me "$ADMIN_TOKEN")
+ok "获取当前用户信息" "$ME"
+ME2=$(api GET /auth/me "$MEMBER_TOKEN")
+ok "获取member信息" "$ME2"
+REFRESH=$(api POST /auth/refresh "" "{\"refresh_token\":\"$(api POST /auth/login "" '{"username":"admin","password":"Admin@123"}' | jq -r '.data.refresh_token')\"}")
+ok "刷新token" "$REFRESH"
+
+########## 2. 部门模块 ##########
+DEPTS=$(api GET /departments "$ADMIN_TOKEN")
+ok "部门树查询" "$DEPTS"
+ROOT_DEPT=$(echo "$DEPTS" | jq -r '.data[0].id // .data[0].ID // empty')
+DEPT_DETAIL=$(api GET /departments/$ROOT_DEPT "$ADMIN_TOKEN")
+ok "部门详情" "$DEPT_DETAIL"
+NEW_DEPT=$(api POST /departments "$ADMIN_TOKEN" '{"name":"测试部门-自动化","description":"测试用","parent_id":null}')
+DEPT_CREATE_CODE=$(json_code "$NEW_DEPT")
+check "创建部门" "200|201" "$(echo "$DEPT_CREATE_CODE" | grep -E '^(200|201)$')"
+TEST_DEPT_ID=$(echo "$NEW_DEPT" | jq -r '.data.id // .data.ID // empty')
+DEPT_UPD=$(api PUT /departments/$TEST_DEPT_ID "$ADMIN_TOKEN" '{"name":"测试部门-改名","description":"已改名"}')
+ok "更新部门" "$DEPT_UPD"
+DEPT_DEL=$(api DELETE /departments/$TEST_DEPT_ID "$ADMIN_TOKEN")
+ok "删除部门" "$DEPT_DEL"
+DEPT_NOPERM=$(api POST /departments "$MEMBER_TOKEN" '{"name":"越权部门"}')
+err_code "member创建部门被拒(403)" 403 "$DEPT_NOPERM"
+
+########## 3. 用户模块 ##########
+USERS=$(api GET "/users?page=1&page_size=100" "$ADMIN_TOKEN")
+ok "用户列表" "$USERS"
+USERS_M=$(api GET "/users?page=1&page_size=50" "$MEMBER_TOKEN")
+ok "普通用户查列表" "$USERS_M"
+VISIBLE=$(api GET /users/visible "$MEMBER_TOKEN")
+ok "可见用户" "$VISIBLE"
+STATS=$(api GET /users/with-stats "$ADMIN_TOKEN")
+ok "用户统计列表" "$STATS"
+RECO=$(api GET "/users/recommend?work_type=刑侦&limit=5" "$LEADER_TOKEN")
+ok "人员推荐" "$RECO"
+WTO=$(api GET /users/work-type-options "$ADMIN_TOKEN")
+ok "工作类型选项" "$WTO"
+USER_DETAIL=$(api GET /users/$MEMBER_ID "$ADMIN_TOKEN")
+ok "用户详情" "$USER_DETAIL"
+PROFILE=$(api GET /users/$MEMBER_ID/profile "$ADMIN_TOKEN")
+ok "人员档案" "$PROFILE"
+# 创建用户
+REG=$(api POST /users "$ADMIN_TOKEN" '{"username":"testbot01","name":"测试机器人","password":"Test@12345","role":"member","dept_id":null}')
+REG_CODE=$(json_code "$REG")
+check "创建用户" "200|201" "$(echo "$REG_CODE" | grep -E '^(200|201)$')"
+TESTBOT_ID=$(echo "$REG" | jq -r '.data.id // .data.user.id // .data.user_info.id // empty')
+# 重复用户名应失败
+REG2=$(api POST /users "$ADMIN_TOKEN" '{"username":"testbot01","name":"重复用户","password":"Test@12345"}')
+err_code "重复用户名被拒" 400 "$REG2"
+# 弱密码应失败
+REG3=$(api POST /users "$ADMIN_TOKEN" '{"username":"weakpwd","name":"弱密码","password":"123"}')
+err_code "弱密码被拒" 400 "$REG3"
+# member越权创建用户
+REG4=$(api POST /users "$MEMBER_TOKEN" '{"username":"hacker01","name":"越权","password":"Test@12345"}')
+err_code "member创建用户被拒" 403 "$REG4"
+# 更新用户
+UPD_USER=$(api PUT /users/$TESTBOT_ID "$ADMIN_TOKEN" '{"name":"测试机器人改","position":"测试岗"}')
+ok "更新用户" "$UPD_USER"
+# 越权更新用户
+UPD_USER2=$(api PUT /users/$TESTBOT_ID "$MEMBER_TOKEN" '{"name":"越权改名"}')
+err_code "member更新用户被拒" 403 "$UPD_USER2"
+# 个人中心自助更新
+MYPROFILE=$(api PUT /profile "$MEMBER_TOKEN" '{"name":"张伟测试","skills":"测试技能"}')
+ok "自助更新个人资料" "$MYPROFILE"
+# 删除用户
+DEL_USER=$(api DELETE /users/$TESTBOT_ID "$ADMIN_TOKEN")
+ok "删除用户" "$DEL_USER"
+
+########## 4. 标签模块 ##########
+TAGS=$(api GET /tags "$MEMBER_TOKEN")
+ok "标签列表" "$TAGS"
+NEWTAG=$(api POST /tags "$ADMIN_TOKEN" '{"name":"自动化测试标签","color":"#ff0000","description":"临时标签"}')
+TAG_CODE=$(json_code "$NEWTAG")
+check "创建标签" "200|201" "$(echo "$TAG_CODE" | grep -E '^(200|201)$')"
+TAG_ID=$(echo "$NEWTAG" | jq -r '.data.id // .data.ID // empty')
+UPTAG=$(api PUT /tags/$TAG_ID "$ADMIN_TOKEN" '{"name":"自动化测试标签改","color":"#00ff00"}')
+ok "更新标签" "$UPTAG"
+DELTAG=$(api DELETE /tags/$TAG_ID "$ADMIN_TOKEN")
+ok "删除标签" "$DELTAG"
+
+########## 5. 模板模块 ##########
+TMPLS=$(api GET /templates "$MEMBER_TOKEN")
+ok "模板列表" "$TMPLS"
+NEWTMPL=$(api POST /templates "$MEMBER_TOKEN" '{"name":"测试模板-自动化","description":"临时模板","content":"<p>测试内容</p>","category":"note"}')
+TMPL_CODE=$(json_code "$NEWTMPL")
+check "member创建模板" "200|201" "$(echo "$TMPL_CODE" | grep -E '^(200|201)$')"
+TMPL_ID=$(echo "$NEWTMPL" | jq -r '.data.id // .data.ID // empty')
+UPTMPL=$(api PUT /templates/$TMPL_ID "$MEMBER_TOKEN" '{"name":"测试模板改","content":"<p>改</p>"}')
+ok "更新模板(创建人)" "$UPTMPL"
+DELTMPL=$(api DELETE /templates/$TMPL_ID "$MEMBER_TOKEN")
+ok "删除模板(创建人)" "$DELTMPL"
+# 越权删除他人模板
+OTHER_TMPL_ID=$(echo "$TMPLS" | jq -r '.data[0].id // .data[0].ID // empty')
+if [ -n "$OTHER_TMPL_ID" ]; then
+  DELOTHER=$(api DELETE /templates/$OTHER_TMPL_ID "$MEMBER_TOKEN")
+  err_code "member删除他人模板被拒" 403 "$DELOTHER"
+fi
+
+########## 6. 任务(便签)模块 ##########
+NOTES=$(api GET "/notes?page=1&page_size=20" "$MEMBER_TOKEN")
+ok "任务列表" "$NOTES"
+NOTE_STATS=$(api GET /notes/stats "$MEMBER_TOKEN")
+ok "任务统计" "$NOTE_STATS"
+HEAT=$(api GET /notes/heatmap "$MEMBER_TOKEN")
+ok "任务热力图" "$HEAT"
+# 创建任务
+TAGS2=$(api GET /tags "$MEMBER_TOKEN")
+TAG1_ID=$(echo "$TAGS2" | jq -r '.data[0].id // .data[0].ID // empty')
+NEWTAG2=$(api POST /tags "$MEMBER_TOKEN" '{"name":"任务测试标签","color":"#123456"}')
+NTAG_ID=$(echo "$NEWTAG2" | jq -r '.data.id // .data.ID // empty')
+CREATE_NOTE=$(api POST /notes "$MEMBER_TOKEN" "{\"title\":\"自动化测试任务\",\"content\":\"测试任务内容\",\"tag_ids\":[\"$NTAG_ID\"],\"due_date\":\"2026-12-31T23:59:59Z\",\"priority\":\"high\"}")
+NOTE_CODE=$(json_code "$CREATE_NOTE")
+check "创建任务" "200|201" "$(echo "$NOTE_CODE" | grep -E '^(200|201)$')"
+NOTE_ID=$(echo "$CREATE_NOTE" | jq -r '.data.id // .data.ID // empty')
+# 查询详情
+GET_NOTE=$(api GET /notes/$NOTE_ID "$MEMBER_TOKEN")
+ok "任务详情" "$GET_NOTE"
+# 更新
+UPD_NOTE=$(api PUT /notes/$NOTE_ID "$MEMBER_TOKEN" '{"title":"自动化测试任务-改","content":"内容已更新","priority":"urgent"}')
+ok "更新任务" "$UPD_NOTE"
+# 反馈
+FB_NOTE=$(api POST /notes/$NOTE_ID/feedback "$MEMBER_TOKEN" '{"content":"进展顺利，已完成50%"}')
+ok "任务反馈" "$FB_NOTE"
+# 签收：self任务发起者签收应被拒（仅assigned任务被指派人可签收）
+SIGN_SELF=$(api POST /notes/$NOTE_ID/sign "$MEMBER_TOKEN" '{}')
+err_code "self任务签收被拒(403)" 403 "$SIGN_SELF"
+# 盯办(leader/admin)：target_id为被盯办人（任务创建者member）
+REM_NOTE=$(api POST /notes/$NOTE_ID/remind "$LEADER_TOKEN" "{\"target_id\":\"$MEMBER_ID\",\"message\":\"请尽快完成\"}")
+REM_CODE=$(json_code "$REM_NOTE")
+check "任务盯办" "200|201" "$(echo "$REM_CODE" | grep -E '^(200|201)$')"
+# 附件上传：合法PNG
+ATT=$(curl -s -m 20 -X POST -H "Authorization: Bearer $MEMBER_TOKEN" -F "file=@/tmp/zephyr_test.png" "$BASE/notes/$NOTE_ID/attachments")
+ATT_CODE=$(json_code "$ATT")
+check "上传任务附件(png)" "200|201" "$(echo "$ATT_CODE" | grep -E '^(200|201)$')"
+# 附件负例：txt应被拒
+printf 'test attachment content' > /tmp/zephyr_test_att.txt
+ATT_BAD=$(curl -s -m 20 -X POST -H "Authorization: Bearer $MEMBER_TOKEN" -F "file=@/tmp/zephyr_test_att.txt" "$BASE/notes/$NOTE_ID/attachments")
+err_code "txt附件被拒(400)" 400 "$ATT_BAD"
+ATT_ID=$(echo "$ATT" | jq -r '.data[0].id // .data.id // .data.ID // .data[0].ID // empty')
+LATT=$(api GET /notes/$NOTE_ID/attachments "$MEMBER_TOKEN")
+ok "附件列表" "$LATT"
+if [ -n "$ATT_ID" ] && [ "$ATT_ID" != "null" ]; then
+  DATT=$(api DELETE /notes/$NOTE_ID/attachments/$ATT_ID "$MEMBER_TOKEN")
+  ok "删除附件" "$DATT"
+fi
+# 完成
+DONE_NOTE=$(api POST /notes/$NOTE_ID/complete "$MEMBER_TOKEN" '{"summary":"任务已完成"}')
+ok "完成任务" "$DONE_NOTE"
+# 归档(删除)
+DEL_NOTE=$(api DELETE /notes/$NOTE_ID "$MEMBER_TOKEN")
+ok "任务归档/删除" "$DEL_NOTE"
+# 恢复
+RES_NOTE=$(api POST /notes/$NOTE_ID/restore "$MEMBER_TOKEN" '{}')
+ok "任务恢复" "$RES_NOTE"
+# 清理测试任务
+api DELETE /notes/$NOTE_ID "$MEMBER_TOKEN" > /dev/null
+api DELETE /tags/$NTAG_ID "$MEMBER_TOKEN" > /dev/null
+# 导出
+EXPORT=$(curl -s -m 30 -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $ADMIN_TOKEN" "$BASE/notes/export?format=excel")
+check "任务导出Excel" "200" "$EXPORT"
+# assigned任务签收流程：leader指派给member，member签收
+ASSIGN_NOTE=$(api POST /notes "$LEADER_TOKEN" "{\"title\":\"指派签收测试任务\",\"content\":\"测试签收\",\"source_type\":\"assigned\",\"assignees\":[{\"user_id\":\"$MEMBER_ID\",\"role_in_note\":\"member\"}]}")
+ASSIGN_CODE=$(json_code "$ASSIGN_NOTE")
+check "创建指派任务" "200|201" "$(echo "$ASSIGN_CODE" | grep -E '^(200|201)$')"
+ASSIGN_ID=$(echo "$ASSIGN_NOTE" | jq -r '.data.id // .data.ID // empty')
+if [ -n "$ASSIGN_ID" ] && [ "$ASSIGN_ID" != "null" ]; then
+  SIGN_OK=$(api POST /notes/$ASSIGN_ID/sign "$MEMBER_TOKEN" '{}')
+  ok "被指派人签收" "$SIGN_OK"
+  # 盯办：发起者(leader)盯办被指派人(member)
+  REM_ASG=$(api POST /notes/$ASSIGN_ID/remind "$LEADER_TOKEN" "{\"target_id\":\"$MEMBER_ID\",\"message\":\"请尽快完成\"}")
+  REM_ASG_CODE=$(json_code "$REM_ASG")
+  check "任务盯办(发起者盯办被指派人)" "200|201" "$(echo "$REM_ASG_CODE" | grep -E '^(200|201)$')"
+  api DELETE /notes/$ASSIGN_ID "$LEADER_TOKEN" > /dev/null 2>&1
+fi
+# 盯办员越权：member不能盯办他人? (按需求leader以上可盯办)
+
+########## 7. 工作组模块 ##########
+GROUPS=$(api GET "/groups?page=1&page_size=20" "$ADMIN_TOKEN")
+ok "工作组搜索" "$GROUPS"
+MYGROUPS=$(api GET /groups/mine "$LEADER_TOKEN")
+ok "我的工作组" "$MYGROUPS"
+GRP_ID=$(echo "$GROUPS" | jq -r '.data.data[0].id // .data.data[0].ID // .data[0].id // .data[0].ID // empty')
+if [ -n "$GRP_ID" ] && [ "$GRP_ID" != "null" ]; then
+  GDET=$(api GET /groups/$GRP_ID "$ADMIN_TOKEN")
+  ok "工作组详情" "$GDET"
+  GMEM=$(api GET /groups/$GRP_ID/members "$ADMIN_TOKEN")
+  ok "工作组成员" "$GMEM"
+  GNOTES=$(api GET /groups/$GRP_ID/notes "$ADMIN_TOKEN")
+  ok "工作组任务" "$GNOTES"
+  GDASH=$(api GET /groups/$GRP_ID/dashboard "$ADMIN_TOKEN")
+  ok "工作组看板" "$GDASH"
+  GREPORTS=$(api GET /groups/$GRP_ID/reports "$ADMIN_TOKEN")
+  ok "工作组报告列表" "$GREPORTS"
+fi
+NEWGRP=$(api POST /groups "$LEADER_TOKEN" '{"name":"自动化测试工作组","description":"测试用","member_ids":["'$MEMBER_ID'"]}')
+GRP_CODE=$(json_code "$NEWGRP")
+check "创建工作组" "200|201" "$(echo "$GRP_CODE" | grep -E '^(200|201)$')"
+TESTGRP_ID=$(echo "$NEWGRP" | jq -r '.data.id // .data.ID // .data.group.id // empty')
+if [ -n "$TESTGRP_ID" ] && [ "$TESTGRP_ID" != "null" ]; then
+  # 成员操作
+  USER2_ID=$(echo "$USERS" | jq -r '.data.data // .data | map(select(.username=="zhao")) | .[0].id // .[0].ID // empty')
+  ADDMEM=$(api POST /groups/$TESTGRP_ID/members "$LEADER_TOKEN" "{\"user_id\":\"$USER2_ID\",\"role\":\"member\"}")
+  ok "添加成员" "$ADDMEM"
+  UPDMEM=$(api PUT /groups/$TESTGRP_ID/members/$USER2_ID "$LEADER_TOKEN" '{"role":"leader"}')
+  ok "更新成员角色" "$UPDMEM"
+  DELMEM=$(api DELETE /groups/$TESTGRP_ID/members/$USER2_ID "$LEADER_TOKEN")
+  ok "移除成员" "$DELMEM"
+  # 组内任务
+  CGN=$(api POST /groups/$TESTGRP_ID/notes "$LEADER_TOKEN" "{\"title\":\"组内测试任务\",\"content\":\"组内任务内容\"}")
+  CGN_CODE=$(json_code "$CGN")
+  check "创建组内任务" "200|201" "$(echo "$CGN_CODE" | grep -E '^(200|201)$')"
+  CGN_ID=$(echo "$CGN" | jq -r '.data.id // .data.ID // empty')
+  api DELETE /notes/$CGN_ID "$LEADER_TOKEN" > /dev/null 2>&1
+  # 报告生成
+  GREPORT=$(api POST /groups/$TESTGRP_ID/reports "$LEADER_TOKEN" '{"title":"自动化测试报告","type":"weekly"}')
+  GREPORT_CODE=$(json_code "$GREPORT")
+  check "生成工作组报告" "200|201" "$(echo "$GREPORT_CODE" | grep -E '^(200|201)$')"
+  GREPORT_ID=$(echo "$GREPORT" | jq -r '.data.id // .data.ID // empty')
+  if [ -n "$GREPORT_ID" ] && [ "$GREPORT_ID" != "null" ]; then
+    GGR=$(api GET /groups/$TESTGRP_ID/reports/$GREPORT_ID "$LEADER_TOKEN")
+    ok "获取工作组报告" "$GGR"
+    DGREP=$(api DELETE /groups/$TESTGRP_ID/reports/$GREPORT_ID "$LEADER_TOKEN")
+    ok "删除工作组报告" "$DGREP"
+  fi
+  DELGRP=$(api DELETE /groups/$TESTGRP_ID "$LEADER_TOKEN")
+  ok "删除工作组" "$DELGRP"
+fi
+
+########## 8. 协同房间（画布类任务自动建房） ##########
+# 创建画布类任务（emergency_canvas），验证自动创建协同房间
+CANVAS_NOTE=$(api POST /notes "$LEADER_TOKEN" '{"title":"自动化画布任务","content":"协同画布测试","template_type":"emergency_canvas","canvas_config":{"columns":3}}')
+CN_CODE=$(json_code "$CANVAS_NOTE")
+check "创建画布类任务" "200|201" "$(echo "$CN_CODE" | grep -E '^(200|201)$')"
+CANVAS_NOTE_ID=$(echo "$CANVAS_NOTE" | jq -r '.data.id // .data.ID // empty')
+if [ -n "$CANVAS_NOTE_ID" ] && [ "$CANVAS_NOTE_ID" != "null" ]; then
+  CANVAS=$(api GET /rooms/$CANVAS_NOTE_ID/canvas "$LEADER_TOKEN")
+  ok "画布类任务自动创建房间并获取画布" "$CANVAS"
+  CMDS=$(api GET /rooms/$CANVAS_NOTE_ID/commands "$LEADER_TOKEN")
+  ok "指令历史" "$CMDS"
+  SENDCMD=$(api POST /rooms/$CANVAS_NOTE_ID/command "$LEADER_TOKEN" '{"command_text":"测试指令：立即行动"}')
+  SENDCMD_CODE=$(json_code "$SENDCMD")
+  check "发送协同指令" "200|201" "$(echo "$SENDCMD_CODE" | grep -E '^(200|201)$')"
+  CMDS2=$(api GET /rooms/$CANVAS_NOTE_ID/commands "$LEADER_TOKEN")
+  check "指令已持久化" true "$([ "$(echo "$CMDS2" | jq -r '[.data[]?][0].content // empty' | grep -c '立即行动')" -gt 0 ] && echo true || echo false)"
+  NOPERM_CMD=$(api POST /rooms/$CANVAS_NOTE_ID/command "$MEMBER_TOKEN" '{"command_text":"越权指令"}')
+  err_code "member发送指令被拒" 403 "$NOPERM_CMD"
+  api DELETE /notes/$CANVAS_NOTE_ID "$LEADER_TOKEN" > /dev/null 2>&1
+fi
+
+########## 9. 预设组 ##########
+PRESETS=$(api GET /presets "$ADMIN_TOKEN")
+ok "预设组列表" "$PRESETS"
+NEWPRESET=$(api POST /presets "$ADMIN_TOKEN" '{"name":"自动化预设组","description":"测试","member_ids":["'$MEMBER_ID'"]}')
+PRESET_CODE=$(json_code "$NEWPRESET")
+check "创建预设组" "200|201" "$(echo "$PRESET_CODE" | grep -E '^(200|201)$')"
+PRESET_ID=$(echo "$NEWPRESET" | jq -r '.data.id // .data.ID // empty')
+UPPRESET=$(api PUT /presets/$PRESET_ID "$ADMIN_TOKEN" '{"name":"自动化预设组改"}')
+ok "更新预设组" "$UPPRESET"
+DELUPRESET=$(api DELETE /presets/$PRESET_ID "$ADMIN_TOKEN")
+ok "删除预设组" "$DELUPRESET"
+NP_PRESET=$(api POST /presets "$MEMBER_TOKEN" '{"name":"越权预设"}')
+err_code "member创建预设组被拒" 403 "$NP_PRESET"
+
+########## 10. 台账 ##########
+LEDGER=$(api GET "/ledger?page=1&page_size=20" "$ADMIN_TOKEN")
+ok "台账列表" "$LEDGER"
+LSTATS=$(api GET /ledger/stats "$ADMIN_TOKEN")
+ok "台账统计" "$LSTATS"
+
+########## 11. 通知中心 ##########
+NOTIFS=$(api GET "/notifications?page=1&page_size=10" "$MEMBER_TOKEN")
+ok "通知列表" "$NOTIFS"
+UNREAD=$(api GET /notifications/unread-count "$MEMBER_TOKEN")
+ok "未读数" "$UNREAD"
+NOTIF_ID=$(echo "$NOTIFS" | jq -r '.data.data // .data | .[0].id // .[0].ID // empty')
+if [ -n "$NOTIF_ID" ] && [ "$NOTIF_ID" != "null" ]; then
+  MARKRD=$(api POST /notifications/$NOTIF_ID/read "$MEMBER_TOKEN" '{}')
+  ok "标记已读" "$MARKRD"
+  DELNOTIF=$(api DELETE /notifications/$NOTIF_ID "$MEMBER_TOKEN")
+  ok "删除通知" "$DELNOTIF"
+fi
+RDALL=$(api POST /notifications/read-all "$MEMBER_TOKEN" '{}')
+ok "全部已读" "$RDALL"
+
+########## 12. 聊天模块 ##########
+CONVS=$(api GET /chat/conversations "$MEMBER_TOKEN")
+ok "会话列表" "$CONVS"
+ONLINE=$(api GET /chat/online "$MEMBER_TOKEN")
+ok "在线状态" "$ONLINE"
+# 获取一个其他用户id聊天
+CHAT_TO=$(echo "$USERS" | jq -r '.data.data // .data | map(select(.username=="zhao")) | .[0].id // .[0].ID // empty')
+SENDMSG=$(api POST /chat/$CHAT_TO/messages "$MEMBER_TOKEN" '{"content":"自动化测试消息","type":"text"}')
+SENDMSG_CODE=$(json_code "$SENDMSG")
+check "发送聊天消息" "200|201" "$(echo "$SENDMSG_CODE" | grep -E '^(200|201)$')"
+MSGS=$(api GET /chat/$CHAT_TO/messages "$MEMBER_TOKEN")
+ok "聊天记录" "$MSGS"
+MARKREAD=$(api POST /chat/$CHAT_TO/read "$MEMBER_TOKEN" '{}')
+ok "标记会话已读" "$MARKREAD"
+# 聊天附件上传
+printf 'chat file test' > /tmp/zephyr_chat.txt
+CATT=$(curl -s -m 20 -X POST -H "Authorization: Bearer $MEMBER_TOKEN" -F "file=@/tmp/zephyr_chat.txt" "$BASE/chat/attachments")
+CATT_CODE=$(json_code "$CATT")
+check "上传聊天附件" "200|201" "$(echo "$CATT_CODE" | grep -E '^(200|201)$')"
+
+########## 13. 表情包 ##########
+EMOJIS=$(api GET /emoticons "$MEMBER_TOKEN")
+ok "表情包列表" "$EMOJIS"
+NEWEMO=$(curl -s -m 20 -X POST -H "Authorization: Bearer $MEMBER_TOKEN" -F "name=测试表情" -F "file=@/tmp/zephyr_test_att.txt" "$BASE/emoticons")
+NEWEMO_CODE=$(json_code "$NEWEMO")
+check "上传自定义表情" "200|201" "$(echo "$NEWEMO_CODE" | grep -E '^(200|201)$')"
+EMO_ID=$(echo "$NEWEMO" | jq -r '.data.id // .data.ID // .data[0].id // .data[0].ID // empty')
+if [ -n "$EMO_ID" ] && [ "$EMO_ID" != "null" ]; then
+  DELEMO=$(api DELETE /emoticons/$EMO_ID "$MEMBER_TOKEN")
+  ok "删除自定义表情" "$DELEMO"
+fi
+
+########## 14. 提醒 ##########
+REMINDERS=$(api GET /reminders "$MEMBER_TOKEN")
+ok "提醒列表" "$REMINDERS"
+REM_ID=$(echo "$REMINDERS" | jq -r '.data.data // .data | .[0].id // .[0].ID // empty')
+if [ -n "$REM_ID" ] && [ "$REM_ID" != "null" ]; then
+  ACK=$(api POST /reminders/$REM_ID/acknowledge "$MEMBER_TOKEN" '{}')
+  ok "确认提醒" "$ACK"
+fi
+
+########## 15. Issue模块 ##########
+ISSUES=$(api GET "/issues?page=1&page_size=10" "$MEMBER_TOKEN")
+ok "Issue列表" "$ISSUES"
+NEWISSUE=$(api POST /issues "$MEMBER_TOKEN" '{"title":"自动化测试Issue","description":"测试问题描述","type":"bug"}')
+ISSUE_CODE=$(json_code "$NEWISSUE")
+check "创建Issue" "200|201" "$(echo "$ISSUE_CODE" | grep -E '^(200|201)$')"
+ISSUE_ID=$(echo "$NEWISSUE" | jq -r '.data.id // .data.ID // empty')
+IGET=$(api GET /issues/$ISSUE_ID "$MEMBER_TOKEN")
+ok "Issue详情" "$IGET"
+ICOMMENT=$(api POST /issues/$ISSUE_ID/comments "$MEMBER_TOKEN" '{"content":"测试评论"}')
+ICOMMENT_CODE=$(json_code "$ICOMMENT")
+check "Issue评论" "200|201" "$(echo "$ICOMMENT_CODE" | grep -E '^(200|201)$')"
+ISTATUS=$(api PUT /issues/$ISSUE_ID/status "$MEMBER_TOKEN" '{"status":"closed"}')
+ok "Issue关闭" "$ISTATUS"
+ISUB=$(api POST /issues/$ISSUE_ID/subscribe "$MEMBER_TOKEN" '{}')
+ok "Issue订阅" "$ISUB"
+IUNSUB=$(api DELETE /issues/$ISSUE_ID/subscribe "$MEMBER_TOKEN")
+ok "Issue退订" "$IUNSUB"
+WATCH=$(api POST /issues/watch "$MEMBER_TOKEN" '{}')
+ok "全局订阅Issue" "$WATCH"
+WATCHING=$(api GET /issues/watching "$MEMBER_TOKEN")
+ok "查看全局订阅" "$WATCHING"
+UNWATCH=$(api DELETE /issues/watch "$MEMBER_TOKEN")
+ok "取消全局订阅" "$UNWATCH"
+api DELETE /issues/$ISSUE_ID "$ADMIN_TOKEN" > /dev/null 2>&1
+
+########## 16. 分析模块 ##########
+PSTATS=$(api GET /analytics/personal-stats "$MEMBER_TOKEN")
+ok "个人统计" "$PSTATS"
+TSTATS=$(api GET /analytics/team-stats "$ADMIN_TOKEN")
+ok "团队统计" "$TSTATS"
+TREPORT=$(api POST /analytics/team-report "$ADMIN_TOKEN" '{"title":"自动化团队报告"}')
+TREPORT_CODE=$(json_code "$TREPORT")
+check "生成团队报告" "200|201" "$(echo "$TREPORT_CODE" | grep -E '^(200|201)$')"
+AICONF=$(api GET /analytics/ai-configs "$ADMIN_TOKEN")
+ok "AI配置列表(分析端)" "$AICONF"
+REPTS=$(api GET /analytics/reports "$MEMBER_TOKEN")
+ok "报告列表" "$REPTS"
+REP_ID=$(echo "$REPTS" | jq -r '.data.data // .data | .[0].id // .[0].ID // empty')
+if [ -n "$REP_ID" ] && [ "$REP_ID" != "null" ]; then
+  GREP=$(api GET /analytics/reports/$REP_ID "$MEMBER_TOKEN")
+  ok "报告详情" "$GREP"
+  DREP=$(api GET /analytics/reports/$REP_ID/detail "$MEMBER_TOKEN")
+  ok "报告详情子页" "$DREP"
+fi
+RTPL=$(api GET /analytics/report-template "$ADMIN_TOKEN")
+ok "获取报告模板" "$RTPL"
+STPL=$(api PUT /analytics/report-template "$ADMIN_TOKEN" '{"name":"默认报告模板","content":"# 测试模板 {{userName}}"}')
+ok "保存报告模板" "$STPL"
+DAILY=$(api POST /analytics/daily-report "$MEMBER_TOKEN" '{}')
+DAILY_CODE=$(json_code "$DAILY")
+check "生成日报" "200|201" "$(echo "$DAILY_CODE" | grep -E '^(200|201)$')"
+WEEKLY=$(api POST /analytics/weekly-report "$MEMBER_TOKEN" '{}')
+WEEKLY_CODE=$(json_code "$WEEKLY")
+check "生成周报" "200|201" "$(echo "$WEEKLY_CODE" | grep -E '^(200|201)$')"
+MONTHLY=$(api POST /analytics/monthly-report "$MEMBER_TOKEN" '{}')
+MONTHLY_CODE=$(json_code "$MONTHLY")
+check "生成月报" "200|201" "$(echo "$MONTHLY_CODE" | grep -E '^(200|201)$')"
+
+########## 17. 系统管理(仅管理员) ##########
+SYS_MEMBER=$(api GET /system/config "$MEMBER_TOKEN")
+err_code "member访问系统配置被拒" 403 "$SYS_MEMBER"
+SYSCFG=$(api GET /system/config "$ADMIN_TOKEN")
+ok "系统配置查询" "$SYSCFG"
+UPSYSCFG=$(api PUT /system/config "$ADMIN_TOKEN" "$(echo "$SYSCFG" | jq -c '.data')")
+ok "系统配置更新(原值回写)" "$UPSYSCFG"
+SAICONF=$(api GET /system/ai-configs "$ADMIN_TOKEN")
+ok "系统AI配置列表" "$SAICONF"
+NEWAIC=$(api POST /system/ai-configs "$ADMIN_TOKEN" '{"name":"自动化测试AI","provider":"deepseek","api_key":"sk-test","model":"deepseek-chat","is_active":false}')
+NEWAIC_CODE=$(json_code "$NEWAIC")
+check "创建AI配置" "200|201" "$(echo "$NEWAIC_CODE" | grep -E '^(200|201)$')"
+NEWAIC_ID=$(echo "$NEWAIC" | jq -r '.data.id // .data.ID // empty')
+if [ -n "$NEWAIC_ID" ] && [ "$NEWAIC_ID" != "null" ]; then
+  UPDAIC=$(api PUT /system/ai-configs/$NEWAIC_ID "$ADMIN_TOKEN" '{"description":"自动化测试-改"}')
+  ok "更新AI配置" "$UPDAIC"
+  TESTAIC=$(api POST /system/ai-configs/test "$ADMIN_TOKEN" '{"api_endpoint":"http://127.0.0.1:18099","api_key":"sk-mock-test-123"}')
+  ok "测试AI配置连通" "$TESTAIC"
+  DELAIC=$(api DELETE /system/ai-configs/$NEWAIC_ID "$ADMIN_TOKEN")
+  ok "删除AI配置" "$DELAIC"
+fi
+CFGS=$(api GET /system/config-files "$ADMIN_TOKEN")
+ok "配置文件列表" "$CFGS"
+CFGNAME=$(echo "$CFGS" | jq -r '.data[0].name // .data[0].Name // empty')
+if [ -n "$CFGNAME" ] && [ "$CFGNAME" != "null" ]; then
+  CFGF=$(api GET /system/config-files/$CFGNAME "$ADMIN_TOKEN")
+  ok "读取配置文件" "$CFGF"
+  CFGH=$(api GET /system/config-files/$CFGNAME/history "$ADMIN_TOKEN")
+  ok "配置文件历史" "$CFGH"
+fi
+LOGS=$(api GET "/system/logs?page=1&page_size=10" "$ADMIN_TOKEN")
+ok "管理日志" "$LOGS"
+OPS=$(api GET "/system/operations?page=1&page_size=10" "$ADMIN_TOKEN")
+ok "操作日志" "$OPS"
+OPACT=$(api GET /system/operations/actions "$ADMIN_TOKEN")
+ok "操作类型选项" "$OPACT"
+CFP=$(api GET /system/chat-file-policy "$ADMIN_TOKEN")
+ok "聊天文件策略查询" "$CFP"
+UPCFP=$(api PUT /system/chat-file-policy "$ADMIN_TOKEN" "$(echo "$CFP" | jq -c '.data')")
+ok "聊天文件策略更新(原值回写)" "$UPCFP"
+
+########## 18. WebSocket与静态资源 ##########
+WS_CODE=$(curl -s -m 5 -o /dev/null -w "%{http_code}" "http://localhost:8090/ws/user/test-user-id")
+check "WS端点可达(101/400/401/426均说明路由存在)" "101|400|401|426" "$WS_CODE"
+STATIC=$(curl -s -m 5 -o /dev/null -w "%{http_code}" "http://localhost:8090/uploads/emoticons/system/")
+check "静态资源目录(404/200均正常)" "200|404" "$STATIC"
+NOROUTE=$(curl -s -m 5 "http://localhost:8090/api/v1/nonexistent")
+err_code "404路由处理" 404 "$NOROUTE"
+
+########## 汇总 ##########
+# 验证系统配置掩码写回修复：PUT /system/config 原值回写后，config.json 真实密码不得被掩码覆盖
+DBPWD=$(jq -r '.database.password' /Users/admin/codespace/golang/Zephyr/Server-code/config.json 2>/dev/null)
+check "配置文件密码未被掩码覆盖" "false" "$([ -n "$DBPWD" ] && [ "$DBPWD" != "null" ] && [ "$DBPWD" != "••••••••" ] && echo false || echo true)"
+echo ""
+echo "=========================================="
+echo "测试完成: 通过 $PASS, 失败 $FAIL"
+echo "=========================================="
+if [ $FAIL -gt 0 ]; then
+  echo "失败用例:"
+  for t in "${FAILED_TESTS[@]}"; do echo "  - $t"; done
+fi

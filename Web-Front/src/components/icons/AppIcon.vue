@@ -10,7 +10,7 @@
  * - enter + enterDelay：页面初次加载 300ms 缩放淡入，延迟依次点亮
  */
 import { computed, type CSSProperties } from 'vue';
-import { ICON_REGISTRY, type IconName } from './registry';
+import { ICON_REGISTRY, type IconEntry, type IconName } from './registry';
 
 const props = withDefaults(
   defineProps<{
@@ -27,7 +27,7 @@ const props = withDefaults(
 );
 
 const comp = computed(() => {
-  const entry = ICON_REGISTRY[props.name];
+  const entry: IconEntry = ICON_REGISTRY[props.name];
   if (!entry) throw new Error(`[AppIcon] 未注册图标: ${props.name}`);
   return props.variant === 'solid' ? (entry.solid ?? entry.outline) : entry.outline;
 });
