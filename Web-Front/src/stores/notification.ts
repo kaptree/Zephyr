@@ -1,7 +1,14 @@
 import { defineStore } from 'pinia';
 import { ref, watch } from 'vue';
 import * as notifService from '@/services/notification';
-import type { NotificationItem, ChatMessageItem, ConversationItem } from '@/types';
+import * as groupChatService from '@/services/groupChat';
+import type {
+  NotificationItem,
+  ChatMessageItem,
+  ConversationItem,
+  GroupConversationItem,
+  GroupMessageItem,
+} from '@/types';
 import { playNotificationSound, playChatSound } from '@/utils/sound';
 import { useAuthStore } from './auth';
 
@@ -13,6 +20,8 @@ export interface PopupItem {
   content: string;
   /** 聊天消息：对端用户 id，点击跳转聊天会话 */
   peerId?: string;
+  /** 群聊消息：群 id，点击跳转群聊会话 */
+  groupId?: string;
   /** 任务通知：关联任务 id，点击跳转任务详情 */
   noteId?: string;
   /** 需求26：issue 评论通知：关联问题 id，点击跳转问题详情 */
@@ -28,6 +37,11 @@ export const useNotificationStore = defineStore('notification', () => {
   const lastNoteUpdate = ref<{ note_id?: string; action?: string }>({});
   const conversations = ref<ConversationItem[]>([]);
   const messages = ref<Record<string, ChatMessageItem[]>>({});
+  // 群聊：会话列表 + 消息缓存
+  const groupConversations = ref<GroupConversationItem[]>([]);
+  const groupMessages = ref<Record<string, GroupMessageItem[]>>({});
+  // 当前正在查看的群聊会话（收到该群新消息立即标记已读）
+  const viewingGroupId = ref<string | null>(null);
   const onlineIds = ref<string[]>([]);
   const connected = ref(false);
   const socketEnabled = ref(false);
@@ -58,9 +72,14 @@ export const useNotificationStore = defineStore('notification', () => {
     viewingPeerId.value = peerId;
   }
 
+  // 设置/清除当前正在查看的群聊会话
+  function setViewingGroup(groupId: string | null) {
+    viewingGroupId.value = groupId;
+  }
+
   // ---------------- 需求24：右上角消息弹窗 ----------------
 
-  function chatPreview(m: ChatMessageItem): string {
+  function chatPreview(m: { type?: string; content?: string; file_name?: string }): string {
     if (m.type === 'image') return '[图片]';
     if (m.type === 'file') return `[文件] ${m.file_name || ''}`.trim();
     return (m.content || '').slice(0, 120);
@@ -206,6 +225,10 @@ export const useNotificationStore = defineStore('notification', () => {
           handleNewNotification(data.notification as NotificationItem);
         } else if (data.event === 'chat:message' && data.message) {
           handleNewMessage(data.message as ChatMessageItem);
+        } else if (data.event === 'chat:group_message' && data.message) {
+          handleNewGroupMessage(data.message as GroupMessageItem);
+        } else if (data.event === 'chat:group_updated') {
+          handleGroupUpdated(data);
         } else if (data.event === 'presence:update') {
           handlePresence(data);
         } else if (data.event === 'chat:read') {
@@ -288,6 +311,96 @@ export const useNotificationStore = defineStore('notification', () => {
       return;
     }
     refreshConversations();
+  }
+
+  // ---------------- 群聊 ----------------
+
+  // 群消息显示名称（群列表群名 → 发送者名兜底）
+  function groupDisplayName(groupId: string): string {
+    const conv = groupConversations.value.find((g) => g.id === groupId);
+    if (conv?.name) return conv.name;
+    return `群聊 ${groupId.slice(0, 6)}`;
+  }
+
+  // 收到实时群消息：入缓存 + 未读角标 + 弹窗/系统通知；正在查看该群则立即已读
+  function handleNewGroupMessage(m: GroupMessageItem) {
+    playChatSound();
+    const list = groupMessages.value[m.group_id];
+    if (list) {
+      if (!list.some((x) => x.id === m.id)) {
+        groupMessages.value[m.group_id] = [...list, m];
+      }
+    }
+    const me = useAuthStore().user?.id;
+    if (m.sender_id === me) return;
+    const senderName = m.sender_name
+      || (m.sender as { name?: string; username?: string } | undefined)?.name
+      || (m.sender as { name?: string; username?: string } | undefined)?.username
+      || `用户 ${m.sender_id.slice(0, 6)}`;
+    // 系统级通知（页面在后台时）
+    if (viewingGroupId.value !== m.group_id) {
+      ensureNotificationPermission();
+      showSystemNotification(`${senderName} 在 ${groupDisplayName(m.group_id)} 发来消息`, chatPreview(m), `/chat?group=${m.group_id}`);
+      enqueuePopup({
+        kind: 'chat',
+        title: groupDisplayName(m.group_id),
+        content: `${senderName}: ${chatPreview(m)}`,
+        groupId: m.group_id,
+        createdAt: m.created_at,
+      });
+    }
+    // 正在查看该群：立即标记已读并清零角标
+    if (viewingGroupId.value === m.group_id) {
+      markGroupRead(m.group_id);
+      return;
+    }
+    refreshGroups();
+  }
+
+  // 群变动事件（created / member_added / member_removed / renamed / dissolved）
+  function handleGroupUpdated(data: { action?: string; group_id?: string }) {
+    if (data.action === 'dissolved' && data.group_id) {
+      // 被解散的群：本地清空消息缓存并刷新列表
+      delete groupMessages.value[data.group_id];
+    }
+    refreshGroups();
+  }
+
+  async function refreshGroups() {
+    try {
+      const res = await groupChatService.fetchGroups();
+      groupConversations.value = (res.data as unknown as GroupConversationItem[]) || [];
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function loadGroupMessages(groupId: string) {
+    const res = await groupChatService.fetchGroupMessages(groupId);
+    groupMessages.value[groupId] = (res.data as unknown as { data: GroupMessageItem[] }).data || [];
+  }
+
+  // 分页加载更早的群消息（历史翻页）
+  async function fetchGroupMessagesPage(groupId: string, page: number, pageSize: number) {
+    const res = await groupChatService.fetchGroupMessages(groupId, { page, page_size: pageSize });
+    return res.data;
+  }
+
+  async function sendGroupMessage(groupId: string, payload: groupChatService.SendGroupPayload) {
+    const msg = await groupChatService.sendGroupMessage(groupId, payload);
+    const list = groupMessages.value[groupId] || [];
+    if (!list.some((x) => x.id === (msg.data as GroupMessageItem).id)) {
+      list.push(msg.data as GroupMessageItem);
+    }
+    groupMessages.value[groupId] = list;
+    await refreshGroups();
+    return msg.data as GroupMessageItem;
+  }
+
+  async function markGroupRead(groupId: string) {
+    await groupChatService.markGroupRead(groupId);
+    const conv = groupConversations.value.find((g) => g.id === groupId);
+    if (conv) conv.unread = 0;
   }
 
   // ---------------- 通知 ----------------
@@ -550,10 +663,14 @@ export const useNotificationStore = defineStore('notification', () => {
     popups,
     noteUpdateTick,
     lastNoteUpdate,
+    groupConversations,
+    groupMessages,
+    viewingGroupId,
     dismissPopup,
     openChat,
     closeChat,
     setViewingPeer,
+    setViewingGroup,
     connectSocket,
     disconnect,
     fetchUnreadCount,
@@ -568,5 +685,10 @@ export const useNotificationStore = defineStore('notification', () => {
     fetchMessagesPage,
     sendMessage,
     markConversationRead,
+    refreshGroups,
+    loadGroupMessages,
+    fetchGroupMessagesPage,
+    sendGroupMessage,
+    markGroupRead,
   };
 });

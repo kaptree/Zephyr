@@ -8,7 +8,10 @@ const router = useRouter();
 
 // 点击弹窗跳转：聊天消息 → 聊天会话页；任务通知 → 工作台任务详情；issue 评论 → 问题详情；其他 → 通知中心
 function onPopupClick(p: PopupItem) {
-  if (p.kind === 'chat' && p.peerId) {
+  if (p.kind === 'chat' && p.groupId) {
+    // 群聊消息：跳转到群聊会话（ChatPage 通过 route.query.group 打开对应群）
+    router.push({ path: '/chat', query: { group: p.groupId } });
+  } else if (p.kind === 'chat' && p.peerId) {
     router.push({ path: '/chat', query: { peer: p.peerId } });
   } else if (p.kind === 'notification' && p.noteId) {
     router.push({ path: '/workbench', query: { note: p.noteId } });

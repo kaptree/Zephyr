@@ -4,13 +4,24 @@ import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/stores/notes';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notification';
-import type { Note } from '@/types';
+import type { Note, NotePositionInput } from '@/types';
 import TagSelector from '@/components/common/TagSelector.vue';
 import StickyNoteCard from '@/components/note/StickyNoteCard.vue';
 import UserPicker from '@/components/common/UserPicker.vue';
 import MarkdownEditor from '@/components/common/MarkdownEditor.vue';
 import { markdownToHtml, htmlToMarkdown } from '@/utils/markdown';
 import { playArchiveFold, playDeleteOut } from '@/utils/exitAnimations';
+import {
+  BOARD_MIN_COLS,
+  BOARD_MAX_COLS,
+  assignMissingPositions,
+  clampBoardCols,
+  findFirstFreeSlot,
+  loadBoardCols,
+  relayoutAll,
+  saveBoardCols,
+  stripLegacyPositions,
+} from '@/composables/useBoardLayout';
 import { useConfirm } from '@/composables/useConfirm';
 
 // 全局确认对话框（轻量级通知美学）
@@ -19,6 +30,8 @@ import FeedbackModal from '@/components/notification/FeedbackModal.vue';
 import FloatingField from '@/components/common/FloatingField.vue';
 import SubmitButton from '@/components/common/SubmitButton.vue';
 import { useToast } from '@/composables/useToast';
+import { useGloryCelebration } from '@/composables/useGloryCelebration';
+import { fetchHeatmap } from '@/services/notes';
 import { createWorkGroup, searchGroups, deleteWorkGroup } from '@/services/workgroup';
 import type { WorkGroupData } from '@/services/workgroup';
 import { recommendUsers, getWorkTypeOptions } from '@/services/admin';
@@ -36,7 +49,9 @@ const route = useRoute();
 const noteStore = useNoteStore();
 const auth = useAuthStore();
 const notifStore = useNotificationStore();
-const { success: toastSuccess } = useToast();
+const { success: toastSuccess, error: toastError } = useToast();
+// 归档「荣耀时刻」庆祝（三阶段：绽放 → 升华 → 余韵）
+const glory = useGloryCelebration();
 const showCreateModal = ref(false);
 const showDetailPanel = ref(false);
 const selectedNote = ref<Note | null>(null);
@@ -125,12 +140,162 @@ const userTemplates = ref<Template[]>([]);
 const selectedTemplateId = ref('');
 
 const displayedNotes = computed(() => {
-  if (activeTab.value === 'red')
-    return noteStore.activeNotes.filter((n) => n.color_status === 'red');
-  if (activeTab.value === 'blue')
-    return noteStore.activeNotes.filter((n) => n.color_status === 'blue');
-  return noteStore.activeNotes;
+  let list = noteStore.activeNotes;
+  if (activeTab.value === 'red') list = list.filter((n) => n.color_status === 'red');
+  else if (activeTab.value === 'blue') list = list.filter((n) => n.color_status === 'blue');
+  // 置顶任务优先展示；多个置顶按置顶时间倒序，其余保持后端返回顺序
+  return [...list].sort((a, b) => {
+    if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
+    if (a.is_pinned && b.is_pinned) return (b.pinned_at || '').localeCompare(a.pinned_at || '');
+    return 0;
+  });
 });
+
+// ===== 格子画布布局：每行 N 列（用户可调 1~6，偏好存 localStorage），
+// pos_x/pos_y 记录格子索引（列 0..cols-1，行 0..N） =====
+const boardEl = ref<HTMLElement | null>(null);
+// 每行列数：初始化自 localStorage 偏好，限定在合法范围内
+const boardCols = ref(loadBoardCols());
+// 会话内位置表：以 store 的 pos_x/pos_y 为底，拖拽/置顶联动时即时覆盖
+const localPositions = ref<Record<string, { x: number; y: number }>>({});
+// 拖拽交换：被拖拽便签 id + 悬停目标 id（用于高亮提示）
+const dragNoteId = ref<string | null>(null);
+const dragOverId = ref<string | null>(null);
+
+// 卡片实际渲染格子：会话覆盖优先，其次 store 持久值
+function posOf(note: Note): { x: number; y: number } {
+  const local = localPositions.value[note.id];
+  if (local) return local;
+  if (note.pos_x !== null && note.pos_y !== null) return { x: note.pos_x, y: note.pos_y };
+  return { x: 0, y: 0 };
+}
+
+// 以 store 为准重建会话位置表，并为缺位置（pos_x/pos_y 为空）的卡片分配空闲格后回存
+function syncBoardPositions() {
+  const raw = noteStore.activeNotes;
+  // Pinia 解包后为数组；若为其它形态（如测试 mock 未解包的 ref）则跳过
+  if (!Array.isArray(raw)) return;
+  // 旧版像素坐标遗留数据自动清洗（pos_x/pos_y 按格子索引重排）
+  const notes = stripLegacyPositions(raw);
+  const map: Record<string, { x: number; y: number }> = {};
+  for (const n of notes) {
+    if (n.pos_x !== null && n.pos_y !== null) {
+      map[n.id] = { x: n.pos_x, y: n.pos_y };
+    } else if (localPositions.value[n.id]) {
+      // 本会话已分配过位置（如保存失败被回滚），沿用以免保存失败后反复重发请求
+      map[n.id] = localPositions.value[n.id];
+    }
+  }
+  // 为缺少位置记录的卡片分配空闲格（置顶任务优先占前排），并回存后端
+  const merged = notes.map((n) => {
+    const p = map[n.id];
+    return p ? { ...n, pos_x: p.x, pos_y: p.y } : n;
+  });
+  const updates = assignMissingPositions(merged, boardCols.value);
+  for (const u of updates) map[u.id] = { x: u.pos_x, y: u.pos_y };
+  localPositions.value = map;
+  if (updates.length) {
+    noteStore.updatePositions(updates).catch(() => toastError('卡片位置保存失败'));
+  }
+}
+
+// immediate：数据可能先于画布渲染到达（同步不再依赖画布尺寸测量）
+watch(() => noteStore.activeNotes, syncBoardPositions, { immediate: true });
+
+// 列数变更后：格网形状改变，整板按行优先重排（置顶优先占前排），回存后端
+function relayoutForCols(cols: number) {
+  const raw = noteStore.activeNotes;
+  if (!Array.isArray(raw)) return;
+  const updates = relayoutAll(raw, cols);
+  if (!updates.length) return;
+  for (const u of updates) localPositions.value[u.id] = { x: u.pos_x, y: u.pos_y };
+  noteStore.updatePositions(updates).catch(() => toastError('卡片位置保存失败'));
+}
+
+// 用户调整每行列数：收敛到合法范围 → 持久化偏好 → 超界便签重排
+function changeBoardCols(delta: number) {
+  const next = clampBoardCols(boardCols.value + delta);
+  if (next === boardCols.value) return;
+  boardCols.value = next;
+  saveBoardCols(next);
+  relayoutForCols(next);
+}
+
+// 「最靠前」比较：先看行（y）再看列（x）
+function frontCmp(a: { x: number; y: number }, b: { x: number; y: number }): number {
+  return a.y - b.y || a.x - b.x;
+}
+
+// ===== 拖拽交换：拖起便签 → 悬停高亮目标格 → 松手后两张便签互换格子 =====
+function onDragStart(note: Note, e: DragEvent) {
+  dragNoteId.value = note.id;
+  e.dataTransfer?.setData('text/plain', note.id);
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+}
+
+function onDragOver(note: Note, e: DragEvent) {
+  if (!dragNoteId.value || dragNoteId.value === note.id) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  dragOverId.value = note.id;
+}
+
+function onDragLeave(note: Note) {
+  if (dragOverId.value === note.id) dragOverId.value = null;
+}
+
+function onDrop(note: Note) {
+  const fromId = dragNoteId.value;
+  dragNoteId.value = null;
+  dragOverId.value = null;
+  if (!fromId || fromId === note.id) return;
+  const from = localPositions.value[fromId];
+  const to = localPositions.value[note.id];
+  if (!from || !to) return;
+  // 互换格子：先乐观更新会话位置表，再持久化两张卡片的交换结果
+  localPositions.value[fromId] = { x: to.x, y: to.y };
+  localPositions.value[note.id] = { x: from.x, y: from.y };
+  noteStore
+    .updatePositions([
+      { id: fromId, pos_x: to.x, pos_y: to.y },
+      { id: note.id, pos_x: from.x, pos_y: from.y },
+    ])
+    .catch(() => toastError('位置保存失败'));
+}
+
+function onDragEnd() {
+  dragNoteId.value = null;
+  dragOverId.value = null;
+}
+
+function onCardClick(note: Note) {
+  openDetail(note);
+}
+
+// ===== 行内编辑：画布卡片直接编辑标题/内容（保存时 Markdown 转 HTML） =====
+const editingNoteId = ref<string | null>(null);
+
+function onEditCard(note: Note) {
+  editingNoteId.value = note.id;
+}
+
+async function onSaveCardEdit(payload: { title: string; content: string }) {
+  const id = editingNoteId.value;
+  if (!id) return;
+  try {
+    await noteStore.updateNoteLocally(id, {
+      title: payload.title || '无标题',
+      content: markdownToHtml(payload.content),
+    } as any);
+    editingNoteId.value = null;
+    if (showDetailPanel.value && selectedNote.value?.id === id)
+      selectedNote.value = noteStore.activeNotes.find((n) => n.id === id) || selectedNote.value;
+    toastSuccess('✓ 便签已保存');
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { message?: string } } };
+    toastError(err?.response?.data?.message || '便签保存失败，请重试');
+  }
+}
 
 // 详情中的指派任务是否为「发起者视角」（创建人 = 当前账号）
 const selectedIsAssigner = computed(
@@ -274,6 +439,10 @@ function normalizeRawNote(raw: Record<string, unknown>): Note {
     creator: raw.creator as Note['creator'],
     owner: raw.owner as Note['owner'],
     is_archived: !!raw.is_archived,
+    is_pinned: !!raw.is_pinned,
+    pinned_at: (raw.pinned_at as string | undefined) || null,
+    pos_x: (raw.pos_x as number | null | undefined) ?? null,
+    pos_y: (raw.pos_y as number | null | undefined) ?? null,
     tags: (raw.tags || []) as Note['tags'],
     assignees: (raw.assignees || []) as Note['assignees'],
     ccs: raw.ccs as Note['ccs'],
@@ -524,9 +693,33 @@ async function submitFeedback(content: string) {
     // 完成任务后局部刷新，任务面板同步最新状态（完成/归档/倒计时移除）
     noteStore.fetchNotes();
     if (showDetailPanel.value && selectedNote.value?.id === note.id) closeDetail();
+    // 荣耀时刻：三阶段庆祝动画（绽放 0–1.2s → 升华 1.2–2.5s → 余韵 2.5–3.5s），
+    // 期间反馈弹窗保持 loading（按钮「提交中...」），动画结束后由 finally 关闭弹窗。
+    // 用户关闭开关 / 偏好减少动效时 celebrate 立即返回 false，走普通成功提示。
+    const played = await glory.celebrate({
+      taskName: note.title,
+      countTo: await fetchCompletedTotal(),
+      onView: () => router.push(`/workbench/archive/${note.id}`),
+    });
+    if (!played) toastSuccess('任务已归档');
+  } catch (e: unknown) {
+    // 归档失败：弹窗保持打开（loading 复位），可修改内容后重试
+    const err = e as { response?: { data?: { message?: string } } };
+    toastError(err?.response?.data?.message || '归档失败，请重试');
   } finally {
     completing.value = false;
+    feedbackVisible.value = false;
     feedbackNote.value = null;
+  }
+}
+
+/** 累计完成任务数（本年度归档总数，用于副标题数字滚动），取不到时忽略计数展示 */
+async function fetchCompletedTotal(): Promise<number | undefined> {
+  try {
+    const res = await fetchHeatmap(new Date().getFullYear());
+    return res.data.total_archived;
+  } catch {
+    return undefined;
   }
 }
 // 标记为重要：任务卡片变红（color_status='red'）
@@ -537,6 +730,48 @@ async function handleImportant(note: Note) {
       selectedNote.value = { ...selectedNote.value, color_status: 'red' as const };
   } catch {
     /* ignore */
+  }
+}
+
+// 置顶/取消置顶：多个置顶任务按置顶时间倒序排列（后端 SQL 排序 + 前端同步）
+async function handlePin(note: Note) {
+  const pinned = !note.is_pinned;
+  try {
+    await noteStore.updateNoteLocally(note.id, { is_pinned: pinned });
+    if (showDetailPanel.value && selectedNote.value?.id === note.id)
+      selectedNote.value = {
+        ...selectedNote.value,
+        is_pinned: pinned,
+        pinned_at: pinned ? new Date().toISOString() : null,
+      };
+    // 置顶联动：置顶任务移动到画布最前方——
+    // 若最前方有空闲格则直接移入；否则与最靠前的卡片交换位置（仅移动两张卡片）
+    if (pinned && boardEl.value) {
+      const others = displayedNotes.value.filter((n) => n.id !== note.id);
+      if (others.length) {
+        const front = others.reduce((a, b) => (frontCmp(posOf(a), posOf(b)) <= 0 ? a : b));
+        const free = findFirstFreeSlot(
+          others.map((n) => ({ ...n, pos_x: posOf(n).x, pos_y: posOf(n).y })),
+          boardCols.value
+        );
+        const frontPos = posOf(front);
+        const target = free && frontCmp(free, frontPos) <= 0 ? free : frontPos;
+        const myPos = posOf(note);
+        if (target.x !== myPos.x || target.y !== myPos.y) {
+          const moves: NotePositionInput[] = [{ id: note.id, pos_x: target.x, pos_y: target.y }];
+          localPositions.value[note.id] = { x: target.x, y: target.y };
+          if (target.x === frontPos.x && target.y === frontPos.y) {
+            // 目标位被最前卡片占据（无空闲格）→ 换位；有空闲格时不动其它卡片
+            moves.push({ id: front.id, pos_x: myPos.x, pos_y: myPos.y });
+            localPositions.value[front.id] = { x: myPos.x, y: myPos.y };
+          }
+          noteStore.updatePositions(moves).catch(() => toastError('位置保存失败'));
+        }
+      }
+    }
+    toastSuccess(pinned ? '📌 已置顶，任务将优先展示' : '已取消置顶');
+  } catch {
+    toastError('置顶操作失败，请重试');
   }
 }
 // 删除任务：确认后软删除，从工作台移除（可在归档中恢复）
@@ -853,6 +1088,35 @@ const templateLabels: Record<string, string> = {
         </svg>
         一键创建
       </button>
+      <!-- 每行列数调节：限定 BOARD_MIN_COLS ~ BOARD_MAX_COLS，偏好持久化到 localStorage -->
+      <div v-else class="ml-auto flex items-center gap-2" title="调整工作台每行便签列数">
+        <span class="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">每行列数</span>
+        <div
+          class="flex items-center rounded-btn border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 overflow-hidden"
+        >
+          <button
+            class="w-7 h-7 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth disabled:opacity-30 disabled:cursor-not-allowed"
+            :disabled="boardCols <= BOARD_MIN_COLS"
+            aria-label="减少列数"
+            @click="changeBoardCols(-1)"
+          >
+            −
+          </button>
+          <span
+            class="w-8 text-center text-sm font-medium text-slate-700 dark:text-slate-200 tabular-nums select-none"
+          >
+            {{ boardCols }}
+          </span>
+          <button
+            class="w-7 h-7 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth disabled:opacity-30 disabled:cursor-not-allowed"
+            :disabled="boardCols >= BOARD_MAX_COLS"
+            aria-label="增加列数"
+            @click="changeBoardCols(1)"
+          >
+            +
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Error -->
@@ -1045,20 +1309,51 @@ const templateLabels: Record<string, string> = {
             </p>
             <p class="text-slate-300 dark:text-slate-600 text-xs mt-1">点击右下角 '+' 新建任务</p>
           </div>
-          <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
-            <StickyNoteCard
+          <!-- 格子画布：N 列网格（用户可调）填满工作台，每张便签独占一格（内容展开），拖拽互换格子 -->
+          <div
+            v-else
+            ref="boardEl"
+            class="grid gap-5"
+            :style="{ gridTemplateColumns: `repeat(${boardCols}, minmax(0, 1fr))` }"
+          >
+            <div
               v-for="note in displayedNotes"
               :key="note.id"
-              :note="note"
-              mode="web"
-              :archived="false"
-              :extra-actions="true"
-              class="animate-spring-enter"
-              @click="openDetail(note)"
-              @complete="handleComplete"
-              @important="handleImportant"
-              @delete="handleDelete"
-            />
+              class="min-w-0 flex"
+              :class="
+                dragOverId === note.id
+                  ? 'rounded-card ring-2 ring-blue-400 ring-offset-2 ring-offset-slate-50 dark:ring-offset-slate-900'
+                  : ''
+              "
+              :style="{
+                gridColumn: `${Math.min(posOf(note).x, boardCols - 1) + 1} / span 1`,
+                gridRow: `${posOf(note).y + 1} / span 1`,
+              }"
+              :draggable="editingNoteId !== note.id"
+              @dragstart="onDragStart(note, $event)"
+              @dragover="onDragOver(note, $event)"
+              @dragleave="onDragLeave(note)"
+              @drop.prevent="onDrop(note)"
+              @dragend="onDragEnd"
+            >
+              <StickyNoteCard
+                :note="note"
+                mode="web"
+                :archived="false"
+                :extra-actions="true"
+                board
+                class="animate-spring-enter w-full"
+                :editing="editingNoteId === note.id"
+                @click="onCardClick(note)"
+                @edit="onEditCard"
+                @save-edit="onSaveCardEdit"
+                @cancel-edit="editingNoteId = null"
+                @complete="handleComplete"
+                @important="handleImportant"
+                @pin="handlePin"
+                @delete="handleDelete"
+              />
+            </div>
           </div>
         </template>
       </div>
@@ -1725,10 +2020,11 @@ const templateLabels: Record<string, string> = {
       </transition>
     </Teleport>
 
-    <!-- 任务反馈填报弹窗 -->
+    <!-- 任务反馈填报弹窗（loading 期间锁定，庆祝动画结束后由父级关闭） -->
     <FeedbackModal
       :visible="feedbackVisible"
       :note="feedbackNote"
+      :loading="completing"
       @update:visible="feedbackVisible = $event"
       @submit="submitFeedback"
     />

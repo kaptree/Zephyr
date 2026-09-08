@@ -8,25 +8,31 @@ import (
 )
 
 type Note struct {
-	ID              uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	Title           string         `gorm:"type:varchar(200);not null" json:"title"`
-	SubTag          string         `gorm:"type:varchar(100);default:''" json:"sub_tag"`
-	Content         string         `gorm:"type:text" json:"content"`
-	ContentDelta    string         `gorm:"type:jsonb;default:'{}'" json:"content_delta,omitempty"`
-	ColorStatus     string         `gorm:"type:varchar(20);default:'yellow'" json:"color_status"`
-	SourceType      string         `gorm:"type:varchar(20);default:'self'" json:"source_type"`
-	TemplateType    string         `gorm:"type:varchar(30);default:'default'" json:"template_type"`
-	CreatorID       uuid.UUID      `gorm:"type:uuid;not null;index" json:"creator_id"`
-	Creator         *User          `gorm:"foreignKey:CreatorID" json:"creator,omitempty"`
-	OwnerID         uuid.UUID      `gorm:"type:uuid;not null;index" json:"owner_id"`
-	Owner           *User          `gorm:"foreignKey:OwnerID" json:"owner,omitempty"`
-	AssignerID      *uuid.UUID     `gorm:"type:uuid" json:"assigner_id"`
-	Assigner        *User          `gorm:"foreignKey:AssignerID" json:"assigner,omitempty"`
-	DepartmentID    *uuid.UUID     `gorm:"type:uuid;index" json:"dept_id"`
-	Department      *Department    `gorm:"foreignKey:DepartmentID" json:"department,omitempty"`
-	GroupID         *uuid.UUID     `gorm:"type:uuid" json:"group_id"`
-	IsArchived      bool           `gorm:"default:false;index" json:"is_archived"`
-	ArchiveTime     *time.Time     `json:"archive_time"`
+	ID           uuid.UUID   `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	Title        string      `gorm:"type:varchar(200);not null" json:"title"`
+	SubTag       string      `gorm:"type:varchar(100);default:''" json:"sub_tag"`
+	Content      string      `gorm:"type:text" json:"content"`
+	ContentDelta string      `gorm:"type:jsonb;default:'{}'" json:"content_delta,omitempty"`
+	ColorStatus  string      `gorm:"type:varchar(20);default:'yellow'" json:"color_status"`
+	SourceType   string      `gorm:"type:varchar(20);default:'self'" json:"source_type"`
+	TemplateType string      `gorm:"type:varchar(30);default:'default'" json:"template_type"`
+	CreatorID    uuid.UUID   `gorm:"type:uuid;not null;index" json:"creator_id"`
+	Creator      *User       `gorm:"foreignKey:CreatorID" json:"creator,omitempty"`
+	OwnerID      uuid.UUID   `gorm:"type:uuid;not null;index" json:"owner_id"`
+	Owner        *User       `gorm:"foreignKey:OwnerID" json:"owner,omitempty"`
+	AssignerID   *uuid.UUID  `gorm:"type:uuid" json:"assigner_id"`
+	Assigner     *User       `gorm:"foreignKey:AssignerID" json:"assigner,omitempty"`
+	DepartmentID *uuid.UUID  `gorm:"type:uuid;index" json:"dept_id"`
+	Department   *Department `gorm:"foreignKey:DepartmentID" json:"department,omitempty"`
+	GroupID      *uuid.UUID  `gorm:"type:uuid" json:"group_id"`
+	IsArchived   bool        `gorm:"default:false;index" json:"is_archived"`
+	ArchiveTime  *time.Time  `json:"archive_time"`
+	// 任务置顶：工作台列表置顶优先，多个置顶任务按置顶时间倒序
+	IsPinned bool       `gorm:"default:false;index" json:"is_pinned"`
+	PinnedAt *time.Time `json:"pinned_at"`
+	// 工作台画布位置（null 表示未布局，由前端自动分配后回存）
+	PosX            *int           `json:"pos_x"`
+	PosY            *int           `json:"pos_y"`
 	DueTime         *time.Time     `json:"due_time"`
 	WorkTimeSeconds int            `gorm:"default:0" json:"work_time_seconds"`
 	DueRemindAt     *time.Time     `json:"due_remind_at"`

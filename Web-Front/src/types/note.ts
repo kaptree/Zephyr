@@ -42,6 +42,12 @@ export interface Note {
   /** 负责人（后端 List/FindByID 已预加载，json: owner） */
   owner?: { id: string; name: string }
   is_archived: boolean
+  /** 置顶状态：工作台列表置顶优先，多个置顶按 pinned_at 倒序 */
+  is_pinned: boolean
+  pinned_at?: string | null
+  /** 工作台画布位置（null 表示未布局，由前端自动分配后回存） */
+  pos_x: number | null
+  pos_y: number | null
   tags: Tag[]
   assignees: NoteAssignee[]
   /** 抄送人列表（需求20） */
@@ -99,6 +105,14 @@ export interface UpdateNotePayload {
   due_time?: string
   color_status?: string
   owner_id?: string
+  is_pinned?: boolean
+}
+
+/** 单个任务的画布位置（批量位置保存用） */
+export interface NotePositionInput {
+  id: string
+  pos_x: number
+  pos_y: number
 }
 
 export interface CompleteNotePayload {

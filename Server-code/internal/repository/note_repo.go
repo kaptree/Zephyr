@@ -142,7 +142,11 @@ func (r *NoteRepository) List(filter NoteFilter, scope NoteScope) ([]models.Note
 	if filter.SortOrder == "asc" {
 		sortOrder = "asc"
 	}
+	// 置顶任务优先展示；多个置顶任务按置顶时间倒序（归档列表保持原排序）
 	orderClause := fmt.Sprintf("%s %s", sortBy, sortOrder)
+	if filter.Status != "archived" {
+		orderClause = fmt.Sprintf("notes.is_pinned DESC, notes.pinned_at DESC NULLS LAST, %s", orderClause)
+	}
 
 	if filter.Keyword != "" && utils.IsPinyinKeyword(filter.Keyword) {
 		// 需求36：拼音搜索——数据库无法对中文做拼音匹配，改为全量加载（SQL 排序）后内存过滤
@@ -204,10 +208,44 @@ func (r *NoteRepository) ListUserNotesForInspect(targetUserID, status string) ([
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := query.Order("created_at DESC").Find(&notes).Error; err != nil {
+	if err := query.Order("is_pinned DESC, pinned_at DESC NULLS LAST, created_at DESC").Find(&notes).Error; err != nil {
 		return nil, 0, err
 	}
 	return notes, total, nil
+}
+
+// FindByIDsForAccessCheck 批量查询任务（含指派人/抄送人）用于位置更新前的权限校验
+func (r *NoteRepository) FindByIDsForAccessCheck(ids []string) ([]models.Note, error) {
+	var notes []models.Note
+	if len(ids) == 0 {
+		return notes, nil
+	}
+	err := r.db.
+		Preload("Assignees").
+		Preload("Ccs").
+		Where("id IN ?", ids).
+		Find(&notes).Error
+	if err != nil {
+		return nil, err
+	}
+	return notes, nil
+}
+
+// UpdatePositions 批量更新任务的工作台画布位置（单事务）
+func (r *NoteRepository) UpdatePositions(items map[string][2]int) error {
+	if len(items) == 0 {
+		return nil
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		for id, pos := range items {
+			if err := tx.Model(&models.Note{}).
+				Where("id = ?", id).
+				Updates(map[string]interface{}{"pos_x": pos[0], "pos_y": pos[1]}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (r *NoteRepository) FindByID(id string) (*models.Note, error) {

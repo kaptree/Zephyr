@@ -1,5 +1,5 @@
 import { get, post, put, del } from './api'
-import type { Note, CreateNotePayload, UpdateNotePayload, NoteFilters, PaginatedData, CompleteNotePayload, RemindPayload } from '@/types'
+import type { Note, CreateNotePayload, UpdateNotePayload, NoteFilters, PaginatedData, CompleteNotePayload, RemindPayload, NotePositionInput } from '@/types'
 
 export function fetchNotes(filters: NoteFilters) {
   const params: Record<string, unknown> = {}
@@ -25,6 +25,11 @@ export function createNote(payload: CreateNotePayload) {
 
 export function updateNote(id: string, payload: UpdateNotePayload) {
   return put<Note>(`/api/v1/notes/${id}`, payload)
+}
+
+/** 批量保存任务在工作台画布上的位置（拖动结束/自动布局时调用） */
+export function updateNotePositions(positions: NotePositionInput[]) {
+  return put<{ updated: number }>('/api/v1/notes/positions', { positions })
 }
 
 export function completeNote(id: string, payload?: CompleteNotePayload) {

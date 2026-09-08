@@ -586,6 +586,105 @@
   .notif-empty-breathe { animation: breathe 3s ease-in-out infinite; }
 }
 
+/* ===== 归档「荣耀时刻」庆祝（美化工程 · 任务闭环仪式感） =====
+   三阶段时序：绽放 0–1.2s → 升华 1.2–2.5s → 余韵 2.5–3.5s
+   编排详见 GloryCelebration.vue，时间点与 useGloryCelebration 的 JS 时间线对齐 */
+
+/* 庆祝层整层淡入淡出（进场 300ms / 收场 350ms） */
+.glory-fade-enter-active { transition: opacity 0.3s ease-out; }
+.glory-fade-leave-active { transition: opacity 0.35s ease-in; }
+.glory-fade-enter-from,
+.glory-fade-leave-to { opacity: 0; }
+
+/* 绽放：勋章从屏幕上方弹跳 + 旋转落位（约 0.75s 触底，1.15s 稳定） */
+@keyframes glory-medal-drop {
+  0%   { transform: translateY(-120vh) rotate(-450deg); animation-timing-function: cubic-bezier(0.35, 0, 0.6, 1); }
+  55%  { transform: translateY(0) rotate(0deg); animation-timing-function: cubic-bezier(0.2, 0.9, 0.4, 1.2); }
+  70%  { transform: translateY(-22px) rotate(5deg); }
+  82%  { transform: translateY(0) rotate(0deg); animation-timing-function: cubic-bezier(0.2, 0.9, 0.4, 1.2); }
+  90%  { transform: translateY(-7px) rotate(1.5deg); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+.glory-medal-drop {
+  animation: glory-medal-drop 1.15s cubic-bezier(0.35, 0, 0.6, 1) both;
+  transform-origin: center 88px;
+}
+
+/* 停留后微微脉动：象征「任务达成」（1.6s 起，1.8s 周期） */
+@keyframes glory-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+.glory-medal-pulse {
+  animation: glory-pulse 1.8s ease-in-out 1.6s infinite;
+  transform-origin: center 82px;
+}
+
+/* 对勾描画：stroke-dasharray 0→100%（600ms，0.6s 起笔） */
+@keyframes glory-check-draw {
+  to { stroke-dashoffset: 0; }
+}
+.glory-check-path {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: glory-check-draw 0.6s ease-out 0.6s forwards;
+}
+
+/* 金色光晕：对勾完成后向外扩散一圈（1.2s 起，0.9s） */
+@keyframes glory-ripple {
+  0% { transform: translate(-50%, -50%) scale(0.75); opacity: 0.8; }
+  100% { transform: translate(-50%, -50%) scale(2.1); opacity: 0; }
+}
+.glory-ripple {
+  animation: glory-ripple 0.9s cubic-bezier(0, 0, 0.2, 1) 1.2s both;
+}
+
+/* 升华：主标题缩放 0.5→1 弹性回弹浮现（spring 曲线） */
+@keyframes glory-title-in {
+  from { transform: scale(0.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.glory-title-in {
+  animation: glory-title-in 0.75s cubic-bezier(0.34, 1.56, 0.64, 1) 1.2s both;
+}
+
+/* 上浮淡入工具类：延迟由 --glory-delay 注入（副标题 1.35s / 查看成果 2.5s） */
+@keyframes glory-fade-up {
+  from { transform: translateY(14px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.glory-fade-up {
+  animation: glory-fade-up 0.45s cubic-bezier(0, 0, 0.2, 1) both;
+  animation-delay: var(--glory-delay, 0s);
+}
+
+/* 背景气泡：不同速率向上飘移并淡出（速率/延迟/透明度由内联变量注入） */
+@keyframes glory-float {
+  0% { transform: translateY(0); opacity: 0; }
+  12% { opacity: var(--glory-bubble-o, 0.4); }
+  100% { transform: translateY(-56vh); opacity: 0; }
+}
+.glory-bubble {
+  animation: glory-float var(--glory-dur, 4s) linear var(--glory-delay, 0s) infinite;
+}
+
+/* 余韵：勋章缩小 + 淡出（2.5s 起，1s 收场，与整层淡出衔接） */
+@keyframes glory-medal-out {
+  to { transform: scale(0.55) translateY(-10px); opacity: 0; }
+}
+.glory-medal-out {
+  animation: glory-medal-out 1s ease-in 2.5s both;
+}
+
+/* 通知呼应：右上角「任务已归档」滑入（2.6s 起，与查看成果前后呼应） */
+@keyframes glory-notify-in {
+  from { transform: translateX(120%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.glory-notify-in {
+  animation: glory-notify-in 0.5s cubic-bezier(0, 0, 0.2, 1) 2.6s both;
+}
+
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
@@ -878,8 +977,25 @@
   .notif-reading .notif-dot,
   .notif-tide .notif-bar,
   .notif-tide .notif-dot,
-  .notif-check svg path {
+  .notif-check svg path,
+  .glory-medal-drop,
+  .glory-medal-pulse,
+  .glory-check-path,
+  .glory-ripple,
+  .glory-title-in,
+  .glory-fade-up,
+  .glory-bubble,
+  .glory-medal-out,
+  .glory-notify-in {
     animation: none !important;
+  }
+  /* 荣耀时刻降级：勾号直接呈现完整态，其余元素保持最终位置 */
+  .glory-check-path {
+    stroke-dashoffset: 0;
+  }
+  .glory-fade-enter-active,
+  .glory-fade-leave-active {
+    transition: none;
   }
   .notif-item,
   .notif-group-chevron,

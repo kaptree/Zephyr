@@ -3,6 +3,7 @@ import { onMounted, onUnmounted } from 'vue'
 import Toast from '@/components/common/Toast.vue'
 import FloatingPopups from '@/components/common/FloatingPopups.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import GloryCelebration from '@/components/celebration/GloryCelebration.vue'
 import { useDarkMode } from '@/composables/useDarkMode'
 import { useOffline } from '@/composables/useOffline'
 
@@ -51,4 +52,6 @@ onUnmounted(() => {
   <Toast />
   <FloatingPopups />
   <ConfirmDialog />
+  <!-- 归档「荣耀时刻」庆祝层：全局单例，任务归档反馈提交后触发三阶段庆祝 -->
+  <GloryCelebration />
 </template>

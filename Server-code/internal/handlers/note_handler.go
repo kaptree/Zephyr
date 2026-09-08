@@ -188,6 +188,29 @@ func (h *NoteHandler) UpdateNote(c *gin.Context) {
 	utils.Success(c, note)
 }
 
+// UpdateNotePositions 批量保存任务在工作台画布上的位置（拖动结束/自动布局时调用）
+func (h *NoteHandler) UpdateNotePositions(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+
+	var req services.UpdateNotePositionsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "请求参数错误")
+		return
+	}
+
+	count, err := h.noteService.UpdatePositions(userID, req)
+	if err != nil {
+		if err == apperrors.ErrPermissionDenied {
+			utils.Forbidden(c, "无权调整任务位置")
+			return
+		}
+		utils.InternalError(c, "更新任务位置失败")
+		return
+	}
+
+	utils.Success(c, gin.H{"updated": count})
+}
+
 func (h *NoteHandler) CompleteNote(c *gin.Context) {
 	id := c.Param("id")
 	userID := middleware.GetUserID(c)

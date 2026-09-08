@@ -7,6 +7,7 @@ import type {
   UpdateNotePayload,
   CompleteNotePayload,
   PaginatedData,
+  NotePositionInput,
 } from '@/types';
 import * as noteService from '@/services/notes';
 
@@ -24,6 +25,10 @@ function normalizeNote(raw: BackendNote): Note {
     creator: raw.creator as Note['creator'],
     owner: raw.owner as Note['owner'],
     is_archived: !!raw.is_archived,
+    is_pinned: !!raw.is_pinned,
+    pinned_at: (raw.pinned_at as string | undefined) || null,
+    pos_x: (raw.pos_x as number | null | undefined) ?? null,
+    pos_y: (raw.pos_y as number | null | undefined) ?? null,
     tags: (raw.tags || []) as Note['tags'],
     assignees: (raw.assignees || []) as Note['assignees'],
     ccs: raw.ccs as Note['ccs'],
@@ -155,6 +160,23 @@ export const useNoteStore = defineStore('notes', () => {
     }
   }
 
+  /** 批量更新任务画布位置：乐观更新本地，保存失败时抛错由调用方处理 */
+  async function updatePositions(items: NotePositionInput[]) {
+    if (!items.length) return;
+    const posMap = new Map(items.map((i) => [i.id, i]));
+    const original = activeNotes.value;
+    activeNotes.value = activeNotes.value.map((n) => {
+      const p = posMap.get(n.id);
+      return p ? { ...n, pos_x: p.pos_x, pos_y: p.pos_y } : n;
+    });
+    try {
+      await noteService.updateNotePositions(items);
+    } catch {
+      activeNotes.value = original;
+      throw new Error('位置保存失败');
+    }
+  }
+
   async function completeNote(id: string, payload?: CompleteNotePayload) {
     await noteService.completeNote(id, payload);
     const index = activeNotes.value.findIndex((n) => n.id === id);
@@ -233,6 +255,7 @@ export const useNoteStore = defineStore('notes', () => {
     createNote,
     updateNoteLocally,
     updateNoteTags,
+    updatePositions,
     completeNote,
     remindNote,
     signNote,

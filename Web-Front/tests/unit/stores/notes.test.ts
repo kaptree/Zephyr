@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useNoteStore } from '@/stores/notes';
+import { createMockNote } from '../../mocks/data';
 
 vi.mock('@/services/notes', () => ({
   fetchNotes: vi.fn().mockResolvedValue({
@@ -79,6 +80,7 @@ vi.mock('@/services/notes', () => ({
       updated_at: '2024-01-01T00:00:00Z',
     },
   }),
+  updateNotePositions: vi.fn().mockResolvedValue({ code: 0, data: { updated: 1 } }),
   completeNote: vi.fn().mockResolvedValue({
     code: 0,
     data: {
@@ -327,6 +329,42 @@ describe('useNoteStore', () => {
       await expect(store.updateNoteTags('note-1', ['tag-2'])).rejects.toThrow('标签更新失败');
       expect(store.activeNotes[0].tags).toHaveLength(1);
       expect((store.activeNotes[0].tags as any)[0].id).toBe('tag-1');
+    });
+  });
+
+  describe('updatePositions', () => {
+    it('应乐观更新卡片位置并调用批量接口', async () => {
+      const { updateNotePositions } = await import('@/services/notes');
+      const store = useNoteStore();
+      store.$patch({
+        activeNotes: [
+          createMockNote({ id: 'note-1', pos_x: 0, pos_y: 0 }),
+          createMockNote({ id: 'note-2', pos_x: 300, pos_y: 0 }),
+        ],
+      });
+
+      const promise = store.updatePositions([{ id: 'note-1', pos_x: 600, pos_y: 360 }]);
+      // 乐观更新立即生效
+      expect(store.activeNotes[0].pos_x).toBe(600);
+      expect(store.activeNotes[0].pos_y).toBe(360);
+      expect(store.activeNotes[1].pos_x).toBe(300);
+      await promise;
+      expect(updateNotePositions).toHaveBeenCalledWith([{ id: 'note-1', pos_x: 600, pos_y: 360 }]);
+    });
+
+    it('保存失败时应回滚位置', async () => {
+      const { updateNotePositions } = await import('@/services/notes');
+      vi.mocked(updateNotePositions).mockRejectedValueOnce(new Error('网络错误'));
+      const store = useNoteStore();
+      store.$patch({
+        activeNotes: [createMockNote({ id: 'note-1', pos_x: 0, pos_y: 0 })],
+      });
+
+      await expect(
+        store.updatePositions([{ id: 'note-1', pos_x: 999, pos_y: 999 }])
+      ).rejects.toThrow('位置保存失败');
+      expect(store.activeNotes[0].pos_x).toBe(0);
+      expect(store.activeNotes[0].pos_y).toBe(0);
     });
   });
 });

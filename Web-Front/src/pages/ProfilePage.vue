@@ -11,10 +11,15 @@ import type { BackgroundFill } from '@/types/user';
 import AnimatedNumber from '@/components/common/AnimatedNumber.vue';
 import FloatingField from '@/components/common/FloatingField.vue';
 import SubmitButton from '@/components/common/SubmitButton.vue';
+import FormToggle from '@/components/common/FormToggle.vue';
+import { useGloryCelebration } from '@/composables/useGloryCelebration';
 
 const auth = useAuthStore();
 const { isDark } = useDarkMode();
 const toast = useToast();
+
+// 庆祝动画偏好：任务归档「荣耀时刻」开关（localStorage 持久化，尊重用户选择）
+const { celebrationEnabled, setCelebrationEnabled } = useGloryCelebration();
 
 const loading = ref(true);
 const loadError = ref('');
@@ -702,6 +707,27 @@ async function handleSaveProfile() {
           >
             {{ savingBg ? '保存中...' : '保存背景设置' }}
           </button>
+        </div>
+      </div>
+
+      <!-- 庆祝动画偏好：任务归档「荣耀时刻」开关（localStorage 持久化） -->
+      <div class="mb-6">
+        <div
+          class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300 max-w-lg"
+        >
+          <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4">庆祝动画</h4>
+          <div class="flex items-center justify-between gap-4">
+            <div class="min-w-0">
+              <p class="text-sm text-slate-700 dark:text-slate-200">任务归档荣耀时刻</p>
+              <p class="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                任务归档成功后播放五彩纸屑与勋章庆祝动画；关闭后以普通提示代替
+              </p>
+            </div>
+            <FormToggle
+              :model-value="celebrationEnabled"
+              @update:model-value="setCelebrationEnabled"
+            />
+          </div>
         </div>
       </div>
     </template>

@@ -304,11 +304,12 @@ onMounted(load);
       </div>
     </template>
 
-    <!-- 补充反馈填报弹窗 -->
+    <!-- 补充反馈填报弹窗（loading 期间锁定，提交成功后由父级关闭） -->
     <FeedbackModal
       :visible="feedbackVisible"
       :note="note"
       mode="feedback"
+      :loading="submittingFeedback"
       @update:visible="feedbackVisible = $event"
       @submit="handleSubmitFeedback"
     />

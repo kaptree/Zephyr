@@ -56,3 +56,50 @@ export interface ReminderItem {
   is_acknowledged: boolean
   created_at: string
 }
+
+// ---------------- 群聊 ----------------
+
+export interface GroupConversationItem {
+  id: string
+  name: string
+  owner_id: string
+  member_count: number
+  unread: number
+  last_msg: string
+  last_type?: string
+  last_at?: string | null
+  created_at: string
+}
+
+export interface GroupMessageItem {
+  id: string
+  group_id: string
+  sender_id: string
+  /** 实时推送时附带的发送者姓名（历史消息通过 sender 关联查询） */
+  sender_name?: string
+  sender?: { id: string; username: string; name?: string; avatar?: string }
+  type: 'text' | 'image' | 'file'
+  content: string
+  file_name?: string
+  file_path?: string
+  file_size?: number
+  mime_type?: string
+  created_at: string
+}
+
+export interface GroupMemberItem {
+  id: string
+  group_id: string
+  user_id: string
+  role: 'owner' | 'member'
+  user?: {
+    id: string
+    username: string
+    name?: string
+    avatar?: string
+    is_active?: boolean
+    department?: { id: string; name: string }
+  }
+  joined_at: string
+  last_read_at?: string | null
+}

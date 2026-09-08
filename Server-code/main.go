@@ -89,6 +89,9 @@ func main() {
 		&models.IssueWatcher{},
 		&models.ChatFilePolicy{},
 		&models.Emoticon{},
+		&models.ChatGroup{},
+		&models.ChatGroupMember{},
+		&models.GroupMessage{},
 	); err != nil {
 		logger.Fatal("Failed to auto migrate database", zap.Error(err))
 	}

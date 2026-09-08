@@ -58,6 +58,10 @@ func Setup(cfg *config.Config) *gin.Engine {
 	chatRepo := repository.NewChatRepo(database.DB)
 	notifSvc := services.NewNotificationService(notifRepo, chatRepo, userRepo, noteRepo, hub)
 
+	// 群聊服务（复用 WebSocket Hub 做实时推送）
+	groupChatRepo := repository.NewGroupChatRepo(database.DB)
+	groupChatSvc := services.NewGroupChatService(groupChatRepo, userRepo, hub)
+
 	noteService := services.NewNoteService(noteRepo, notifSvc)
 
 	// 启动到期提醒调度器（任务截止前自动发送通知提醒）
@@ -80,6 +84,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	issueHandler := handlers.NewIssueHandler(issueRepo, userRepo, notifSvc)
 	uploadHandler := handlers.NewUploadHandler()
 	notificationHandler := handlers.NewNotificationHandler(notifSvc)
+	groupChatHandler := handlers.NewGroupChatHandler(groupChatSvc)
 	emoticonHandler := handlers.NewEmoticonHandler(emoticonRepo)
 
 	if cfg.WebSocket.Enabled && hub != nil {
@@ -142,6 +147,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 			notes.POST("", noteHandler.CreateNote)
 			notes.GET("/users/:userId/workbench", middleware.RequireRoles("super_admin", "company_leader"), noteHandler.InspectUserNotes)
 			notes.GET("/export", noteHandler.ExportNotes)
+			notes.PUT("/positions", noteHandler.UpdateNotePositions)
 			notes.GET("/:id", noteHandler.GetNote)
 			notes.PUT("/:id", noteHandler.UpdateNote)
 			notes.POST("/:id/complete", noteHandler.CompleteNote)
@@ -234,6 +240,23 @@ func Setup(cfg *config.Config) *gin.Engine {
 			chat.GET("/:userId/messages", notificationHandler.ListMessages)
 			chat.POST("/:userId/messages", notificationHandler.SendMessage)
 			chat.POST("/:userId/read", notificationHandler.MarkConversationRead)
+		}
+
+		// 群聊
+		chatGroups := chat.Group("/groups")
+		{
+			chatGroups.GET("", groupChatHandler.MyGroups)
+			chatGroups.POST("", groupChatHandler.Create)
+			chatGroups.GET("/:id", groupChatHandler.Detail)
+			chatGroups.PUT("/:id", groupChatHandler.Rename)
+			chatGroups.DELETE("/:id", groupChatHandler.Dissolve)
+			chatGroups.GET("/:id/members", groupChatHandler.Members)
+			chatGroups.POST("/:id/members", groupChatHandler.AddMembers)
+			chatGroups.DELETE("/:id/members/:userId", groupChatHandler.RemoveMember)
+			chatGroups.POST("/:id/quit", groupChatHandler.Quit)
+			chatGroups.GET("/:id/messages", groupChatHandler.ListMessages)
+			chatGroups.POST("/:id/messages", groupChatHandler.SendMessage)
+			chatGroups.POST("/:id/read", groupChatHandler.MarkRead)
 		}
 
 		emoticons := api.Group("/emoticons")

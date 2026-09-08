@@ -7,6 +7,8 @@ const props = defineProps<{
   visible: boolean;
   note: Note | null;
   mode?: 'complete' | 'feedback';
+  /** 提交中（由父级控制）：按钮进入 loading，且禁止取消/关闭，直到父级收场 */
+  loading?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -15,31 +17,24 @@ const emit = defineEmits<{
 }>();
 
 const content = ref('');
-const submitting = ref(false);
 
 watch(
   () => props.visible,
   (v) => {
-    if (v) {
-      content.value = '';
-      submitting.value = false;
-    }
+    if (v) content.value = '';
   }
 );
 
 function cancel() {
+  // 荣耀时刻庆祝期间（loading）：锁定弹窗，避免误触打断庆祝流程
+  if (props.loading) return;
   emit('update:visible', false);
 }
 
-async function submit() {
-  if (!content.value.trim()) return;
-  submitting.value = true;
-  try {
-    emit('submit', content.value);
-    emit('update:visible', false);
-  } finally {
-    submitting.value = false;
-  }
+function submit() {
+  if (!content.value.trim() || props.loading) return;
+  // 仅上抛内容；弹窗由父级在庆祝动画结束后关闭（父控关闭）
+  emit('submit', content.value);
 }
 </script>
 
@@ -87,10 +82,10 @@ async function submit() {
           </button>
           <button
             class="px-4 py-2 text-sm rounded-lg bg-blue-500 text-white font-medium hover:bg-blue-600 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
-            :disabled="!content.trim() || submitting"
+            :disabled="!content.trim() || loading"
             @click="submit"
           >
-            {{ submitting ? '提交中...' : mode === 'feedback' ? '提交反馈' : '提交反馈并完成' }}
+            {{ loading ? '提交中...' : mode === 'feedback' ? '提交反馈' : '提交反馈并完成' }}
           </button>
         </div>
       </div>

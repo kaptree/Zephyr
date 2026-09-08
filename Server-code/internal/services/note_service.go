@@ -67,6 +67,7 @@ type UpdateNoteRequest struct {
 	DueTime     *time.Time `json:"due_time"`
 	ColorStatus *string    `json:"color_status"`
 	OwnerID     *string    `json:"owner_id"`
+	IsPinned    *bool      `json:"is_pinned"`
 }
 
 type CompleteNoteRequest struct {
@@ -330,6 +331,18 @@ func (s *NoteService) Update(id, userID string, req UpdateNoteRequest) (*models.
 	if req.ColorStatus != nil {
 		note.ColorStatus = *req.ColorStatus
 	}
+	if req.IsPinned != nil {
+		// 置顶切换：首次置顶记录 pinned_at（重复置顶不刷新时间），取消置顶清空
+		if *req.IsPinned {
+			if !note.IsPinned {
+				now := time.Now()
+				note.PinnedAt = &now
+			}
+		} else {
+			note.PinnedAt = nil
+		}
+		note.IsPinned = *req.IsPinned
+	}
 	if req.OwnerID != nil {
 		oid, err := uuid.Parse(*req.OwnerID)
 		if err == nil {
@@ -355,6 +368,82 @@ func (s *NoteService) Update(id, userID string, req UpdateNoteRequest) (*models.
 	_ = s.recordLedger(id, userID, "update", "任务更新", "", "")
 
 	return s.noteRepo.FindByID(id)
+}
+
+// NotePositionInput 单个任务的画布位置
+type NotePositionInput struct {
+	ID   string `json:"id" binding:"required"`
+	PosX int    `json:"pos_x"`
+	PosY int    `json:"pos_y"`
+}
+
+// UpdateNotePositionsRequest 批量更新任务位置（一次最多 200 条）
+type UpdateNotePositionsRequest struct {
+	Positions []NotePositionInput `json:"positions" binding:"required,min=1,max=200,dive"`
+}
+
+// canArrangeNote 判断用户是否有权调整该任务位置（创建者/负责人/被指派人/抄送人）
+func canArrangeNote(n models.Note, uid uuid.UUID) bool {
+	if n.OwnerID == uid || n.CreatorID == uid {
+		return true
+	}
+	for _, a := range n.Assignees {
+		if a.UserID == uid {
+			return true
+		}
+	}
+	for _, c := range n.Ccs {
+		if c.UserID == uid {
+			return true
+		}
+	}
+	return false
+}
+
+// UpdatePositions 批量更新任务在工作台画布上的位置；无权限或无效的任务会被跳过，返回实际更新数量
+func (s *NoteService) UpdatePositions(userID string, req UpdateNotePositionsRequest) (int, error) {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return 0, apperrors.ErrPermissionDenied
+	}
+
+	seen := make(map[string]bool, len(req.Positions))
+	posByID := make(map[string][2]int, len(req.Positions))
+	ids := make([]string, 0, len(req.Positions))
+	for _, p := range req.Positions {
+		if p.ID == "" || seen[p.ID] {
+			continue
+		}
+		seen[p.ID] = true
+		ids = append(ids, p.ID)
+		posByID[p.ID] = [2]int{p.PosX, p.PosY}
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+
+	notes, err := s.noteRepo.FindByIDsForAccessCheck(ids)
+	if err != nil {
+		return 0, err
+	}
+
+	allowed := make(map[string][2]int, len(notes))
+	for _, n := range notes {
+		if !canArrangeNote(n, uid) {
+			continue
+		}
+		if pos, ok := posByID[n.ID.String()]; ok {
+			allowed[n.ID.String()] = pos
+		}
+	}
+	if len(allowed) == 0 {
+		return 0, nil
+	}
+
+	if err := s.noteRepo.UpdatePositions(allowed); err != nil {
+		return 0, err
+	}
+	return len(allowed), nil
 }
 
 // memberAssigneeList 返回任务的实际被指派人（排除发起者 initiator）

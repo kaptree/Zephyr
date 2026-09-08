@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { Note } from '@/types';
 import { renderNoteContent } from '@/utils/richText';
+import { htmlToMarkdown } from '@/utils/markdown';
 import { useAuthStore } from '@/stores/auth';
 import { AppIcon } from '@/components/icons';
 
@@ -14,12 +15,18 @@ const props = withDefaults(
     archived?: boolean;
     editingBy?: string | null;
     extraActions?: boolean;
+    /** 工作台画布模式：卡片占满格子（grid 拉伸），内容全部展开显示 */
+    board?: boolean;
+    /** 行内编辑态：标题/内容变为输入框，由父组件控制进入与保存 */
+    editing?: boolean;
   }>(),
   {
     mode: 'web',
     archived: false,
     editingBy: null,
     extraActions: false,
+    board: false,
+    editing: false,
   }
 );
 
@@ -29,12 +36,38 @@ const emit = defineEmits<{
   complete: [note: Note];
   remind: [note: Note];
   important: [note: Note];
+  pin: [note: Note];
   delete: [note: Note];
   restore: [note: Note];
   export: [note: Note];
+  /** 请求进入行内编辑 */
+  edit: [note: Note];
+  /** 提交行内编辑（content 为 Markdown 原文，由父组件转 HTML 保存） */
+  'save-edit': [payload: { title: string; content: string }];
+  'cancel-edit': [];
 }>();
 
 const expanded = ref(false);
+
+// ===== 行内编辑：进入编辑态时把 HTML 内容转回 Markdown 供直接修改 =====
+const editTitle = ref('');
+const editContent = ref('');
+watch(
+  () => props.editing,
+  (on) => {
+    if (on) {
+      editTitle.value = props.note.title || '';
+      editContent.value = htmlToMarkdown(props.note.content || '');
+    }
+  },
+  { immediate: true }
+);
+function saveEdit() {
+  emit('save-edit', { title: editTitle.value.trim(), content: editContent.value });
+}
+function cancelEdit() {
+  emit('cancel-edit');
+}
 
 const isRed = computed(() => props.note.color_status === 'red');
 const isBlue = computed(() => props.note.color_status === 'blue');
@@ -224,23 +257,27 @@ const isDueUrgent = computed(() => {
 
 <template>
   <div
-    class="relative rounded-card p-5 transition-smooth cursor-pointer select-none"
+    class="relative rounded-card p-5 transition-smooth"
     :data-note-id="note.id"
-    :class="{
-      'opacity-80': isArchived,
-      'ring-2 ring-purple-400 ring-offset-2 ring-offset-white dark:ring-offset-slate-950 shadow-lg shadow-purple-200/50':
-        !!props.editingBy,
-      'bg-red-100 dark:bg-red-900/60 border border-red-200 dark:border-red-900 border-l-4 border-l-red-600 dark:border-l-red-400':
-        showRedView,
-      'bg-blue-100 dark:bg-blue-900/60 border border-blue-200 dark:border-blue-900 border-l-4 border-l-blue-600 dark:border-l-blue-400':
-        showBlueView,
-      'bg-purple-100 dark:bg-purple-900/60 border border-purple-200 dark:border-purple-900 border-l-4 border-l-purple-600 dark:border-l-purple-400':
-        showPurpleView,
-      'bg-green-100 dark:bg-green-900/60 border border-green-200 dark:border-green-900 border-l-4 border-l-green-600 dark:border-l-green-400':
-        isGreen,
-      'bg-amber-100 dark:bg-amber-900/60 border border-amber-100 dark:border-amber-900 border-l-4 border-l-amber-600 dark:border-l-amber-400':
-        !showPurpleView && !showRedView && !showBlueView && !isGreen,
-    }"
+    :class="[
+      props.board ? 'flex h-full flex-col' : '',
+      props.editing ? 'cursor-default ring-2 ring-blue-400 shadow-lg' : 'cursor-pointer select-none',
+      {
+        'opacity-80': isArchived,
+        'ring-2 ring-purple-400 ring-offset-2 ring-offset-white dark:ring-offset-slate-950 shadow-lg shadow-purple-200/50':
+          !!props.editingBy,
+        'bg-red-100 dark:bg-red-900/60 border border-red-200 dark:border-red-900 border-l-4 border-l-red-600 dark:border-l-red-400':
+          showRedView,
+        'bg-blue-100 dark:bg-blue-900/60 border border-blue-200 dark:border-blue-900 border-l-4 border-l-blue-600 dark:border-l-blue-400':
+          showBlueView,
+        'bg-purple-100 dark:bg-purple-900/60 border border-purple-200 dark:border-purple-900 border-l-4 border-l-purple-600 dark:border-l-purple-400':
+          showPurpleView,
+        'bg-green-100 dark:bg-green-900/60 border border-green-200 dark:border-green-900 border-l-4 border-l-green-600 dark:border-l-green-400':
+          isGreen,
+        'bg-amber-100 dark:bg-amber-900/60 border border-amber-100 dark:border-amber-900 border-l-4 border-l-amber-600 dark:border-l-amber-400':
+          !showPurpleView && !showRedView && !showBlueView && !isGreen,
+      },
+    ]"
     :style="{ animation: showRedView ? 'pulse-alert 2s ease-in-out infinite' : '' }"
     @click="handleClick"
     @contextmenu="handleContextMenu"
@@ -317,6 +354,19 @@ const isDueUrgent = computed(() => {
     </span>
 
     <div class="flex items-center gap-1.5 mb-2 flex-wrap">
+      <!-- 置顶标识：置顶任务在列表中优先展示（多个置顶按置顶时间倒序） -->
+      <span
+        v-if="note.is_pinned && !isArchived"
+        class="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-full font-medium bg-amber-500 text-white dark:bg-amber-600"
+        title="已置顶，多个置顶任务按置顶时间倒序排列"
+      >
+        <svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"
+          />
+        </svg>
+        置顶
+      </span>
       <span
         class="inline-flex items-center text-[11px] px-1.5 py-0.5 rounded-full font-medium"
         :class="sourceChipClass"
@@ -325,70 +375,94 @@ const isDueUrgent = computed(() => {
       </span>
     </div>
 
-    <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100 mb-2 line-clamp-1">
+    <input
+      v-if="props.editing"
+      v-model="editTitle"
+      class="mb-2 w-full rounded-lg border border-blue-300 bg-white/90 px-2.5 py-1.5 text-base font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:bg-slate-900/70 dark:text-slate-100"
+      placeholder="便签标题"
+      @click.stop
+      @keydown.stop
+    />
+    <h3
+      v-else
+      class="text-base font-semibold text-slate-900 dark:text-slate-100 mb-2 line-clamp-1"
+    >
       {{ note.title || '无标题' }}
     </h3>
 
-    <div
-      :class="[
-        'text-sm text-slate-500 dark:text-slate-300 transition-all duration-300 overflow-hidden rich-content-display',
-        expanded ? 'note-content-expanded' : 'note-content-mask',
-        expanded ? '' : 'max-h-[72px]',
-      ]"
-    >
-      <span v-if="!note.content" class="text-slate-300 dark:text-slate-500">暂无内容</span>
-      <span v-else v-html="renderNoteContent(note.content)"></span>
-    </div>
+    <!-- 画布模式：内容全部展开显示（格子拉高卡片，无滚动无截断）；其它模式 contents 不影响原布局 -->
+    <div :class="props.board ? 'flex min-h-0 flex-1 flex-col' : 'contents'">
+      <!-- 行内编辑态：Markdown 文本域 -->
+      <textarea
+        v-if="props.board && props.editing"
+        v-model="editContent"
+        class="w-full flex-1 min-h-[120px] resize-y rounded-lg border border-blue-300 bg-white/90 p-2.5 text-sm leading-relaxed text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:bg-slate-900/70 dark:text-slate-200"
+        placeholder="输入便签内容（支持 Markdown）"
+        @click.stop
+        @keydown.stop
+      ></textarea>
+      <template v-else>
+        <div
+          :class="[
+            'text-sm text-slate-500 dark:text-slate-300 transition-all duration-300 rich-content-display',
+            props.board ? '' : expanded ? 'note-content-expanded overflow-hidden' : 'note-content-mask max-h-[72px] overflow-hidden',
+          ]"
+        >
+          <span v-if="!note.content" class="text-slate-300 dark:text-slate-500">暂无内容</span>
+          <span v-else v-html="renderNoteContent(note.content)"></span>
+        </div>
 
-    <button
-      v-if="(note.content?.length || 0) > 100"
-      class="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 mt-1 transition-smooth"
-      @click.stop="toggleExpand"
-    >
-      {{ expanded ? '收起' : '展开全文' }}
-    </button>
+        <button
+          v-if="!props.board && (note.content?.length || 0) > 100"
+          class="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 mt-1 transition-smooth"
+          @click.stop="toggleExpand"
+        >
+          {{ expanded ? '收起' : '展开全文' }}
+        </button>
+      </template>
 
-    <!-- 任务反馈区（指派便签同步显示） -->
-    <div
-      v-if="feedbackList.length"
-      class="mt-3 rounded-lg bg-white/70 dark:bg-slate-900/40 p-2.5 border border-green-300/50 dark:border-green-800/60"
-    >
-      <p
-        class="text-[11px] font-semibold text-green-700 dark:text-green-400 mb-1 flex items-center gap-1"
-      >
-        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
-        </svg>
-        任务反馈
-      </p>
+      <!-- 任务反馈区（指派便签同步显示） -->
       <div
-        v-for="f in feedbackList"
-        :key="f.user_id"
-        class="text-xs text-slate-600 dark:text-slate-300 rich-content-display mb-1 last:mb-0"
+        v-if="feedbackList.length"
+        class="mt-3 rounded-lg bg-white/70 dark:bg-slate-900/40 p-2.5 border border-green-300/50 dark:border-green-800/60"
       >
-        <span class="font-medium text-slate-700 dark:text-slate-200">{{ f.user_name }}：</span>
-        <span v-html="renderNoteContent(f.content)" />
+        <p
+          class="text-[11px] font-semibold text-green-700 dark:text-green-400 mb-1 flex items-center gap-1"
+        >
+          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          任务反馈
+        </p>
+        <div
+          v-for="f in feedbackList"
+          :key="f.user_id"
+          class="text-xs text-slate-600 dark:text-slate-300 rich-content-display mb-1 last:mb-0"
+        >
+          <span class="font-medium text-slate-700 dark:text-slate-200">{{ f.user_name }}：</span>
+          <span v-html="renderNoteContent(f.content)" />
+        </div>
       </div>
-    </div>
 
-    <!-- 标签区 -->
-    <div v-if="(note.tags || []).length" class="flex items-center gap-1.5 mt-3 flex-wrap">
-      <span
-        v-for="tag in displayTags.visible"
-        :key="tag.id"
-        class="tag-capsule text-white text-[11px]"
-        :style="{ backgroundColor: tag.color || '#64748B' }"
-      >
-        {{ tagLabel(tag) }}
-      </span>
-      <span v-if="displayTags.remaining > 0" class="text-xs text-slate-400">
-        +{{ displayTags.remaining }}
-      </span>
+      <!-- 标签区 -->
+      <div v-if="(note.tags || []).length" class="flex items-center gap-1.5 mt-3 flex-wrap">
+        <span
+          v-for="tag in displayTags.visible"
+          :key="tag.id"
+          class="tag-capsule text-white text-[11px]"
+          :style="{ backgroundColor: tag.color || '#64748B' }"
+        >
+          {{ tagLabel(tag) }}
+        </span>
+        <span v-if="displayTags.remaining > 0" class="text-xs text-slate-400">
+          +{{ displayTags.remaining }}
+        </span>
+      </div>
     </div>
 
     <!-- 底部信息 -->
@@ -435,9 +509,28 @@ const isDueUrgent = computed(() => {
       </span>
     </div>
 
+    <!-- 行内编辑操作栏：保存 / 取消 -->
+    <div
+      v-if="props.editing"
+      class="flex gap-2 mt-3 pt-3 border-t border-slate-200/50 dark:border-slate-700/50"
+    >
+      <button
+        class="text-xs px-3 py-1 rounded-btn bg-blue-600 text-white hover:bg-blue-700 transition-smooth"
+        @click.stop="saveEdit"
+      >
+        保存
+      </button>
+      <button
+        class="text-xs px-3 py-1 rounded-btn bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 transition-smooth"
+        @click.stop="cancelEdit"
+      >
+        取消
+      </button>
+    </div>
+
     <!-- 操作栏：完成并归档 + 重要（标记为红色）+ 删除（抄送任务同样提供完成/删除） -->
     <div
-      v-if="!isArchived"
+      v-if="!isArchived && !props.editing"
       class="flex gap-2 mt-3 pt-3 border-t border-slate-200/50 dark:border-slate-700/50"
     >
       <button
@@ -478,6 +571,27 @@ const isDueUrgent = computed(() => {
         @click.stop="$emit('complete', note)"
       >
         完成并归档
+      </button>
+      <button
+        v-if="extraActions && !isCcOnly"
+        class="text-xs px-2.5 py-1 rounded-btn bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900 transition-smooth"
+        title="编辑便签标题与内容"
+        @click.stop="$emit('edit', note)"
+      >
+        编辑
+      </button>
+      <button
+        v-if="extraActions && !isCcOnly"
+        class="text-xs px-2.5 py-1 rounded-btn transition-smooth"
+        :class="
+          note.is_pinned
+            ? 'bg-amber-500 text-white hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700'
+            : 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900'
+        "
+        :title="note.is_pinned ? '取消置顶' : '置顶后任务在工作台优先展示'"
+        @click.stop="$emit('pin', note)"
+      >
+        {{ note.is_pinned ? '取消置顶' : '置顶' }}
       </button>
       <button
         v-if="extraActions && !isRed && !isCcOnly"
