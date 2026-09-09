@@ -17,7 +17,10 @@ import {
   assignMissingPositions,
   clampBoardCols,
   findFirstFreeSlot,
+  fixOverflowPositions,
+  inferBoardColsFromNotes,
   loadBoardCols,
+  readStoredBoardCols,
   relayoutAll,
   saveBoardCols,
   stripLegacyPositions,
@@ -177,6 +180,16 @@ function syncBoardPositions() {
   if (!Array.isArray(raw)) return;
   // 旧版像素坐标遗留数据自动清洗（pos_x/pos_y 按格子索引重排）
   const notes = stripLegacyPositions(raw);
+  // 列数偏好丢失自愈：localStorage 无记录时（新设备/清缓存/换访问源），
+  // 从便签位置推断曾用布局列数（如曾按 4 列排列的板子恢复为 4 列）并持久化，
+  // 避免「回退默认 3 列 → 旧位置超界 → 渲染重叠/空洞」
+  if (readStoredBoardCols() === null) {
+    const inferred = inferBoardColsFromNotes(notes);
+    if (inferred !== null) {
+      boardCols.value = inferred;
+      saveBoardCols(inferred);
+    }
+  }
   const map: Record<string, { x: number; y: number }> = {};
   for (const n of notes) {
     if (n.pos_x !== null && n.pos_y !== null) {
@@ -191,7 +204,9 @@ function syncBoardPositions() {
     const p = map[n.id];
     return p ? { ...n, pos_x: p.x, pos_y: p.y } : n;
   });
-  const updates = assignMissingPositions(merged, boardCols.value);
+  // 超界自愈：存在 pos_x 超出当前列数的便签（如偏好恢复前按旧列数存储的位置）→ 整板重排补齐空洞
+  const healed = fixOverflowPositions(merged, boardCols.value);
+  const updates = healed.length ? healed : assignMissingPositions(merged, boardCols.value);
   for (const u of updates) map[u.id] = { x: u.pos_x, y: u.pos_y };
   localPositions.value = map;
   if (updates.length) {

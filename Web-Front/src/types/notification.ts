@@ -80,6 +80,8 @@ export interface GroupMessageItem {
   sender?: { id: string; username: string; name?: string; avatar?: string }
   type: 'text' | 'image' | 'file'
   content: string
+  /** 被 @ 的成员 ID 列表（后端过滤为有效群成员；无 @ 时为空/缺省） */
+  mentions?: string[]
   file_name?: string
   file_path?: string
   file_size?: number
@@ -102,4 +104,26 @@ export interface GroupMemberItem {
   }
   joined_at: string
   last_read_at?: string | null
+}
+
+// 群文件夹文件（成员上传/下载，上传者或群主可删除）
+export interface GroupFileItem {
+  id: string
+  group_id: string
+  uploader_id: string
+  uploader?: {
+    id: string
+    username: string
+    name?: string
+    avatar?: string
+    department?: { id: string; name: string }
+  }
+  /** 实时推送时附带的上传者姓名（历史列表通过 uploader 关联查询） */
+  uploader_name?: string
+  file_name: string
+  file_path: string
+  file_size: number
+  mime_type: string
+  download_count: number
+  created_at: string
 }

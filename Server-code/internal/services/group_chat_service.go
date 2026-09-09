@@ -2,6 +2,8 @@ package services
 
 import (
 	"encoding/json"
+	"os"
+	"strings"
 	"time"
 
 	"labelpro-server/internal/models"
@@ -227,8 +229,13 @@ func (s *GroupChatService) Dissolve(userID, groupID string) error {
 		return err
 	}
 	memberIDs, _ := s.groupRepo.MemberIDs(groupID)
+	files, _ := s.groupRepo.ListGroupFiles(groupID)
 	if err := s.groupRepo.DissolveGroup(groupID); err != nil {
 		return err
+	}
+	// 清理群文件磁盘副本（软失败不影响业务）
+	for _, f := range files {
+		os.Remove(strings.TrimPrefix(f.FilePath, "/"))
 	}
 	notifyIDs := make([]string, 0, len(memberIDs))
 	for _, id := range memberIDs {
@@ -263,6 +270,38 @@ type GroupMessagePayload struct {
 	FilePath string
 	FileSize int64
 	MimeType string
+	Mentions []string
+}
+
+// FilterMentionIDs 过滤被 @ 的成员 ID：去重、保持出现顺序、仅保留真实群成员。
+// 纯函数，便于单元测试。
+func FilterMentionIDs(memberIDs []string, mentions []string) []string {
+	if len(mentions) == 0 {
+		return nil
+	}
+	valid := make(map[string]struct{}, len(memberIDs))
+	for _, id := range memberIDs {
+		valid[id] = struct{}{}
+	}
+	seen := make(map[string]struct{}, len(mentions))
+	out := make([]string, 0, len(mentions))
+	for _, id := range mentions {
+		if id == "" {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		if _, ok := valid[id]; !ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // SendGroupMessage 发送群消息，并实时推送给群内其他成员
@@ -295,11 +334,25 @@ func (s *GroupChatService) SendGroupMessage(userID, groupID string, p GroupMessa
 	if err != nil {
 		return nil, err
 	}
+
+	// 群成员列表：用于 @ 提及过滤与 WS 推送
+	memberIDs, _ := s.groupRepo.MemberIDs(groupID)
+
+	// @ 提及：去重并仅保留真实群成员，序列化为 JSON 数组存储
+	mentionIDs := FilterMentionIDs(memberIDs, p.Mentions)
+	mentionsJSON := ""
+	if len(mentionIDs) > 0 {
+		if b, merr := json.Marshal(mentionIDs); merr == nil {
+			mentionsJSON = string(b)
+		}
+	}
+
 	msg := &models.GroupMessage{
 		GroupID:   groupUUID,
 		SenderID:  senderUUID,
 		Type:      msgType,
 		Content:   p.Content,
+		Mentions:  mentionsJSON,
 		FileName:  p.FileName,
 		FilePath:  p.FilePath,
 		FileSize:  p.FileSize,
@@ -309,10 +362,14 @@ func (s *GroupChatService) SendGroupMessage(userID, groupID string, p GroupMessa
 	if err := s.groupRepo.CreateMessage(msg); err != nil {
 		return nil, err
 	}
+	// HTTP 响应输出解析后的提及列表（保持数组类型，空为 []）
+	if mentionIDs == nil {
+		mentionIDs = []string{}
+	}
+	msg.MentionList = mentionIDs
 
 	// 推送给群内除发送者外的所有成员
 	if s.hub != nil {
-		memberIDs, _ := s.groupRepo.MemberIDs(groupID)
 		// 附带发送者姓名，前端弹窗/通知直接展示
 		senderName := ""
 		if u, uerr := s.userRepo.FindByID(userID); uerr == nil && u != nil {
@@ -321,6 +378,9 @@ func (s *GroupChatService) SendGroupMessage(userID, groupID string, p GroupMessa
 			} else {
 				senderName = u.Username
 			}
+		}
+		if mentionIDs == nil {
+			mentionIDs = []string{}
 		}
 		payload, _ := json.Marshal(map[string]interface{}{
 			"event": "chat:group_message",
@@ -331,6 +391,7 @@ func (s *GroupChatService) SendGroupMessage(userID, groupID string, p GroupMessa
 				"sender_name": senderName,
 				"type":        msg.Type,
 				"content":     msg.Content,
+				"mentions":    mentionIDs,
 				"file_name":   msg.FileName,
 				"file_path":   msg.FilePath,
 				"file_size":   msg.FileSize,
@@ -351,7 +412,15 @@ func (s *GroupChatService) ListMessages(userID, groupID string, page, pageSize i
 	if _, err := s.ensureMember(groupID, userID); err != nil {
 		return nil, 0, err
 	}
-	return s.groupRepo.ListMessages(groupID, page, pageSize)
+	msgs, total, err := s.groupRepo.ListMessages(groupID, page, pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+	// 输出解析后的提及列表（mentions 字段为数组）
+	for i := range msgs {
+		msgs[i].MentionList = msgs[i].DecodeMentions()
+	}
+	return msgs, total, nil
 }
 
 func (s *GroupChatService) MarkGroupRead(userID, groupID string) error {
@@ -359,4 +428,194 @@ func (s *GroupChatService) MarkGroupRead(userID, groupID string) error {
 		return err
 	}
 	return s.groupRepo.MarkGroupRead(groupID, userID)
+}
+
+// GetAnnouncement 获取群公告（成员可查看）
+func (s *GroupChatService) GetAnnouncement(userID, groupID string) (map[string]interface{}, error) {
+	if _, err := s.ensureMember(groupID, userID); err != nil {
+		return nil, err
+	}
+	g, err := s.groupRepo.GetGroup(groupID)
+	if err != nil {
+		return nil, apperrors.ErrGroupNotFound
+	}
+	return map[string]interface{}{
+		"announcement":            g.Announcement,
+		"announcement_updated_at": g.AnnouncementUpdatedAt,
+	}, nil
+}
+
+// SetAnnouncement 群主设置/清除群公告（content 为空表示清除），并实时推送给其他成员
+func (s *GroupChatService) SetAnnouncement(userID, groupID, content string) error {
+	if len([]rune(content)) > 500 {
+		return apperrors.ErrInvalidChatContent
+	}
+	if err := s.requireOwner(groupID, userID); err != nil {
+		return err
+	}
+	if err := s.groupRepo.UpdateAnnouncement(groupID, content); err != nil {
+		return err
+	}
+	memberIDs, _ := s.groupRepo.MemberIDs(groupID)
+	var updatedAt interface{}
+	if content != "" {
+		updatedAt = time.Now()
+	}
+	for _, id := range memberIDs {
+		if id == userID {
+			continue
+		}
+		s.pushGroupEvent(groupID, []string{id}, "announcement_updated", map[string]interface{}{
+			"announcement":            content,
+			"announcement_updated_at": updatedAt,
+		})
+	}
+	return nil
+}
+
+// GroupFileMeta 群文件上传元数据（由 handler 落盘后传入）
+type GroupFileMeta struct {
+	FileName string
+	FilePath string
+	FileSize int64
+	MimeType string
+}
+
+// groupFilePayload 群文件事件载荷
+func groupFilePayload(f *models.GroupFile, uploaderName string) map[string]interface{} {
+	return map[string]interface{}{
+		"id":             f.ID,
+		"group_id":       f.GroupID,
+		"uploader_id":    f.UploaderID,
+		"uploader_name":  uploaderName,
+		"file_name":      f.FileName,
+		"file_path":      f.FilePath,
+		"file_size":      f.FileSize,
+		"mime_type":      f.MimeType,
+		"download_count": f.DownloadCount,
+		"created_at":     f.CreatedAt,
+	}
+}
+
+// UploadGroupFile 成员上传群文件，并实时推送给其他成员
+func (s *GroupChatService) UploadGroupFile(userID, groupID string, meta GroupFileMeta) (*models.GroupFile, error) {
+	if _, err := s.ensureMember(groupID, userID); err != nil {
+		return nil, err
+	}
+	if meta.FileName == "" || meta.FilePath == "" {
+		return nil, apperrors.ErrInvalidChatContent
+	}
+	uploaderUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, err
+	}
+	groupUUID, err := uuid.Parse(groupID)
+	if err != nil {
+		return nil, err
+	}
+	f := &models.GroupFile{
+		GroupID:    groupUUID,
+		UploaderID: uploaderUUID,
+		FileName:   meta.FileName,
+		FilePath:   meta.FilePath,
+		FileSize:   meta.FileSize,
+		MimeType:   meta.MimeType,
+		CreatedAt:  time.Now(),
+	}
+	if err := s.groupRepo.CreateGroupFile(f); err != nil {
+		return nil, err
+	}
+
+	uploaderName := ""
+	if u, uerr := s.userRepo.FindByID(userID); uerr == nil && u != nil {
+		f.Uploader = u
+		if u.Name != "" {
+			uploaderName = u.Name
+		} else {
+			uploaderName = u.Username
+		}
+	}
+	if s.hub != nil {
+		memberIDs, _ := s.groupRepo.MemberIDs(groupID)
+		for _, id := range memberIDs {
+			if id == userID {
+				continue
+			}
+			s.pushGroupEvent(groupID, []string{id}, "file_added", map[string]interface{}{
+				"file": groupFilePayload(f, uploaderName),
+			})
+		}
+	}
+	return f, nil
+}
+
+// ListGroupFiles 群文件列表（成员可查看）
+func (s *GroupChatService) ListGroupFiles(userID, groupID string) ([]models.GroupFile, error) {
+	if _, err := s.ensureMember(groupID, userID); err != nil {
+		return nil, err
+	}
+	return s.groupRepo.ListGroupFiles(groupID)
+}
+
+// DownloadGroupFile 校验成员身份并记录下载（计数 +1，推送其他成员刷新计数）
+func (s *GroupChatService) DownloadGroupFile(userID, groupID, fileID string) (*models.GroupFile, error) {
+	if _, err := s.ensureMember(groupID, userID); err != nil {
+		return nil, err
+	}
+	f, err := s.groupRepo.GetGroupFile(groupID, fileID)
+	if err != nil {
+		return nil, apperrors.ErrGroupFileNotFound
+	}
+	count, err := s.groupRepo.IncrDownloadCount(groupID, fileID)
+	if err != nil {
+		return nil, err
+	}
+	if count > 0 {
+		f.DownloadCount = int(count)
+	}
+	if s.hub != nil {
+		memberIDs, _ := s.groupRepo.MemberIDs(groupID)
+		for _, id := range memberIDs {
+			if id == userID {
+				continue
+			}
+			s.pushGroupEvent(groupID, []string{id}, "file_downloaded", map[string]interface{}{
+				"file_id":        fileID,
+				"download_count": f.DownloadCount,
+			})
+		}
+	}
+	return f, nil
+}
+
+// DeleteGroupFile 删除群文件（上传者或群主），并实时推送给其他成员
+func (s *GroupChatService) DeleteGroupFile(userID, groupID, fileID string) error {
+	m, err := s.ensureMember(groupID, userID)
+	if err != nil {
+		return err
+	}
+	f, err := s.groupRepo.GetGroupFile(groupID, fileID)
+	if err != nil {
+		return apperrors.ErrGroupFileNotFound
+	}
+	if m.Role != "owner" && f.UploaderID.String() != userID {
+		return apperrors.ErrPermissionDenied
+	}
+	if err := s.groupRepo.DeleteGroupFile(groupID, fileID); err != nil {
+		return err
+	}
+	// 清理磁盘文件（软失败不影响业务）
+	os.Remove(strings.TrimPrefix(f.FilePath, "/"))
+	if s.hub != nil {
+		memberIDs, _ := s.groupRepo.MemberIDs(groupID)
+		for _, id := range memberIDs {
+			if id == userID {
+				continue
+			}
+			s.pushGroupEvent(groupID, []string{id}, "file_removed", map[string]interface{}{
+				"file_id": fileID,
+			})
+		}
+	}
+	return nil
 }

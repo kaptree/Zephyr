@@ -7,11 +7,14 @@ import {
   clampBoardCols,
   loadBoardCols,
   saveBoardCols,
+  readStoredBoardCols,
   hasLegacyPixelPositions,
   stripLegacyPositions,
   assignMissingPositions,
   findFirstFreeSlot,
   relayoutAll,
+  inferBoardColsFromNotes,
+  fixOverflowPositions,
 } from '@/composables/useBoardLayout';
 import { createMockNote } from '../../mocks/data';
 import type { Note } from '@/types';
@@ -33,13 +36,15 @@ describe('BOARD_COLS', () => {
 });
 
 describe('hasLegacyPixelPositions', () => {
-  it('空位置与合法格子索引均不算遗留像素数据', () => {
+  it('空位置与合法格子索引（最大 6 列布局的 0..5）均不算遗留像素数据', () => {
     expect(hasLegacyPixelPositions([noteAt('a', null, null)])).toBe(false);
     expect(hasLegacyPixelPositions([noteAt('a', 0, 0), noteAt('b', 2, 100)])).toBe(false);
+    // 4~6 列布局的合法列号（3..5）不能误判为遗留像素数据，否则每次加载整板清位重排
+    expect(hasLegacyPixelPositions([noteAt('a', 3, 0), noteAt('b', 5, 12)])).toBe(false);
   });
 
-  it('列超出 0..2 或行超过 100 判定为遗留像素数据', () => {
-    expect(hasLegacyPixelPositions([noteAt('a', 3, 0)])).toBe(true);
+  it('列超出 0..5 或行超过 100 判定为遗留像素数据', () => {
+    expect(hasLegacyPixelPositions([noteAt('a', 6, 0)])).toBe(true);
     expect(hasLegacyPixelPositions([noteAt('a', 0, 101)])).toBe(true);
     expect(hasLegacyPixelPositions([noteAt('a', 280, 200)])).toBe(true);
   });
@@ -225,6 +230,88 @@ describe('relayoutAll', () => {
       noteAt('pinned', 0, 1, { is_pinned: true, pinned_at: '2024-01-01T00:00:00Z' }),
     ];
     expect(relayoutAll(notes, 3)).toEqual([
+      { id: 'pinned', pos_x: 0, pos_y: 0 },
+      { id: 'plain', pos_x: 1, pos_y: 0 },
+    ]);
+  });
+});
+
+describe('readStoredBoardCols', () => {
+  beforeEach(() => {
+    localStorage.removeItem(BOARD_COLS_STORAGE_KEY);
+  });
+
+  afterEach(() => {
+    localStorage.removeItem(BOARD_COLS_STORAGE_KEY);
+  });
+
+  it('无存储记录时返回 null（区别于「显式保存过默认 3 列」）', () => {
+    expect(readStoredBoardCols()).toBeNull();
+    saveBoardCols(BOARD_COLS);
+    expect(readStoredBoardCols()).toBe(BOARD_COLS);
+  });
+
+  it('已保存偏好时返回收敛后的列数', () => {
+    saveBoardCols(4);
+    expect(readStoredBoardCols()).toBe(4);
+    localStorage.setItem(BOARD_COLS_STORAGE_KEY, '99');
+    expect(readStoredBoardCols()).toBe(BOARD_MAX_COLS);
+  });
+
+  it('存储值非法（非数字）时返回 null', () => {
+    localStorage.setItem(BOARD_COLS_STORAGE_KEY, 'abc');
+    expect(readStoredBoardCols()).toBeNull();
+  });
+});
+
+describe('inferBoardColsFromNotes', () => {
+  it('无便签或位置全空时返回 null', () => {
+    expect(inferBoardColsFromNotes([])).toBeNull();
+    expect(inferBoardColsFromNotes([noteAt('a', null, null)])).toBeNull();
+  });
+
+  it('位置均在默认 3 列内时返回 null（无法推断更宽布局，保持默认）', () => {
+    expect(inferBoardColsFromNotes([noteAt('a', 0, 0), noteAt('b', 2, 5)])).toBeNull();
+  });
+
+  it('存在超出默认列数的位置时按最大列号 + 1 推断曾用列数', () => {
+    expect(inferBoardColsFromNotes([noteAt('a', 0, 0), noteAt('b', 3, 1)])).toBe(4);
+    expect(inferBoardColsFromNotes([noteAt('a', 5, 2)])).toBe(BOARD_MAX_COLS);
+  });
+
+  it('非法超大的列号收敛到列数上限', () => {
+    expect(inferBoardColsFromNotes([noteAt('a', 9, 0)])).toBe(BOARD_MAX_COLS);
+  });
+});
+
+describe('fixOverflowPositions', () => {
+  it('无超界便签时返回空数组（不改动现有布局）', () => {
+    expect(fixOverflowPositions([noteAt('a', 0, 0), noteAt('b', 2, 1)], 3)).toEqual([]);
+    // 位置在 4 列网格内不算超界
+    expect(fixOverflowPositions([noteAt('a', 3, 0)], 4)).toEqual([]);
+  });
+
+  it('存在超界便签时整板按当前列数重排：结果无超界、无重叠、数量一致', () => {
+    // 4 列布局存量：a(0,0) b(3,0) c(3,1) d(0,1)，回落 3 列后 b/c 超界
+    const notes = [
+      noteAt('a', 0, 0),
+      noteAt('b', 3, 0),
+      noteAt('c', 3, 1),
+      noteAt('d', 0, 1),
+    ];
+    const updates = fixOverflowPositions(notes, 3);
+    expect(updates).toHaveLength(4);
+    const cells = new Set(updates.map((u) => `${u.pos_x},${u.pos_y}`));
+    expect(cells.size).toBe(4);
+    for (const u of updates) expect(u.pos_x).toBeLessThan(3);
+  });
+
+  it('超界自愈重排时置顶任务优先占前排', () => {
+    const notes = [
+      noteAt('plain', 3, 0),
+      noteAt('pinned', 3, 1, { is_pinned: true, pinned_at: '2024-01-01T00:00:00Z' }),
+    ];
+    expect(fixOverflowPositions(notes, 3)).toEqual([
       { id: 'pinned', pos_x: 0, pos_y: 0 },
       { id: 'plain', pos_x: 1, pos_y: 0 },
     ]);

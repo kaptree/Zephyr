@@ -223,4 +223,68 @@ describe('notification store - 群聊', () => {
     expect(store.groupMessages['g1']).toBeUndefined();
     expect(vi.mocked(groupChatService.fetchGroups)).toHaveBeenCalled();
   });
+
+  it('收到 @我的群消息：标记有人@我且弹窗文案突出 @了你', async () => {
+    const store = useNotificationStore();
+    await store.refreshGroups();
+    await store.loadGroupMessages('g1');
+
+    store.connectSocket();
+    triggerWs({
+      event: 'chat:group_message',
+      message: groupMsg({ content: '看这里', mentions: ['user-me'] }),
+    });
+    await flushTimers();
+
+    expect(store.groupMentionedMe['g1']).toBe(true);
+    const popup = store.popups.filter((p) => p.kind === 'chat')[0];
+    expect(popup.content).toContain('在群聊中@了你');
+    expect(popup.content).toContain('张三');
+  });
+
+  it('收到普通群消息：不标记有人@我', async () => {
+    const store = useNotificationStore();
+    await store.refreshGroups();
+    await store.loadGroupMessages('g1');
+
+    store.connectSocket();
+    triggerWs({ event: 'chat:group_message', message: groupMsg() });
+    await flushTimers();
+
+    expect(store.groupMentionedMe['g1']).toBeUndefined();
+  });
+
+  it('正在查看该群时被 @：自动已读，不标记有人@我', async () => {
+    const store = useNotificationStore();
+    await store.refreshGroups();
+    await store.loadGroupMessages('g1');
+    store.setViewingGroup('g1');
+
+    store.connectSocket();
+    triggerWs({
+      event: 'chat:group_message',
+      message: groupMsg({ mentions: ['user-me'] }),
+    });
+    await flushTimers();
+
+    expect(store.groupMentionedMe['g1']).toBeUndefined();
+    expect(store.popups.filter((p) => p.kind === 'chat')).toHaveLength(0);
+  });
+
+  it('markGroupRead：清除有人@我标识', async () => {
+    const store = useNotificationStore();
+    await store.refreshGroups();
+    await store.loadGroupMessages('g1');
+
+    store.connectSocket();
+    triggerWs({
+      event: 'chat:group_message',
+      message: groupMsg({ mentions: ['user-me'] }),
+    });
+    await flushTimers();
+    expect(store.groupMentionedMe['g1']).toBe(true);
+
+    await store.markGroupRead('g1');
+    expect(store.groupMentionedMe['g1']).toBeUndefined();
+  });
 });

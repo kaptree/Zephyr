@@ -1,21 +1,31 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useNotificationStore } from '@/stores/notification';
 import { useAuthStore } from '@/stores/auth';
 import { getVisibleUsers } from '@/services/admin';
 import { uploadChatFile } from '@/services/notification';
 import * as groupChatService from '@/services/groupChat';
 import EmojiPicker from '@/components/chat/EmojiPicker.vue';
+import MentionPicker from '@/components/chat/MentionPicker.vue';
 import UserPicker from '@/components/common/UserPicker.vue';
-import type { ChatMessageItem, GroupConversationItem, GroupMessageItem, GroupMemberItem, User } from '@/types';
+import type { ChatMessageItem, GroupConversationItem, GroupMessageItem, GroupMemberItem, GroupFileItem, User } from '@/types';
 import { renderNoteContent } from '@/utils/richText';
 import { matchPinyin } from '@/utils/pinyin';
+import {
+  memberDisplayName,
+  buildMentionInsert,
+  findActiveMentionToken,
+  splitMentionSegments,
+  extractMentionedNames,
+  renderMessageContent,
+} from '@/utils/mention';
 import { useToast } from '@/composables/useToast';
 
 const store = useNotificationStore();
 const auth = useAuthStore();
 const route = useRoute();
+const router = useRouter();
 const toast = useToast();
 
 const leftTab = ref<'conv' | 'group' | 'contact'>('conv');
@@ -54,6 +64,25 @@ const showGroupSettings = ref(false);
 const renameValue = ref('');
 const addMemberIds = ref<string[]>([]);
 const savingGroup = ref(false);
+// 群公告（横幅展开态 + 群设置中的编辑态）
+const announcementExpanded = ref(false);
+const announcementEdit = ref('');
+const savingAnnouncement = ref(false);
+// 群文件侧滑面板
+const showFilesPanel = ref(false);
+const fileSearch = ref('');
+const filePanelDragOver = ref(false);
+const filePanelUploading = ref(false);
+const downloadingId = ref('');
+const filePanelInput = ref<HTMLInputElement | null>(null);
+
+// ===== @ 提及（群聊，参考微信） =====
+const inputEl = ref<HTMLTextAreaElement | null>(null);
+const mentionPickerEl = ref<InstanceType<typeof MentionPicker> | null>(null);
+const mentionPanelEl = ref<HTMLElement | null>(null);
+const mirrorEl = ref<HTMLElement | null>(null);
+// 当前活动的 @ 记号（@ 下标 + 过滤词），null 表示浮层关闭
+const mentionToken = ref<{ at: number; keyword: string } | null>(null);
 
 // 好友姓名映射（会话中对方姓名兜底）
 const nameMap = computed(() => {
@@ -100,6 +129,25 @@ const currentGroupInfo = computed(() =>
 const isGroupOwner = computed(
   () => !!currentGroupInfo.value && currentGroupInfo.value.owner_id === auth.user?.id
 );
+
+// 群公告（进入群会话后由 store 缓存）
+const currentAnnouncement = computed(() =>
+  currentGroup.value ? store.groupAnnouncements[currentGroup.value] : undefined
+);
+
+// 群文件列表（带搜索过滤：文件名 / 上传者名）
+const currentGroupFiles = computed<GroupFileItem[]>(() => {
+  const gid = currentGroup.value;
+  if (!gid) return [];
+  const list = store.groupFiles[gid] || [];
+  const kw = fileSearch.value.trim().toLowerCase();
+  if (!kw) return list;
+  return list.filter(
+    (f) =>
+      f.file_name.toLowerCase().includes(kw) ||
+      (f.uploader_name || '').toLowerCase().includes(kw)
+  );
+});
 
 // 当前展示的是否为群聊会话（群聊优先于私聊）
 const activeIsGroup = computed(() => !!currentGroup.value);
@@ -160,6 +208,102 @@ const displayMessages = computed<DisplayMessage[]>(() => {
   }));
 });
 
+// ===== @ 提及（群聊，参考微信） =====
+
+// @ 提及候选名：群成员显示名 + 全体成员（气泡高亮与发送反推共用）
+const mentionCandidates = computed(() => {
+  if (!activeIsGroup.value) return [];
+  const names = groupMembers.value.map((m) => memberDisplayName(m));
+  names.push('全体成员');
+  return names;
+});
+
+// 输入框镜像分段：@名字 高亮，其余透明
+const mirrorSegments = computed(() =>
+  activeIsGroup.value ? splitMentionSegments(input.value, mentionCandidates.value) : []
+);
+
+// 输入/光标变化时刷新活动 @ 记号（决定浮层开关与过滤词）
+function refreshMentionToken() {
+  if (!activeIsGroup.value || !inputEl.value) {
+    mentionToken.value = null;
+    return;
+  }
+  mentionToken.value = findActiveMentionToken(input.value, inputEl.value.selectionStart ?? input.value.length);
+  // 弹出 @ 浮层时收起表情面板，避免遮挡
+  if (mentionToken.value) showEmoji.value = false;
+}
+
+// 选中浮层候选项：把「@过滤词」替换为「@名字 」，光标落在插入文本之后
+function onMentionSelect(opt: MentionOption) {
+  const token = mentionToken.value;
+  const el = inputEl.value;
+  if (!token || !el) return;
+  const caret = el.selectionStart ?? input.value.length;
+  const insert =
+    opt.type === 'all'
+      ? buildMentionInsert('全体成员')
+      : buildMentionInsert(memberDisplayName(opt.member!));
+  input.value = input.value.slice(0, token.at) + insert + input.value.slice(caret);
+  mentionToken.value = null;
+  // 同步把光标移到插入文本末尾：避免后续 keyup 等事件用旧光标位置重新激活浮层
+  el.focus();
+  el.setSelectionRange(token.at + insert.length, token.at + insert.length);
+  nextTick(() => {
+    el.focus();
+    const pos = token.at + insert.length;
+    el.setSelectionRange(pos, pos);
+  });
+}
+
+// 浮层打开时的 ↑↓ 导航（输入框 keydown 转发；未打开时保持光标移动的默认行为）
+function onMentionNavKey(e: KeyboardEvent, dir: 'up' | 'down') {
+  if (!mentionToken.value) return;
+  e.preventDefault();
+  if (dir === 'up') mentionPickerEl.value?.moveUp();
+  else mentionPickerEl.value?.moveDown();
+}
+
+// 仅光标移动/删除类按键的 keyup 才刷新 @ 记号：
+// 文本变更由 @input 覆盖，Enter 的 keyup 若刷新会在 DOM 尚未同步时用旧光标重开浮层
+const MENTION_CURSOR_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Delete', 'Backspace']);
+function onMentionKeyup(e: KeyboardEvent) {
+  if (MENTION_CURSOR_KEYS.has(e.key)) refreshMentionToken();
+}
+
+// Enter：浮层打开时选中高亮项，否则发送消息
+function onEnterKeydown() {
+  if (mentionToken.value) {
+    mentionPickerEl.value?.pickActive();
+    return;
+  }
+  sendText();
+}
+
+// 发送时从内容反推被 @ 的成员 ID（删除 @文本 自动失效；@全体成员 = 除自己外全部成员）
+function collectMentionIds(content: string): string[] {
+  const names = new Set(extractMentionedNames(content, mentionCandidates.value));
+  if (names.size === 0) return [];
+  const me = auth.user?.id;
+  if (names.has('全体成员')) {
+    return groupMembers.value.filter((m) => m.user_id !== me).map((m) => m.user_id);
+  }
+  return groupMembers.value
+    .filter((m) => m.user_id !== me && names.has(memberDisplayName(m)))
+    .map((m) => m.user_id);
+}
+
+// 群聊文本气泡渲染：@名字 高亮（mention-tag），私聊沿用原转义
+function renderGroupBubble(content: string): string {
+  if (!activeIsGroup.value) return renderNoteContent(content);
+  return renderMessageContent(content, mentionCandidates.value);
+}
+
+// 镜像层与输入框滚动同步（内容超过两行时保持高亮对齐）
+function syncMirrorScroll() {
+  if (mirrorEl.value && inputEl.value) mirrorEl.value.scrollTop = inputEl.value.scrollTop;
+}
+
 async function loadUsers() {
   try {
     const res = await getVisibleUsers();
@@ -191,6 +335,21 @@ async function openConversation(peerId: string, name?: string) {
 }
 
 async function openGroup(groupId: string) {
+  // 群可能已被解散或不存在（如浏览器残留失效的 ?group= 参数）：
+  // 先校验群详情，404 时提示并回退空态，避免渲染出「文件上传/下载全部 404」的空壳视图
+  try {
+    await groupChatService.fetchGroupDetail(groupId);
+  } catch (err) {
+    const status = (err as { response?: { status?: number } })?.response?.status;
+    if (status === 404) {
+      toast.error('该群聊不存在或已被解散');
+      currentGroup.value = null;
+      store.setViewingGroup(null);
+      router.replace({ path: '/chat' });
+      return;
+    }
+    // 其他错误（网络抖动等）不阻断，按原逻辑继续加载
+  }
   currentGroup.value = groupId;
   // 切换到群聊：退出私聊查看状态
   currentPeer.value = null;
@@ -201,6 +360,7 @@ async function openGroup(groupId: string) {
   scrolledUp.value = false;
   newMsgCount.value = 0;
   store.setViewingGroup(groupId);
+  announcementExpanded.value = false;
   try {
     await store.loadGroupMessages(groupId);
     await store.markGroupRead(groupId);
@@ -210,6 +370,8 @@ async function openGroup(groupId: string) {
   scrollToBottom();
   // 群成员用于发送者名解析与群设置弹窗，后台加载不阻塞消息展示
   loadGroupMembers(groupId);
+  // 群公告：横幅展示（后台加载）
+  store.loadGroupAnnouncement(groupId);
 }
 
 async function loadGroupMembers(groupId: string) {
@@ -296,10 +458,13 @@ async function loadOlder() {
 async function sendText() {
   const content = input.value.trim();
   if (!content) return;
+  // @ 提及：从内容反推被 @ 的成员 ID（删掉 @文本 自动失效）
+  const mentions = activeIsGroup.value ? collectMentionIds(content) : [];
   input.value = '';
+  mentionToken.value = null;
   showEmoji.value = false;
   if (activeIsGroup.value && currentGroup.value) {
-    await store.sendGroupMessage(currentGroup.value, { content });
+    await store.sendGroupMessage(currentGroup.value, mentions.length ? { content, mentions } : { content });
   } else if (currentPeer.value) {
     await store.sendMessage(currentPeer.value, { content });
   }
@@ -410,6 +575,11 @@ async function openGroupSettings() {
   addMemberIds.value = [];
   showGroupSettings.value = true;
   await loadGroupMembers(currentGroup.value);
+  // 群公告编辑初始值（未加载过则先拉取）
+  if (!store.groupAnnouncements[currentGroup.value]) {
+    await store.loadGroupAnnouncement(currentGroup.value);
+  }
+  announcementEdit.value = store.groupAnnouncements[currentGroup.value]?.content || '';
 }
 
 async function submitRename() {
@@ -509,6 +679,135 @@ async function quitGroupAct() {
   }
 }
 
+// ---------------- 群公告 ----------------
+
+// 群主发布/更新群公告（内容为空视为清除）
+async function saveAnnouncement() {
+  if (!currentGroup.value || !isGroupOwner.value) return;
+  const content = announcementEdit.value.trim();
+  if (content.length > 500) {
+    toast.warning('群公告最多 500 字');
+    return;
+  }
+  savingAnnouncement.value = true;
+  try {
+    await groupChatService.setGroupAnnouncement(currentGroup.value, content);
+    // 后端不推送给操作者本人，本地同步缓存
+    store.groupAnnouncements[currentGroup.value] = {
+      content,
+      updated_at: content ? new Date().toISOString() : null,
+    };
+    toast.success(content ? '群公告已发布，成员将实时收到通知' : '群公告已清除');
+  } catch (err) {
+    const e2 = err as { response?: { data?: { message?: string } } };
+    toast.error(e2?.response?.data?.message || '设置群公告失败');
+  } finally {
+    savingAnnouncement.value = false;
+  }
+}
+
+// 群主一键清除公告
+async function clearAnnouncement() {
+  if (!currentGroup.value || !currentAnnouncement.value?.content) return;
+  announcementEdit.value = '';
+  await saveAnnouncement();
+}
+
+// ---------------- 群文件夹 ----------------
+
+function openFilesPanel() {
+  if (!currentGroup.value) return;
+  showFilesPanel.value = true;
+  fileSearch.value = '';
+  filePanelDragOver.value = false;
+  store.loadGroupFiles(currentGroup.value);
+}
+
+// 上传群文件（按钮选择 + 拖拽共用）
+async function uploadToGroupFiles(file: File) {
+  if (!currentGroup.value || filePanelUploading.value) return;
+  if (file.size > 10 * 1024 * 1024) {
+    toast.warning('文件大小超过限制，最大允许 10MB');
+    return;
+  }
+  filePanelUploading.value = true;
+  try {
+    await groupChatService.uploadGroupFile(currentGroup.value, file);
+    toast.success(`「${file.name}」已上传到群文件`);
+    // 后端不推送给上传者本人，手动刷新列表
+    await store.loadGroupFiles(currentGroup.value);
+  } catch (err) {
+    const e2 = err as { response?: { data?: { message?: string } } };
+    toast.error(e2?.response?.data?.message || '文件上传失败');
+  } finally {
+    filePanelUploading.value = false;
+  }
+}
+
+function onPanelFileSelected(e: Event) {
+  const inputEl = e.target as HTMLInputElement;
+  const file = inputEl.files?.[0];
+  inputEl.value = '';
+  if (file) uploadToGroupFiles(file);
+}
+
+// 拖拽上传：拖入高亮，松手取第一个文件上传
+function onPanelDrop(e: DragEvent) {
+  filePanelDragOver.value = false;
+  const file = e.dataTransfer?.files?.[0];
+  if (file) uploadToGroupFiles(file);
+}
+
+// 下载群文件（带鉴权头拉取 blob；下载计数由后端自增并实时推送给其他成员）
+async function downloadFileAct(f: GroupFileItem) {
+  if (!currentGroup.value || downloadingId.value) return;
+  downloadingId.value = f.id;
+  try {
+    await groupChatService.downloadGroupFile(currentGroup.value, f);
+    // 本地同步 +1（后端不推送给下载者本人）
+    f.download_count += 1;
+  } catch (err) {
+    // blob 响应中解析后端错误信息
+    const resp = (err as { response?: { data?: Blob | { message?: string } } })?.response;
+    let msg = '下载失败';
+    if (resp?.data instanceof Blob) {
+      try {
+        msg = JSON.parse(await resp.data.text()).message || msg;
+      } catch {
+        /* ignore */
+      }
+    } else if (resp?.data?.message) {
+      msg = resp.data.message;
+    }
+    toast.error(msg);
+  } finally {
+    downloadingId.value = '';
+  }
+}
+
+// 删除群文件（上传者或群主）
+async function deleteFileAct(f: GroupFileItem) {
+  if (!currentGroup.value) return;
+  if (!confirm(`确定删除文件「${f.file_name}」？删除后不可恢复。`)) return;
+  try {
+    await groupChatService.deleteGroupFile(currentGroup.value, f.id);
+    toast.success('文件已删除');
+    await store.loadGroupFiles(currentGroup.value);
+  } catch (err) {
+    const e2 = err as { response?: { data?: { message?: string } } };
+    toast.error(e2?.response?.data?.message || '删除文件失败');
+  }
+}
+
+// 能否删除该文件：上传者本人或群主
+function canDeleteFile(f: GroupFileItem): boolean {
+  return isGroupOwner.value || f.uploader_id === auth.user?.id;
+}
+
+function isImageFile(f: GroupFileItem): boolean {
+  return (f.mime_type || '').startsWith('image/');
+}
+
 function formatTime(ts: string): string {
   if (!ts) return '';
   const d = new Date(ts);
@@ -599,6 +898,16 @@ watch(
     if (group && group !== currentGroup.value) {
       leftTab.value = 'group';
       openGroup(group as string);
+    }
+  }
+);
+
+// 群聊被解散（WebSocket dissolved 推送）：store 退出查看态，这里同步回退到空态视图
+watch(
+  () => store.viewingGroupId,
+  (gid) => {
+    if (gid === null && currentGroup.value) {
+      currentGroup.value = null;
     }
   }
 );
@@ -731,7 +1040,9 @@ onUnmounted(() => {
               <p class="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{{ g.name }}</p>
               <span class="text-[10px] text-slate-400 shrink-0">{{ formatTime(g.last_at || '') }}</span>
             </div>
-            <p class="text-xs text-slate-400 dark:text-slate-500 truncate mt-0.5">{{ g.last_msg || `${g.member_count} 名成员` }}</p>
+            <p class="text-xs text-slate-400 dark:text-slate-500 truncate mt-0.5">
+              <span v-if="store.groupMentionedMe[g.id]" class="text-red-500 font-medium">[有人@我] </span>{{ g.last_msg || `${g.member_count} 名成员` }}
+            </p>
           </div>
           <span v-if="g.unread > 0" class="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold leading-[18px] text-center">
             {{ g.unread > 99 ? '99+' : g.unread }}
@@ -793,6 +1104,11 @@ onUnmounted(() => {
             </div>
             <button
               class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
+              title="群文件：成员可上传 / 下载"
+              @click="openFilesPanel"
+            >📁 文件</button>
+            <button
+              class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth"
               @click="openGroupSettings"
             >⚙ 群设置</button>
           </template>
@@ -809,6 +1125,35 @@ onUnmounted(() => {
               </p>
             </div>
           </template>
+        </div>
+
+        <!-- 群公告横幅：默认一行截断，点击展开全文 -->
+        <div v-if="activeIsGroup && currentAnnouncement?.content" class="shrink-0 px-5 py-2 border-b border-amber-200/60 dark:border-amber-800/40 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 dark:from-amber-900/20 dark:via-orange-900/10 dark:to-amber-900/20">
+          <div
+            class="flex items-start gap-2 cursor-pointer select-none"
+            @click="announcementExpanded = !announcementExpanded"
+          >
+            <span class="text-sm leading-5 mt-0.5 shrink-0">📢</span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-200/70 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 shrink-0">群公告</span>
+                <p
+                  class="text-xs text-amber-800 dark:text-amber-200 flex-1 min-w-0"
+                  :class="announcementExpanded ? 'whitespace-pre-wrap break-words' : 'truncate'"
+                >{{ currentAnnouncement.content }}</p>
+                <svg
+                  class="w-3.5 h-3.5 text-amber-500 shrink-0 transition-transform duration-200"
+                  :class="announcementExpanded ? 'rotate-180' : ''"
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+              <p v-if="announcementExpanded && currentAnnouncement.updated_at" class="text-[10px] text-amber-500 dark:text-amber-400/70 mt-1">
+                群主更新于 {{ formatTime(currentAnnouncement.updated_at) }}
+              </p>
+            </div>
+          </div>
         </div>
 
         <!-- 消息区 -->
@@ -843,7 +1188,7 @@ onUnmounted(() => {
                 :class="m.senderId === auth.user?.id
                   ? 'bg-blue-500 text-white rounded-br-sm'
                   : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 rounded-bl-sm'"
-                v-html="renderNoteContent(m.content)"
+                v-html="renderGroupBubble(m.content)"
               ></div>
 
               <!-- 图片 -->
@@ -931,15 +1276,50 @@ onUnmounted(() => {
           </div>
           </transition>
 
-          <div class="flex items-end gap-2">
-            <textarea
-              v-model="input"
-              rows="2"
-              class="flex-1 resize-none rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 scrollbar-thin"
-              :placeholder="activeIsGroup ? `发消息到「${currentGroupInfo?.name || '群聊'}」，Enter 发送` : '输入消息，Enter 发送，Shift+Enter 换行'"
-              @keydown.enter.exact.prevent="sendText"
-              @focus="showEmoji = false"
+          <!-- @ 成员选择浮层（微信交互：输入 @ 弹出，Enter 选中） -->
+          <transition name="shrink-out">
+          <div
+            v-if="mentionToken"
+            ref="mentionPanelEl"
+            class="absolute bottom-full left-3 mb-2 z-20"
+            @click.stop
+          >
+            <MentionPicker
+              ref="mentionPickerEl"
+              :members="groupMembers"
+              :keyword="mentionToken.keyword"
+              :show-all="isGroupOwner"
+              @select="onMentionSelect"
             />
+          </div>
+          </transition>
+
+          <div class="flex items-end gap-2">
+            <div class="relative flex-1 min-w-0">
+              <textarea
+                ref="inputEl"
+                v-model="input"
+                rows="2"
+                class="relative w-full resize-none rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 scrollbar-thin"
+                :placeholder="activeIsGroup ? `发消息到「${currentGroupInfo?.name || '群聊'}」，Enter 发送，@ 提醒成员` : '输入消息，Enter 发送，Shift+Enter 换行'"
+                @input="refreshMentionToken"
+                @click="refreshMentionToken"
+                @keyup="onMentionKeyup"
+                @scroll.passive="syncMirrorScroll"
+                @keydown.enter.exact.prevent="onEnterKeydown"
+                @keydown.up="onMentionNavKey($event, 'up')"
+                @keydown.down="onMentionNavKey($event, 'down')"
+                @keydown.esc="mentionToken = null"
+                @focus="showEmoji = false"
+              />
+              <!-- @ 提及镜像高亮层：与输入框同排版（文字透明），为 @名字 垫蓝色底衬 -->
+              <div
+                v-if="activeIsGroup && mirrorSegments.length"
+                ref="mirrorEl"
+                aria-hidden="true"
+                class="mention-mirror absolute inset-0 rounded-xl border border-transparent px-3.5 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap overflow-hidden pointer-events-none"
+              ><template v-for="(seg, i) in mirrorSegments" :key="i"><span v-if="seg.mentioned" class="mention-flag">{{ seg.text }}</span><template v-else>{{ seg.text }}</template></template></div>
+            </div>
             <button
               class="shrink-0 px-5 py-2 rounded-xl bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-smooth disabled:opacity-50"
               :disabled="!input.trim()"
@@ -1001,6 +1381,34 @@ onUnmounted(() => {
                 :disabled="savingGroup || renameValue.trim() === (currentGroupInfo?.name || '')"
                 @click="submitRename"
               >保存</button>
+            </div>
+          </div>
+
+          <!-- 群公告（群主可编辑，实时推送给成员） -->
+          <div class="shrink-0 mb-4">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs text-slate-500 dark:text-slate-400">群公告{{ isGroupOwner ? '' : '（仅群主可设置）' }}</span>
+              <span class="text-[10px] text-slate-300 dark:text-slate-600">{{ announcementEdit.length }}/500</span>
+            </div>
+            <textarea
+              v-model="announcementEdit"
+              rows="3"
+              :disabled="!isGroupOwner"
+              maxlength="500"
+              class="input-field resize-none text-xs"
+              :placeholder="isGroupOwner ? '写下群公告，保存后所有成员将实时收到通知...' : '群主还没有发布公告'"
+            ></textarea>
+            <div v-if="isGroupOwner" class="flex justify-end gap-2 mt-1.5">
+              <button
+                class="text-xs px-3 py-1.5 rounded-btn text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth disabled:opacity-40 disabled:cursor-not-allowed"
+                :disabled="savingAnnouncement || !currentAnnouncement?.content"
+                @click="clearAnnouncement"
+              >清除</button>
+              <button
+                class="btn-primary !px-4 !py-1.5 !text-xs"
+                :disabled="savingAnnouncement || announcementEdit.trim() === (currentAnnouncement?.content || '')"
+                @click="saveAnnouncement"
+              >{{ savingAnnouncement ? '保存中...' : '发布' }}</button>
             </div>
           </div>
 
@@ -1066,6 +1474,105 @@ onUnmounted(() => {
       </transition>
     </Teleport>
 
+    <!-- 群文件侧滑面板 -->
+    <Teleport to="body">
+      <transition name="slide">
+      <div v-if="showFilesPanel" class="fixed inset-0 z-50">
+        <div class="overlay-backdrop" @click="showFilesPanel = false" />
+        <aside class="absolute top-0 right-0 z-50 h-full w-[380px] max-w-[92vw] bg-white dark:bg-slate-800 shadow-modal flex flex-col border-l border-slate-200 dark:border-slate-700">
+          <!-- 头部 -->
+          <div class="shrink-0 px-4 py-3.5 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+            <div>
+              <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">📁 群文件</h3>
+              <p class="text-[10px] text-slate-400 mt-0.5">共 {{ currentGroupFiles.length }} 个文件 · 拖入文件即可上传</p>
+            </div>
+            <button class="w-7 h-7 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-smooth flex items-center justify-center" @click="showFilesPanel = false">✕</button>
+          </div>
+
+          <!-- 搜索 + 上传 -->
+          <div class="shrink-0 px-4 py-2.5 flex items-center gap-2 border-b border-slate-100 dark:border-slate-700">
+            <input
+              v-model="fileSearch"
+              type="text"
+              class="flex-1 px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              placeholder="搜索文件名 / 上传者..."
+            />
+            <button
+              class="shrink-0 px-3 py-1.5 rounded-lg bg-blue-500 text-white text-xs font-medium hover:bg-blue-600 transition-smooth disabled:opacity-50"
+              :disabled="filePanelUploading"
+              @click="filePanelInput?.click()"
+            >{{ filePanelUploading ? '上传中...' : '＋ 上传' }}</button>
+            <input ref="filePanelInput" type="file" class="hidden" @change="onPanelFileSelected" />
+          </div>
+
+          <!-- 文件列表（整区接受拖拽上传） -->
+          <div
+            class="flex-1 min-h-0 overflow-y-auto scrollbar-thin relative transition-colors"
+            :class="filePanelDragOver ? 'bg-blue-50/70 dark:bg-blue-900/20' : ''"
+            @dragover.prevent="filePanelDragOver = true"
+            @dragleave.self="filePanelDragOver = false"
+            @drop.prevent="onPanelDrop"
+          >
+            <!-- 拖拽提示 -->
+            <div
+              v-if="filePanelDragOver"
+              class="absolute inset-2 z-10 rounded-xl border-2 border-dashed border-blue-400 bg-blue-50/80 dark:bg-blue-900/40 flex flex-col items-center justify-center pointer-events-none"
+            >
+              <span class="text-3xl mb-1">📂</span>
+              <p class="text-xs text-blue-500 font-medium">松手上传到群文件</p>
+            </div>
+
+            <div v-if="currentGroupFiles.length === 0" class="px-6 py-14 text-center">
+              <p class="text-4xl mb-2">🗂</p>
+              <p class="text-xs text-slate-400 dark:text-slate-500">{{ fileSearch ? '未找到匹配的文件' : '群文件空空如也' }}</p>
+              <p class="text-[10px] text-slate-300 dark:text-slate-600 mt-1">上传文件后，所有成员都可以在此下载</p>
+            </div>
+
+            <div
+              v-for="f in currentGroupFiles"
+              :key="f.id"
+              class="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-smooth group"
+            >
+              <!-- 缩略图 / 类型图标（图片可点击放大预览） -->
+              <div class="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                <img
+                  v-if="isImageFile(f)"
+                  :src="f.file_path"
+                  :alt="f.file_name"
+                  class="w-full h-full object-cover cursor-pointer"
+                  loading="lazy"
+                  @click="previewUrl = f.file_path"
+                />
+                <span v-else class="text-xl">{{ fileIcon(f.file_name) }}</span>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="text-xs font-medium text-slate-700 dark:text-slate-200 truncate" :title="f.file_name">{{ f.file_name }}</p>
+                <p class="text-[10px] text-slate-400 truncate">
+                  {{ formatSize(f.file_size) }} · {{ f.uploader_name || '群成员' }} · {{ formatTime(f.created_at) }}
+                </p>
+                <p class="text-[10px] text-slate-300 dark:text-slate-500 mt-0.5">📥 已被下载 {{ f.download_count }} 次</p>
+              </div>
+              <div class="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  class="w-7 h-7 rounded-lg text-sm flex items-center justify-center text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-smooth disabled:opacity-40"
+                  title="下载"
+                  :disabled="downloadingId === f.id"
+                  @click="downloadFileAct(f)"
+                >{{ downloadingId === f.id ? '⏳' : '⬇' }}</button>
+                <button
+                  v-if="canDeleteFile(f)"
+                  class="w-7 h-7 rounded-lg text-sm flex items-center justify-center text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-smooth"
+                  title="删除（上传者或群主）"
+                  @click="deleteFileAct(f)"
+                >🗑</button>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+      </transition>
+    </Teleport>
+
     <!-- 图片预览 -->
     <Teleport to="body">
       <transition name="shrink-out">
@@ -1077,3 +1584,46 @@ onUnmounted(() => {
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+/* 群文件面板滑入/滑出：遮罩淡入淡出 + 面板右侧平移 */
+.slide-enter-active,
+.slide-leave-active {
+  transition: opacity 0.2s ease;
+}
+.slide-enter-active aside,
+.slide-leave-active aside {
+  transition: transform 0.25s ease;
+}
+.slide-enter-from,
+.slide-leave-to {
+  opacity: 0;
+}
+.slide-enter-from aside,
+.slide-leave-to aside {
+  transform: translateX(100%);
+}
+
+/* ===== @ 提及 ===== */
+/* 输入框镜像高亮层：文字透明，仅为「@名字」提供蓝底衬（不干扰 IME 与选区） */
+.mention-mirror {
+  color: transparent;
+  z-index: 1;
+}
+.mention-mirror .mention-flag {
+  background: rgba(59, 130, 246, 0.2);
+  border-radius: 4px;
+}
+/* 消息气泡中的「@名字」高亮（微信蓝） */
+.rich-content-display :deep(.mention-tag) {
+  color: #2563eb;
+  background: rgba(59, 130, 246, 0.12);
+  border-radius: 4px;
+  padding: 0 2px;
+}
+/* 自己的气泡（蓝底）中的「@名字」：白字 + 半透明白衬 */
+.mention-own :deep(.mention-tag) {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.24);
+}
+</style>

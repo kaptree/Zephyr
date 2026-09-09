@@ -15,6 +15,7 @@ var (
 	ErrTemplateNotFound    = errors.New("template not found")
 	ErrDepartmentNotFound  = errors.New("department not found")
 	ErrGroupNotFound       = errors.New("group not found")
+	ErrGroupFileNotFound   = errors.New("group file not found")
 	ErrRoomNotFound        = errors.New("collaboration room not found")
 	ErrDuplicateUsername   = errors.New("username already exists")
 	ErrTagInUse            = errors.New("tag is in use and cannot be deleted")

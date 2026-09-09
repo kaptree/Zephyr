@@ -8,6 +8,7 @@ import type {
   ConversationItem,
   GroupConversationItem,
   GroupMessageItem,
+  GroupFileItem,
 } from '@/types';
 import { playNotificationSound, playChatSound } from '@/utils/sound';
 import { useAuthStore } from './auth';
@@ -40,6 +41,12 @@ export const useNotificationStore = defineStore('notification', () => {
   // 群聊：会话列表 + 消息缓存
   const groupConversations = ref<GroupConversationItem[]>([]);
   const groupMessages = ref<Record<string, GroupMessageItem[]>>({});
+  // 群公告：groupId → { content, updated_at }
+  const groupAnnouncements = ref<Record<string, { content: string; updated_at: string | null }>>({});
+  // 群文件夹：groupId → 文件列表
+  const groupFiles = ref<Record<string, GroupFileItem[]>>({});
+  // 有人在与我不在同一个查看窗口的群消息中 @ 了我（groupId → true，进入群聊已读后清除）
+  const groupMentionedMe = ref<Record<string, boolean>>({});
   // 当前正在查看的群聊会话（收到该群新消息立即标记已读）
   const viewingGroupId = ref<string | null>(null);
   const onlineIds = ref<string[]>([]);
@@ -333,6 +340,11 @@ export const useNotificationStore = defineStore('notification', () => {
     }
     const me = useAuthStore().user?.id;
     if (m.sender_id === me) return;
+    // @ 提醒：被 @ 时不在线群标红「[有人@我]」，弹窗文案突出「在群聊中@了你」
+    const mentionsMe = !!me && Array.isArray(m.mentions) && m.mentions.includes(me);
+    if (mentionsMe && viewingGroupId.value !== m.group_id) {
+      groupMentionedMe.value[m.group_id] = true;
+    }
     const senderName = m.sender_name
       || (m.sender as { name?: string; username?: string } | undefined)?.name
       || (m.sender as { name?: string; username?: string } | undefined)?.username
@@ -340,11 +352,19 @@ export const useNotificationStore = defineStore('notification', () => {
     // 系统级通知（页面在后台时）
     if (viewingGroupId.value !== m.group_id) {
       ensureNotificationPermission();
-      showSystemNotification(`${senderName} 在 ${groupDisplayName(m.group_id)} 发来消息`, chatPreview(m), `/chat?group=${m.group_id}`);
+      showSystemNotification(
+        mentionsMe
+          ? `${senderName} 在 ${groupDisplayName(m.group_id)} 中@了你`
+          : `${senderName} 在 ${groupDisplayName(m.group_id)} 发来消息`,
+        chatPreview(m),
+        `/chat?group=${m.group_id}`
+      );
       enqueuePopup({
         kind: 'chat',
         title: groupDisplayName(m.group_id),
-        content: `${senderName}: ${chatPreview(m)}`,
+        content: mentionsMe
+          ? `${senderName} 在群聊中@了你：${chatPreview(m)}`
+          : `${senderName}: ${chatPreview(m)}`,
         groupId: m.group_id,
         createdAt: m.created_at,
       });
@@ -357,13 +377,92 @@ export const useNotificationStore = defineStore('notification', () => {
     refreshGroups();
   }
 
-  // 群变动事件（created / member_added / member_removed / renamed / dissolved）
-  function handleGroupUpdated(data: { action?: string; group_id?: string }) {
-    if (data.action === 'dissolved' && data.group_id) {
-      // 被解散的群：本地清空消息缓存并刷新列表
-      delete groupMessages.value[data.group_id];
+  // 群变动事件（created / member_added / member_removed / renamed / dissolved
+  //           / announcement_updated / file_added / file_removed / file_downloaded）
+  function handleGroupUpdated(data: {
+    action?: string;
+    group_id?: string;
+    announcement?: string;
+    announcement_updated_at?: string | null;
+    file?: GroupFileItem;
+    file_id?: string;
+    download_count?: number;
+  }) {
+    const gid = data.group_id;
+    if (data.action === 'dissolved' && gid) {
+      // 被解散的群：本地清空消息/公告/文件缓存并刷新列表
+      delete groupMessages.value[gid];
+      delete groupAnnouncements.value[gid];
+      delete groupFiles.value[gid];
+      // 正在查看该群：退出查看态，避免停留在「所有操作 404」的空壳视图
+      if (viewingGroupId.value === gid) {
+        viewingGroupId.value = null;
+        enqueuePopup({
+          kind: 'notification',
+          title: '群聊已解散',
+          content: '该群聊已被群主解散，相关功能已不可用',
+        });
+      }
+    } else if (data.action === 'announcement_updated' && gid) {
+      // 群公告更新：同步缓存 + 右上角弹窗提示
+      groupAnnouncements.value[gid] = {
+        content: data.announcement || '',
+        updated_at: data.announcement_updated_at || null,
+      };
+      if (data.announcement) {
+        enqueuePopup({
+          kind: 'notification',
+          title: `${groupDisplayName(gid)} · 群公告更新`,
+          content: (data.announcement || '').slice(0, 120),
+          groupId: gid,
+        });
+      }
+    } else if (data.action === 'file_added' && gid && data.file) {
+      // 新文件：列表头部插入（去重）
+      const list = groupFiles.value[gid] || [];
+      if (!list.some((f) => f.id === data.file!.id)) {
+        groupFiles.value[gid] = [data.file, ...list];
+      }
+    } else if (data.action === 'file_removed' && gid && data.file_id) {
+      const list = groupFiles.value[gid];
+      if (list) {
+        groupFiles.value[gid] = list.filter((f) => f.id !== data.file_id);
+      }
+    } else if (data.action === 'file_downloaded' && gid && data.file_id) {
+      // 下载计数实时更新
+      const list = groupFiles.value[gid];
+      if (list) {
+        const target = list.find((f) => f.id === data.file_id);
+        if (target && typeof data.download_count === 'number') {
+          target.download_count = data.download_count;
+        }
+      }
     }
     refreshGroups();
+  }
+
+  // 拉取群公告（进入群会话时调用）
+  async function loadGroupAnnouncement(groupId: string) {
+    try {
+      const res = await groupChatService.fetchGroupAnnouncement(groupId);
+      const d = res.data as unknown as { announcement: string; announcement_updated_at: string | null };
+      groupAnnouncements.value[groupId] = {
+        content: d?.announcement || '',
+        updated_at: d?.announcement_updated_at || null,
+      };
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // 拉取群文件列表（打开文件面板时调用）
+  async function loadGroupFiles(groupId: string) {
+    try {
+      const res = await groupChatService.fetchGroupFiles(groupId);
+      groupFiles.value[groupId] = (res.data as unknown as GroupFileItem[]) || [];
+    } catch {
+      /* ignore */
+    }
   }
 
   async function refreshGroups() {
@@ -401,6 +500,8 @@ export const useNotificationStore = defineStore('notification', () => {
     await groupChatService.markGroupRead(groupId);
     const conv = groupConversations.value.find((g) => g.id === groupId);
     if (conv) conv.unread = 0;
+    // 进入群聊已读：清除「[有人@我]」标识
+    delete groupMentionedMe.value[groupId];
   }
 
   // ---------------- 通知 ----------------
@@ -664,7 +765,10 @@ export const useNotificationStore = defineStore('notification', () => {
     noteUpdateTick,
     lastNoteUpdate,
     groupConversations,
+    groupMentionedMe,
     groupMessages,
+    groupAnnouncements,
+    groupFiles,
     viewingGroupId,
     dismissPopup,
     openChat,
@@ -690,5 +794,7 @@ export const useNotificationStore = defineStore('notification', () => {
     fetchGroupMessagesPage,
     sendGroupMessage,
     markGroupRead,
+    loadGroupAnnouncement,
+    loadGroupFiles,
   };
 });

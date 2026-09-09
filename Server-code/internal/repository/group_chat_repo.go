@@ -47,13 +47,16 @@ func (r *GroupChatRepo) UpdateGroup(group *models.ChatGroup) error {
 	return r.db.Save(group).Error
 }
 
-// DissolveGroup 事务解散群：删除群 + 成员 + 消息
+// DissolveGroup 事务解散群：删除群 + 成员 + 消息 + 文件记录
 func (r *GroupChatRepo) DissolveGroup(groupID string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("group_id = ?", groupID).Delete(&models.ChatGroupMember{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("group_id = ?", groupID).Delete(&models.GroupMessage{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("group_id = ?", groupID).Delete(&models.GroupFile{}).Error; err != nil {
 			return err
 		}
 		return tx.Where("id = ?", groupID).Delete(&models.ChatGroup{}).Error
@@ -250,4 +253,58 @@ func summarizeGroupLastMsg(m *models.GroupMessage) string {
 	default:
 		return m.Content
 	}
+}
+
+// UpdateAnnouncement 更新群公告（content 为空表示清除）
+func (r *GroupChatRepo) UpdateAnnouncement(groupID, content string) error {
+	now := time.Now()
+	var updatedAt interface{}
+	if content != "" {
+		updatedAt = now
+	}
+	return r.db.Model(&models.ChatGroup{}).
+		Where("id = ?", groupID).
+		Updates(map[string]interface{}{
+			"announcement":             content,
+			"announcement_updated_at":  updatedAt,
+			"updated_at":               now,
+		}).Error
+}
+
+// CreateGroupFile 保存群文件记录
+func (r *GroupChatRepo) CreateGroupFile(f *models.GroupFile) error {
+	return r.db.Create(f).Error
+}
+
+// ListGroupFiles 群文件列表（按上传时间倒序，预加载上传者信息）
+func (r *GroupChatRepo) ListGroupFiles(groupID string) ([]models.GroupFile, error) {
+	var list []models.GroupFile
+	err := r.db.Preload("Uploader").Preload("Uploader.Department").
+		Where("group_id = ?", groupID).
+		Order("created_at DESC").
+		Find(&list).Error
+	return list, err
+}
+
+// GetGroupFile 查询单个群文件
+func (r *GroupChatRepo) GetGroupFile(groupID, fileID string) (*models.GroupFile, error) {
+	var f models.GroupFile
+	if err := r.db.Where("id = ? AND group_id = ?", fileID, groupID).First(&f).Error; err != nil {
+		return nil, err
+	}
+	return &f, nil
+}
+
+// DeleteGroupFile 删除群文件记录
+func (r *GroupChatRepo) DeleteGroupFile(groupID, fileID string) error {
+	return r.db.Where("id = ? AND group_id = ?", fileID, groupID).
+		Delete(&models.GroupFile{}).Error
+}
+
+// IncrDownloadCount 下载计数 +1，返回最新计数
+func (r *GroupChatRepo) IncrDownloadCount(groupID, fileID string) (int64, error) {
+	res := r.db.Model(&models.GroupFile{}).
+		Where("id = ? AND group_id = ?", fileID, groupID).
+		UpdateColumn("download_count", gorm.Expr("download_count + 1"))
+	return res.RowsAffected, res.Error
 }

@@ -5,12 +5,12 @@ import StickyNoteCard from '@/components/note/StickyNoteCard.vue';
 import { createMockNote } from '../mocks/data';
 
 describe('StickyNoteCard', () => {
-  const createWrapper = (overrides = {}) => {
+  const createWrapper = (overrides = {}, extraProps: Record<string, unknown> = {}) => {
     setActivePinia(createPinia());
     const note = createMockNote(overrides);
     return {
       wrapper: mount(StickyNoteCard, {
-        props: { note, mode: 'web', archived: false },
+        props: { note, mode: 'web', archived: false, ...extraProps },
       }),
       note,
     };
@@ -18,16 +18,12 @@ describe('StickyNoteCard', () => {
 
   it('待办任务应有黄色背景样式', () => {
     const { wrapper } = createWrapper({ color_status: 'yellow' });
-    const el = wrapper.element as HTMLElement;
-    const bg = el.style.background || el.style.backgroundColor || '';
-    expect(bg).toMatch(/\(254,\s*243,\s*199\)/);
+    expect(wrapper.classes()).toContain('bg-amber-100');
   });
 
   it('盯办任务应有红色背景样式', () => {
     const { wrapper } = createWrapper({ color_status: 'red' });
-    const el = wrapper.element as HTMLElement;
-    const bg = el.style.background || el.style.backgroundColor || '';
-    expect(bg).toMatch(/\(254,\s*226,\s*226\)/);
+    expect(wrapper.classes()).toContain('bg-red-100');
   });
 
   it('应显示任务标题', () => {
@@ -40,8 +36,8 @@ describe('StickyNoteCard', () => {
     expect(wrapper.text()).toContain(note.content);
   });
 
-  it('盯办任务应显示盯办徽章', () => {
-    const { wrapper } = createWrapper({ color_status: 'red' });
+  it('被指派任务应显示盯办徽章', () => {
+    const { wrapper } = createWrapper({ color_status: 'red', source_type: 'assigned' });
     expect(wrapper.text()).toContain('盯办');
   });
 
@@ -50,9 +46,9 @@ describe('StickyNoteCard', () => {
     expect(wrapper.text()).toContain('完成并归档');
   });
 
-  it('盯办任务应显示盯办按钮', () => {
-    const { wrapper } = createWrapper({ color_status: 'yellow' });
-    expect(wrapper.text()).toContain('盯办');
+  it('待办任务应显示重要按钮', () => {
+    const { wrapper } = createWrapper({ color_status: 'yellow' }, { extraActions: true });
+    expect(wrapper.text()).toContain('重要');
   });
 
   it('已归档应显示已归档水印', () => {

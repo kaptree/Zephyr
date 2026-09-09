@@ -92,6 +92,7 @@ func main() {
 		&models.ChatGroup{},
 		&models.ChatGroupMember{},
 		&models.GroupMessage{},
+		&models.GroupFile{},
 	); err != nil {
 		logger.Fatal("Failed to auto migrate database", zap.Error(err))
 	}

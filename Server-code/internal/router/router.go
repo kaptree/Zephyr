@@ -257,6 +257,12 @@ func Setup(cfg *config.Config) *gin.Engine {
 			chatGroups.GET("/:id/messages", groupChatHandler.ListMessages)
 			chatGroups.POST("/:id/messages", groupChatHandler.SendMessage)
 			chatGroups.POST("/:id/read", groupChatHandler.MarkRead)
+			chatGroups.GET("/:id/announcement", groupChatHandler.GetAnnouncement)
+			chatGroups.PUT("/:id/announcement", groupChatHandler.SetAnnouncement)
+			chatGroups.GET("/:id/files", groupChatHandler.ListGroupFiles)
+			chatGroups.POST("/:id/files", groupChatHandler.UploadGroupFile)
+			chatGroups.GET("/:id/files/:fileId/download", groupChatHandler.DownloadGroupFile)
+			chatGroups.DELETE("/:id/files/:fileId", groupChatHandler.DeleteGroupFile)
 		}
 
 		emoticons := api.Group("/emoticons")

@@ -22,15 +22,24 @@ export function clampBoardCols(n: number): number {
   return Math.min(BOARD_MAX_COLS, Math.max(BOARD_MIN_COLS, Math.round(n)));
 }
 
-/** 从 localStorage 读取列数偏好（无记录 / 环境不支持时返回默认值） */
-export function loadBoardCols(): number {
+/**
+ * 从 localStorage 读取列数偏好；无记录 / 环境不支持 / 值非法时返回 null。
+ * 与 loadBoardCols 的区别：能区分「用户显式保存过 3 列」与「从未保存过（默认 3 列）」。
+ */
+export function readStoredBoardCols(): number | null {
   try {
     const raw = localStorage.getItem(BOARD_COLS_STORAGE_KEY);
-    if (raw === null) return BOARD_COLS;
-    return clampBoardCols(Number(raw));
+    if (raw === null) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? clampBoardCols(n) : null;
   } catch {
-    return BOARD_COLS;
+    return null;
   }
+}
+
+/** 从 localStorage 读取列数偏好（无记录 / 环境不支持时返回默认值） */
+export function loadBoardCols(): number {
+  return readStoredBoardCols() ?? BOARD_COLS;
 }
 
 /** 持久化列数偏好（环境不支持时静默跳过） */
@@ -42,8 +51,12 @@ export function saveBoardCols(cols: number): void {
   }
 }
 
-/** 旧版自由画布像素坐标判定阈值：列索引不可能 ≥ 3；旧行高 360px，行索引不会超过 100 */
-const LEGACY_MAX_COL = BOARD_COLS - 1;
+/**
+ * 旧版自由画布像素坐标判定阈值。合法格子索引最大为 BOARD_MAX_COLS - 1（6 列布局的列号 0..5），
+ * 旧版像素坐标（列宽约 360px 起）远大于该值。注意不能用默认列数 BOARD_COLS - 1 作阈值，
+ * 否则 4~6 列布局的合法位置（pos_x 3..5）会被误判为遗留数据，导致每次加载整板清位重排。
+ */
+const LEGACY_MAX_COL = BOARD_MAX_COLS - 1;
 const LEGACY_MAX_ROW = 100;
 /** 空闲格扫描防御上限（行数） */
 const MAX_SCAN_ROWS = 1000;
@@ -130,4 +143,29 @@ export function findFirstFreeSlot(
 export function relayoutAll(notes: Note[], cols: number): NotePositionInput[] {
   const cleared = notes.map((n) => ({ ...n, pos_x: null, pos_y: null }));
   return assignMissingPositions(cleared, cols);
+}
+
+/**
+ * 从便签位置推断曾用的布局列数（仅用于列数偏好丢失的场景）：
+ * pos_x 最大值 + 1 即曾用列数的下界。只有超出默认列数才可推断
+ * （更窄布局与「3 列中恰好没占满」无法区分，保持默认），非法超大值收敛到列数上限。
+ */
+export function inferBoardColsFromNotes(notes: Note[]): number | null {
+  let maxCol = -1;
+  for (const n of notes) {
+    if (n.pos_x !== null && n.pos_x > maxCol) maxCol = n.pos_x;
+  }
+  if (maxCol + 1 <= BOARD_COLS) return null;
+  return clampBoardCols(maxCol + 1);
+}
+
+/**
+ * 超界自愈：存在 pos_x >= cols 的便签时（如列数偏好丢失回落后，
+ * 后端位置仍按更宽布局存储），整板按当前列数重排补齐空洞，
+ * 返回全量需要回存的位置；无超界时返回空数组（不改动现有布局）。
+ */
+export function fixOverflowPositions(notes: Note[], cols: number): NotePositionInput[] {
+  const hasOverflow = notes.some((n) => n.pos_x !== null && n.pos_x >= cols);
+  if (!hasOverflow) return [];
+  return relayoutAll(notes, cols);
 }
