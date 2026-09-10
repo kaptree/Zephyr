@@ -2,12 +2,17 @@
 import { ref, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { useNotificationStore } from '@/stores/notification';
 import { AppIcon, BrandLogo } from '@/components/icons';
 import type { IconName } from '@/components/icons';
 
 const auth = useAuthStore();
+const notif = useNotificationStore();
 const route = useRoute();
 const router = useRouter();
+
+// 聊天未读总数（私聊 + 群聊）：>0 时侧边栏「聊天」图标叠加闪红点
+const chatUnread = computed(() => notif.chatUnreadTotal);
 
 const collapsed = ref(localStorage.getItem('sidebar_collapsed') === 'true');
 
@@ -123,7 +128,21 @@ function navigate(path: string) {
             @click="navigate(item.path)"
           >
             <!-- 图标：初次加载 300ms 缩放淡入，60ms 间隔依次点亮 -->
-            <AppIcon :name="item.icon" :size="20" enter :enter-delay="100 + idx * 60" />
+            <span class="relative shrink-0">
+              <AppIcon :name="item.icon" :size="20" enter :enter-delay="100 + idx * 60" />
+              <!-- 聊天未读闪红点：收到私聊/群聊消息时叠加在图标右上角，已读后消失 -->
+              <span
+                v-if="item.path === '/chat' && chatUnread > 0"
+                class="absolute -top-1 -right-1.5 flex h-2.5 w-2.5"
+              >
+                <span
+                  class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"
+                ></span>
+                <span
+                  class="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900"
+                ></span>
+              </span>
+            </span>
             <span v-if="!collapsed" class="truncate">{{ item.label }}</span>
           </button>
         </li>

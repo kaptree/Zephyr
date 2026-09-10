@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import * as notifService from '@/services/notification';
 import * as groupChatService from '@/services/groupChat';
 import type {
@@ -41,6 +41,12 @@ export const useNotificationStore = defineStore('notification', () => {
   // 群聊：会话列表 + 消息缓存
   const groupConversations = ref<GroupConversationItem[]>([]);
   const groupMessages = ref<Record<string, GroupMessageItem[]>>({});
+  // 聊天总未读（私聊 + 群聊）：侧边栏「聊天」闪红点依据
+  const chatUnreadTotal = computed(
+    () =>
+      conversations.value.reduce((s, c) => s + (c.unread || 0), 0) +
+      groupConversations.value.reduce((s, c) => s + (c.unread || 0), 0)
+  );
   // 群公告：groupId → { content, updated_at }
   const groupAnnouncements = ref<Record<string, { content: string; updated_at: string | null }>>({});
   // 群文件夹：groupId → 文件列表
@@ -210,6 +216,9 @@ export const useNotificationStore = defineStore('notification', () => {
       connected.value = true;
       // 需求24：离线期间错过的消息/通知，上线后逐步从右上角弹出
       replayMissed();
+      // 侧边栏「聊天」闪红点：登录后拉取私聊/群聊未读，任意页面都能正确显示角标
+      refreshConversations();
+      refreshGroups();
     };
     ws.onclose = () => {
       connected.value = false;
@@ -468,7 +477,13 @@ export const useNotificationStore = defineStore('notification', () => {
   async function refreshGroups() {
     try {
       const res = await groupChatService.fetchGroups();
-      groupConversations.value = (res.data as unknown as GroupConversationItem[]) || [];
+      const list = (res.data as unknown as GroupConversationItem[]) || [];
+      // 时序保护：正在查看的群未读恒为 0（与 refreshConversations 同理）
+      const viewing = viewingGroupId.value;
+      if (viewing) {
+        for (const g of list) if (g.id === viewing) g.unread = 0;
+      }
+      groupConversations.value = list;
     } catch {
       /* ignore */
     }
@@ -702,6 +717,12 @@ export const useNotificationStore = defineStore('notification', () => {
     try {
       const res = await notifService.fetchConversations();
       const list = (res.data as unknown as ConversationItem[]) || [];
+      // 时序保护：正在查看的会话未读恒为 0。refreshConversations 与 markConversationRead
+      // 并发时，快照可能早于服务端清零返回，会把刚进入的会话未读刷回去（侧边栏红点不消失）
+      const viewing = viewingPeerId.value;
+      if (viewing) {
+        for (const c of list) if (c.peer_id === viewing) c.unread = 0;
+      }
       conversations.value = list;
     } catch {
       /* ignore */
@@ -754,6 +775,7 @@ export const useNotificationStore = defineStore('notification', () => {
 
   return {
     unreadCount,
+    chatUnreadTotal,
     notifications,
     conversations,
     messages,
