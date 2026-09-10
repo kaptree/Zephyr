@@ -744,6 +744,28 @@ func (r *NoteRepository) CountArchivedByUser(userID string) (int64, error) {
 	return count, err
 }
 
+// CountCompletedByUser 统计当前用户累计完成任务数：
+// 名下归档任务（排除已以被指派人身份完成的部分，避免重复计数）+ 以被指派人身份完成的部分数。
+// 被指派人提交完成时任务本身不归档（仅写 note_assignees），故需合并两种口径。
+func (r *NoteRepository) CountCompletedByUser(userID string) (int64, error) {
+	var owned int64
+	err := r.db.Model(&models.Note{}).
+		Where("owner_id = ? AND is_archived = ?", userID, true).
+		Where("NOT EXISTS (SELECT 1 FROM note_assignees na WHERE na.note_id = notes.id AND na.user_id = ? AND na.is_completed = ?)", userID, true).
+		Count(&owned).Error
+	if err != nil {
+		return 0, err
+	}
+	var assigned int64
+	err = r.db.Model(&models.NoteAssignee{}).
+		Where("user_id = ? AND is_completed = ?", userID, true).
+		Count(&assigned).Error
+	if err != nil {
+		return 0, err
+	}
+	return owned + assigned, nil
+}
+
 func (r *NoteRepository) HeatmapByYear(userID string, year int) ([]NoteDayStat, error) {
 	var stats []NoteDayStat
 	startDate := time.Date(year, 1, 1, 0, 0, 0, 0, time.Local)

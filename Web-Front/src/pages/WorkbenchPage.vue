@@ -728,11 +728,11 @@ async function submitFeedback(content: string) {
   }
 }
 
-/** 累计完成任务数（本年度归档总数，用于副标题数字滚动），取不到时忽略计数展示 */
+/** 累计完成任务数（当前账号口径：名下归档 + 被指派完成去重，用于副标题数字滚动），取不到时忽略计数展示 */
 async function fetchCompletedTotal(): Promise<number | undefined> {
   try {
     const res = await fetchHeatmap(new Date().getFullYear());
-    return res.data.total_archived;
+    return res.data.total_completed;
   } catch {
     return undefined;
   }

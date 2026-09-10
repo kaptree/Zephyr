@@ -68,7 +68,7 @@ export function fetchNoteStats(params?: { days?: number; dept_id?: string; statu
 }
 
 export function fetchHeatmap(year: number) {
-  return get<{ total_archived: number; year: number; daily: { date: string; count: number }[] }>('/api/v1/notes/heatmap', { year } as Record<string, unknown>)
+  return get<{ total_archived: number; total_completed: number; year: number; daily: { date: string; count: number }[] }>('/api/v1/notes/heatmap', { year } as Record<string, unknown>)
 }
 
 /** 查看指定用户的工作台任务（公司领导/super_admin 专用） */

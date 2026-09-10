@@ -8,6 +8,7 @@ import { uploadChatFile } from '@/services/notification';
 import * as groupChatService from '@/services/groupChat';
 import EmojiPicker from '@/components/chat/EmojiPicker.vue';
 import MentionPicker from '@/components/chat/MentionPicker.vue';
+import type { MentionOption } from '@/components/chat/MentionPicker.vue';
 import UserPicker from '@/components/common/UserPicker.vue';
 import type { ChatMessageItem, GroupConversationItem, GroupMessageItem, GroupMemberItem, GroupFileItem, User } from '@/types';
 import { renderNoteContent } from '@/utils/richText';

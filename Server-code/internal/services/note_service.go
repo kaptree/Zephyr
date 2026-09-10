@@ -709,12 +709,18 @@ type NoteStats struct {
 
 type NoteHeatmap struct {
 	TotalArchived int64                    `json:"total_archived"`
-	Year          int                      `json:"year"`
-	Daily         []repository.NoteDayStat `json:"daily"`
+	// TotalCompleted 当前用户累计完成数（名下归档 + 被指派完成去重），用于荣耀时刻庆祝动画
+	TotalCompleted int64                    `json:"total_completed"`
+	Year           int                      `json:"year"`
+	Daily          []repository.NoteDayStat `json:"daily"`
 }
 
 func (s *NoteService) GetHeatmap(userID string, year int) (*NoteHeatmap, error) {
 	total, err := s.noteRepo.CountArchivedByUser(userID)
+	if err != nil {
+		return nil, err
+	}
+	completed, err := s.noteRepo.CountCompletedByUser(userID)
 	if err != nil {
 		return nil, err
 	}
@@ -723,9 +729,10 @@ func (s *NoteService) GetHeatmap(userID string, year int) (*NoteHeatmap, error) 
 		return nil, err
 	}
 	return &NoteHeatmap{
-		TotalArchived: total,
-		Year:          year,
-		Daily:         daily,
+		TotalArchived:  total,
+		TotalCompleted: completed,
+		Year:           year,
+		Daily:          daily,
 	}, nil
 }
 

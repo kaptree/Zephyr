@@ -47,7 +47,8 @@ async function loadTags() {
   loadError.value = ''
   try {
     const res = await fetchTags()
-    tags.value = res.data as unknown as Tag[]
+    // 按使用次数从大到小排列（次数相同保持后端 sort_order/name 顺序）
+    tags.value = (res.data as unknown as Tag[]).slice().sort((a, b) => b.usage_count - a.usage_count)
   } catch {
     loadError.value = '加载标签失败'
   } finally {
