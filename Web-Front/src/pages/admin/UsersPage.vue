@@ -323,13 +323,25 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div>
-    <div class="flex items-center justify-between mb-6">
-      <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">人员库管理</h2>
+  <div class="page-shell p-5">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
+    <div class="rise flex items-center justify-between mb-6">
+      <h2 class="page-title text-lg font-semibold">人员库管理</h2>
       <button class="btn-primary text-sm" @click="openCreate">新建人员</button>
     </div>
 
-    <div class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 overflow-hidden transition-colors duration-300">
+    <div class="glass-card overflow-hidden transition-colors duration-300">
+      <div class="card-top-line" aria-hidden="true" />
       <div v-if="loading" class="p-8 text-center text-sm text-slate-400">加载中...</div>
       <div v-else-if="loadError" class="p-8 text-center text-sm text-red-400">
         {{ loadError }}

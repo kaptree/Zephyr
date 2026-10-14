@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
+import { useImageUpload } from '@/composables/useImageUpload';
 
 const props = withDefaults(
   defineProps<{
@@ -113,6 +114,16 @@ function handleInput() {
 function handleBlur() {
   focused.value = false;
   syncFromEditor();
+}
+
+// 图片上传：上传后插入 <img> 到富文本（复用聊天图片大小限制）
+const { uploading: imageUploading, pickImage } = useImageUpload();
+function insertImage() {
+  pickImage((url) => {
+    editorRef.value?.focus();
+    document.execCommand('insertImage', false, url);
+    syncFromEditor();
+  });
 }
 </script>
 
@@ -252,6 +263,21 @@ function handleBlur() {
         @mousedown.prevent="insertCode"
       >
         <span class="text-xs font-mono">&lt;/&gt;</span>
+      </button>
+      <button
+        type="button"
+        class="rich-tool-btn"
+        v-tooltip="imageUploading ? '图片上传中...' : '上传图片'"
+        :disabled="imageUploading"
+        @mousedown.prevent="insertImage"
+      >
+        <svg v-if="!imageUploading" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <svg v-else class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke-width="4"></circle>
+          <path class="opacity-75" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12a8 8 0 018-8"></path>
+        </svg>
       </button>
       <span class="w-px h-4 bg-slate-200 dark:bg-slate-600 mx-1" />
       <button

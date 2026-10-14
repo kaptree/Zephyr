@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>文本统计</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #f6f7fb; color: #1f2937; padding: 16px; }
+  .stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .item { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 18px; text-align: center; }
+  .item b { display: block; font-size: 20px; color: #4f6ef2; }
+  .item span { font-size: 12px; color: #6b7280; }
+  textarea { width: 100%; height: 260px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 10px; font: 14px/1.7 inherit; resize: vertical; background: #fff; }
+  .bar { margin-top: 10px; }
+  button { padding: 8px 16px; border: 0; border-radius: 8px; background: #e5e7eb; color: #374151; font-size: 14px; cursor: pointer; }
+</style>
+</head>
+<body>
+  <div class="stats">
+    <div class="item"><b id="chars">0</b><span>字符数</span></div>
+    <div class="item"><b id="charsNS">0</b><span>字符数（不含空白）</span></div>
+    <div class="item"><b id="words">0</b><span>字数（中文/单词）</span></div>
+    <div class="item"><b id="lines">0</b><span>行数</span></div>
+    <div class="item"><b id="uniq">0</b><span>去重后行数</span></div>
+  </div>
+  <textarea id="input" placeholder="在此粘贴或输入文本…" oninput="stat()"></textarea>
+  <div class="bar"><button onclick="dedup()">行去重</button> <button onclick="trimLines()">去空行</button> <button onclick="clearAll()">清空</button></div>
+<script>
+  function stat() {
+    var v = document.getElementById('input').value;
+    document.getElementById('chars').textContent = v.length;
+    document.getElementById('charsNS').textContent = v.replace(/\s/g, '').length;
+    var m = v.match(/[\u4e00-\u9fa5]|[A-Za-z0-9_]+/g);
+    document.getElementById('words').textContent = m ? m.length : 0;
+    var lines = v.split('\n');
+    document.getElementById('lines').textContent = lines.filter(function(l){ return l.trim() !== ''; }).length;
+    document.getElementById('uniq').textContent = new Set(lines.filter(function(l){ return l.trim() !== ''; })).size;
+  }
+  function dedup() {
+    var el = document.getElementById('input');
+    var seen = new Set(); var out = [];
+    el.value.split('\n').forEach(function(l) { if (!seen.has(l)) { seen.add(l); out.push(l); } });
+    el.value = out.join('\n'); stat();
+  }
+  function trimLines() {
+    var el = document.getElementById('input');
+    el.value = el.value.split('\n').filter(function(l){ return l.trim() !== ''; }).join('\n'); stat();
+  }
+  function clearAll() { document.getElementById('input').value = ''; stat(); }
+</script>
+</body>
+</html>

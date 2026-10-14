@@ -218,7 +218,7 @@ onMounted(() => {
               <a
                 v-else-if="m.type === 'file'"
                 :href="m.file_path"
-                download
+                :download="m.file_name"
                 target="_blank"
                 rel="noopener"
                 class="flex items-center gap-2 px-3 py-2 rounded-2xl text-sm bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:shadow-md transition-smooth"

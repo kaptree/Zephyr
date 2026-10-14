@@ -6,6 +6,8 @@ import { getIssue, addIssueComment, updateIssueStatus, subscribeIssue, unsubscri
 import type { IssueDetail, IssueCommentItem } from '@/services/issues';
 import { renderNoteContent } from '@/utils/richText';
 import { useConfirm } from '@/composables/useConfirm';
+import { useAchievementStore } from '@/stores/achievements';
+import { useImageUpload } from '@/composables/useImageUpload';
 
 // 全局确认对话框（轻量级通知美学）
 const { confirm: appConfirm } = useConfirm();
@@ -42,6 +44,16 @@ const canManage = computed(() => {
 });
 
 const isClosed = computed(() => detail.value?.issue.status === 'closed');
+
+// 图片上传：上传后追加 <img> 到评论内容（内容以 HTML 渲染，图片可直接显示）
+const { uploading: imageUploading, pickImage } = useImageUpload();
+function insertCommentImage() {
+  if (isClosed.value) return;
+  pickImage((url) => {
+    const img = `<img src="${url}" />`;
+    commentText.value = commentText.value ? `${commentText.value}\n${img}` : img;
+  });
+}
 
 function fmtTime(ts: string): string {
   if (!ts) return '';
@@ -95,6 +107,8 @@ async function handleComment() {
   try {
     await addIssueComment(detail.value.issue.id, commentText.value.trim());
     commentText.value = '';
+    // 成就检查：问题评论里程碑
+    useAchievementStore().checkAndNotify();
     await load();
   } catch {
     commentError.value = '评论失败，请重试';
@@ -122,7 +136,18 @@ onMounted(load);
 </script>
 
 <template>
-  <div>
+  <div class="page-shell p-5">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
     <button
       class="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 mb-4 transition-smooth"
       @click="router.push('/issues')"
@@ -141,13 +166,14 @@ onMounted(load);
     </div>
 
     <template v-else-if="detail">
-      <div class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300">
+      <div class="glass-card rise p-6 transition-colors duration-300">
+        <div class="card-top-line" aria-hidden="true" />
         <!-- 头部 -->
         <div class="flex items-start justify-between gap-4 mb-4">
           <div class="flex items-start gap-3 min-w-0">
             <span class="text-xl shrink-0 mt-0.5">{{ typeBadge[detail.issue.type]?.icon }}</span>
             <div class="min-w-0">
-              <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100 leading-snug">
+              <h2 class="page-title text-lg font-semibold leading-snug">
                 {{ detail.issue.title }}
               </h2>
               <div class="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -209,7 +235,8 @@ onMounted(load);
       </div>
 
       <!-- 评论区 -->
-      <div class="mt-5 bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300">
+      <div class="glass-card mt-5 p-6 transition-colors duration-300">
+        <div class="card-top-line" aria-hidden="true" />
         <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4">
           💬 讨论（{{ detail.comments.length }}）
         </h3>
@@ -246,6 +273,16 @@ onMounted(load);
             placeholder="写下你的反馈或建议..."
             :disabled="isClosed"
           ></textarea>
+          <div class="mt-2">
+            <button
+              type="button"
+              class="text-xs px-3 py-1.5 rounded-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-smooth disabled:opacity-50"
+              :disabled="imageUploading || isClosed"
+              @click="insertCommentImage"
+            >
+              {{ imageUploading ? '上传中...' : '🖼️ 上传图片' }}
+            </button>
+          </div>
           <p v-if="commentError" class="text-xs text-red-500 dark:text-red-400 mt-1">{{ commentError }}</p>
           <p v-if="isClosed" class="text-xs text-slate-400 dark:text-slate-500 mt-1">该问题已关闭，如需继续讨论请重新打开。</p>
           <div class="flex justify-end mt-2">

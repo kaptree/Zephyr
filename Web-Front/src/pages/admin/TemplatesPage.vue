@@ -158,9 +158,20 @@ onMounted(loadTemplates)
 </script>
 
 <template>
-  <div>
-    <div class="flex items-center justify-between mb-6">
-      <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">模板库管理</h2>
+  <div class="page-shell p-5">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
+    <div class="rise flex items-center justify-between mb-6">
+      <h2 class="page-title text-lg font-semibold">模板库管理</h2>
       <button
         class="text-sm px-4 py-2 bg-blue-600 text-white rounded-btn hover:bg-blue-700 transition-smooth"
         @click="openCreate"
@@ -171,8 +182,9 @@ onMounted(loadTemplates)
 
     <!-- 搜索栏 -->
     <div
-      class="bg-white dark:bg-slate-800 rounded-card p-4 mb-6 flex flex-wrap items-center gap-3 border border-slate-100 dark:border-slate-700 transition-colors duration-300"
+      class="glass-card p-4 mb-6 flex flex-wrap items-center gap-3 transition-colors duration-300"
     >
+      <div class="card-top-line" aria-hidden="true" />
       <input
         v-model="keyword"
         class="input-field !w-56"

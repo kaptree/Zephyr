@@ -2,9 +2,20 @@
 </script>
 
 <template>
-  <div class="min-h-screen bg-white flex items-center justify-center">
-    <div class="text-center">
-      <h1 class="text-6xl font-bold text-slate-300 mb-4">404</h1>
+  <div class="page-shell page-shell--screen min-h-screen flex items-center justify-center">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
+    <div class="rise text-center">
+      <h1 class="text-6xl font-bold page-title mb-4">404</h1>
       <p class="text-slate-500 text-lg">页面不存在</p>
       <router-link to="/workbench" class="btn-primary inline-block mt-6 no-underline">返回工作台</router-link>
     </div>

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { AxiosRequestConfig } from 'axios';
 import type { ApiResponse } from '@/types';
 
 export const BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
@@ -55,6 +56,7 @@ api.interceptors.response.use(
         403: '您没有权限执行此操作',
         404: '请求的资源不存在',
         409: '数据冲突，请刷新后重试',
+        413: '文件大小超过服务器传输限制，请联系管理员修改聊天文件大小限制',
         429: '操作过于频繁，请稍后再试',
         500: '服务器内部错误，请稍后重试',
         502: '网关错误，请稍后重试',
@@ -81,8 +83,12 @@ export async function get<T>(
   return response.data;
 }
 
-export async function post<T>(url: string, data?: unknown): Promise<ApiResponse<T>> {
-  const response = await api.post<ApiResponse<T>>(url, data);
+export async function post<T>(
+  url: string,
+  data?: unknown,
+  config?: AxiosRequestConfig
+): Promise<ApiResponse<T>> {
+  const response = await api.post<ApiResponse<T>>(url, data, config);
   return response.data;
 }
 

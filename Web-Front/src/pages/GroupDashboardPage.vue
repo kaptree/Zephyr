@@ -82,10 +82,21 @@ function tagColorHex(color: string) {
 </script>
 
 <template>
-  <div class="h-screen flex flex-col bg-slate-950 text-slate-100 overflow-hidden">
+  <div class="relative isolate h-screen flex flex-col bg-slate-950 text-slate-100 overflow-hidden">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空；固定深色大屏，保留深色底） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
     <!-- Header -->
     <div
-      class="shrink-0 flex items-center justify-between px-6 py-3 border-b border-slate-800 bg-slate-900/80 backdrop-blur"
+      class="rise shrink-0 flex items-center justify-between px-6 py-3 border-b border-slate-800 bg-slate-900/80 backdrop-blur"
     >
       <div class="flex items-center gap-4">
         <button
@@ -102,7 +113,7 @@ function tagColorHex(color: string) {
           </svg>
           返回
         </button>
-        <h1 class="text-xl font-bold tracking-tight">
+        <h1 class="text-xl font-bold tracking-tight page-title">
           {{ data?.group?.name || '加载中...' }}
           <span class="ml-3 text-sm font-normal text-purple-400">协作大屏</span>
         </h1>

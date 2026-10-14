@@ -98,3 +98,19 @@ type NoteAttachment struct {
 func (NoteAttachment) TableName() string {
 	return "note_attachments"
 }
+
+// NoteFeedback 任务阶段性反馈：指派任务推进过程中的多次进展记录，
+// 论坛式时间轴呈现（追加式、只增不删），区别于完成任务时的一次性结论反馈
+type NoteFeedback struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	NoteID    uuid.UUID `gorm:"type:uuid;not null;index:idx_note_feedbacks_note_created,priority:1" json:"note_id"`
+	UserID    uuid.UUID `gorm:"type:uuid;not null" json:"user_id"`
+	UserName  string    `gorm:"type:varchar(100);not null;default:''" json:"user_name"`
+	User      *User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Content   string    `gorm:"type:text;not null" json:"content"`
+	CreatedAt time.Time `gorm:"index:idx_note_feedbacks_note_created,priority:2" json:"created_at"`
+}
+
+func (NoteFeedback) TableName() string {
+	return "note_feedbacks"
+}

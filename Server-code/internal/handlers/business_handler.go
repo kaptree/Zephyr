@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -835,6 +836,9 @@ func (h *WorkGroupHandler) GenerateReport(c *gin.Context) {
 	}
 	_ = h.sysRepo.CreateWorkReport(report)
 
+	// 积分：工作组专项报告生成完成（对发起人计分）
+	services.AwardPoints(userID, "report_team", "work_report", report.ID.String(), "生成工作组专项报告")
+
 	utils.Success(c, gin.H{
 		"report_id":    report.ID.String(),
 		"report_type":  reportType,
@@ -931,7 +935,7 @@ func (h *WorkGroupHandler) ExportReport(c *gin.Context) {
 			return
 		}
 		c.Header("Content-Type", "application/pdf")
-		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.pdf"`, sanitizeFilename(report.Title)))
+		c.Header("Content-Disposition", attachmentDisposition(report.Title, ".pdf"))
 		c.Data(200, "application/pdf", pdfBuf.Bytes())
 	case "docx":
 		docxBuf, err := generateDOCX(report.Title, report.Content, report.CreatedAt.Format("2006-01-02 15:04"))
@@ -940,7 +944,7 @@ func (h *WorkGroupHandler) ExportReport(c *gin.Context) {
 			return
 		}
 		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.docx"`, sanitizeFilename(report.Title)))
+		c.Header("Content-Disposition", attachmentDisposition(report.Title, ".docx"))
 		c.Data(200, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", docxBuf.Bytes())
 	case "png":
 		utils.BadRequest(c, "PNG导出暂不支持，请使用HTML格式在浏览器中打开后截图")
@@ -1181,6 +1185,11 @@ var xmlEscaper = strings.NewReplacer(
 
 func escapeXML(s string) string {
 	return xmlEscaper.Replace(s)
+}
+
+// attachmentDisposition 生成兼容中文文件名的 Content-Disposition（RFC 5987/6266）
+func attachmentDisposition(name string, ext string) string {
+	return fmt.Sprintf("attachment; filename*=UTF-8''%s", url.PathEscape(sanitizeFilename(name)+ext))
 }
 
 func sanitizeFilename(name string) string {

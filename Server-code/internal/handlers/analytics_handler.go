@@ -142,19 +142,72 @@ func (h *AnalyticsHandler) GenerateTeamReport(c *gin.Context) {
 	reportType := "template"
 	reportContent := h.buildTeamTemplateReport(userName, periodLabel, dateRange, result)
 
-	// 选择了 AI 模型 → 使用该模型生成报告
+	// 选择了 AI 模型 → 使用该模型 + 用户提示词，后台任务生成报告
 	if body.AIConfigID != "" {
 		if cfg := h.findAIConfigByID(body.AIConfigID); cfg != nil {
 			modelName := cfg.ModelName
 			if modelName == "" {
 				modelName = "gpt-3.5-turbo"
 			}
-			prompt := buildTeamReportPrompt(userName, periodLabel, dateRange, result)
-			aiReport, aiErr := services.CallAIService(cfg.ProviderType, cfg.APIEndpoint, cfg.APIKey, modelName, prompt)
-			if aiErr == nil && strings.TrimSpace(aiReport) != "" {
-				reportContent = aiReport
-				reportType = "ai"
+			intro := fmt.Sprintf("请基于以下真实统计数据，为 %s 生成一份%s（统计范围：%s）的团队工作总结报告。", userName, periodLabel, dateRange)
+			prompt := assembleReportPrompt(intro, buildTeamReportDataSection(result), h.reportAIPrompt())
+
+			statsJSON, _ := json.Marshal(result)
+			title := fmt.Sprintf("%s - %s", periodLabel, time.Now().Format("2006-01-02 15:04"))
+
+			// 需求25：采集各成员任务/反馈快照附在报告下方
+			memberIDs := make([]string, 0, len(result.Members))
+			for _, m := range result.Members {
+				memberIDs = append(memberIDs, m.UserID)
 			}
+
+			workReport := &models.WorkReport{
+				ID:           uuid.New(),
+				UserID:       userID,
+				UserName:     userName,
+				Period:       period,
+				PeriodLabel:  periodLabel,
+				ReportType:   "ai",
+				Status:       "generating",
+				Category:     "team",
+				Title:        title,
+				StatsSummary: string(statsJSON),
+				Detail:       h.buildReportDetail(memberIDs, since, now, dateRange),
+			}
+			if err := h.sysRepo.CreateWorkReport(workReport); err != nil {
+				utils.InternalError(c, "创建报告任务失败")
+				return
+			}
+
+			// 后台生成：仅使用值拷贝与线程安全的 repo，不引用 gin.Context
+			go func(reportID, reportUserID, providerType, endpoint, apiKey, model, aiPrompt string) {
+				content, aiErr := services.CallAIService(providerType, endpoint, apiKey, model, aiPrompt)
+				if aiErr != nil || strings.TrimSpace(content) == "" {
+					reason := "AI 服务无响应内容"
+					if aiErr != nil {
+						reason = aiErr.Error()
+					}
+					_ = h.sysRepo.UpdateWorkReportResult(reportID, "failed", "ai",
+						"> **生成失败**："+reason+"\n\n请删除本条记录后重新生成。")
+					return
+				}
+				_ = h.sysRepo.UpdateWorkReportResult(reportID, "completed", "ai", content)
+				// 积分：AI 团队报告生成完成
+				services.AwardPoints(reportUserID, "report_team", "work_report", reportID, "AI 生成团队工作报告")
+			}(workReport.ID.String(), userID, cfg.ProviderType, cfg.APIEndpoint, cfg.APIKey, modelName, prompt)
+
+			utils.Success(c, gin.H{
+				"report_id":    workReport.ID.String(),
+				"status":       "generating",
+				"period":       period,
+				"period_label": periodLabel,
+				"report_type":  "ai",
+				"category":     workReport.Category,
+				"stats":        result,
+				"report":       "",
+				"generated_at": workReport.CreatedAt.Format(time.RFC3339),
+			})
+			return
 		}
 	}
 
@@ -174,6 +227,7 @@ func (h *AnalyticsHandler) GenerateTeamReport(c *gin.Context) {
 		Period:       period,
 		PeriodLabel:  periodLabel,
 		ReportType:   reportType,
+		Status:       "completed",
 		Category:     "team",
 		Title:        title,
 		Content:      reportContent,
@@ -182,8 +236,12 @@ func (h *AnalyticsHandler) GenerateTeamReport(c *gin.Context) {
 	}
 	_ = h.sysRepo.CreateWorkReport(workReport)
 
+	// 积分：模板团队报告生成完成
+	services.AwardPoints(userID, "report_team", "work_report", workReport.ID.String(), "生成团队工作报告")
+
 	utils.Success(c, gin.H{
 		"report_id":    workReport.ID.String(),
+		"status":       "completed",
 		"period":       period,
 		"period_label": periodLabel,
 		"report_type":  reportType,
@@ -302,9 +360,24 @@ func firstNonEmptyStr(vals ...string) string {
 	return ""
 }
 
-// buildTeamReportPrompt 团队报告 AI 生成提示词
-func buildTeamReportPrompt(userName, periodLabel, dateRange string, result *repository.TeamStatsResult) string {
-	var memberLines strings.Builder
+// assembleReportPrompt 组装最终 AI 提示词：任务引导 + 真实统计数据上下文 + 用户自定义提示词（或默认）
+func assembleReportPrompt(intro, dataSection, userPrompt string) string {
+	return fmt.Sprintf("%s\n\n%s\n\n## 你的任务与输出要求\n%s", intro, dataSection, userPrompt)
+}
+
+// buildTeamReportDataSection 团队报告统计数据上下文（真实数据，不允许 AI 编造）
+func buildTeamReportDataSection(result *repository.TeamStatsResult) string {
+	var sb strings.Builder
+	sb.WriteString("## 统计数据\n")
+	sb.WriteString(fmt.Sprintf("- 团队成员：%d 人\n", result.MemberCount))
+	sb.WriteString(fmt.Sprintf("- 团队创建任务：%d 条\n", result.TotalCreated))
+	sb.WriteString(fmt.Sprintf("- 团队完成任务：%d 条\n", result.TotalCompleted))
+	sb.WriteString(fmt.Sprintf("- 整体完成率：%.1f%%\n\n", result.CompletionRate))
+	sb.WriteString("## 成员成效明细\n")
+	if len(result.Members) == 0 {
+		sb.WriteString("- 暂无成员数据\n")
+		return sb.String()
+	}
 	for _, m := range result.Members {
 		rate := "0%"
 		if m.TotalCreated > 0 {
@@ -314,36 +387,10 @@ func buildTeamReportPrompt(userName, periodLabel, dateRange string, result *repo
 		if m.TotalCompleted > 0 {
 			avg = fmt.Sprintf("%.1f小时", m.AvgCompletionHours)
 		}
-		memberLines.WriteString(fmt.Sprintf("- %s（%s）：创建%d条，完成%d条，完成率%s，平均完成耗时%s，被盯办%d次\n",
+		sb.WriteString(fmt.Sprintf("- %s（%s）：创建%d条，完成%d条，完成率%s，平均完成耗时%s，被盯办%d次\n",
 			m.UserName, firstNonEmptyStr(m.DeptName, "未分配"), m.TotalCreated, m.TotalCompleted, rate, avg, m.RemindReceived))
 	}
-	if result.MemberCount == 0 {
-		memberLines.WriteString("- 暂无成员数据\n")
-	}
-
-	return fmt.Sprintf(`你是一位专业的团队效能分析师。请根据以下统计数据，生成一份%s的团队工作成效报告。
-
-## 统计范围
-- %s
-- 团队成员：%d 人
-- 团队创建任务：%d 条
-- 团队完成任务：%d 条
-- 整体完成率：%.1f%%
-
-## 成员成效明细
-%s
-## 要求
-请生成一份包含以下部分的团队报告（使用 Markdown 格式，含表格）：
-1. **工作概览**：用一段话总结团队整体表现
-2. **成员成效分析**：通过表格展示各成员任务完成率、完成数量、完成时间，分析突出的成员和需要帮助的成员
-3. **趋势与亮点**：总结团队工作亮点
-4. **问题与建议**：指出团队存在的问题并给出改进建议
-5. **下一步计划**：给出可执行的下周工作计划建议
-
-报告语言使用中文，语气专业且鼓励性。直接输出报告内容，不需要前言。`,
-		periodLabel, dateRange, result.MemberCount,
-		result.TotalCreated, result.TotalCompleted, result.CompletionRate,
-		memberLines.String())
+	return sb.String()
 }
 
 func (h *AnalyticsHandler) PersonalStats(c *gin.Context) {
@@ -369,6 +416,9 @@ func (h *AnalyticsHandler) PersonalStats(c *gin.Context) {
 
 type ReportRequest struct {
 	Period string `json:"period"`
+	// AIConfigID 模型选择：空 = 智能生成（自动选启用配置，失败回退模板）；
+	// "template" = 使用模板生成；其他值 = 指定 AI 配置 ID
+	AIConfigID string `json:"ai_config_id"`
 }
 
 func (h *AnalyticsHandler) GenerateAIReport(c *gin.Context) {
@@ -406,61 +456,101 @@ func (h *AnalyticsHandler) GenerateAIReport(c *gin.Context) {
 
 	statsJSON, _ := json.Marshal(stats)
 
-	reportType := "template"
-	var reportContent string
+	// 需求25：报告周期范围（同时供 AI 提示词与快照采集使用）
+	since := time.Now().AddDate(0, 0, -days)
+	dateRange := fmt.Sprintf("%s ~ %s", since.Format("2006-01-02"), time.Now().Format("2006-01-02"))
 
-	configs, cfgErr := h.sysRepo.ListAIConfigs()
-	if cfgErr == nil && len(configs) > 0 {
-		var activeConfig *struct {
-			providerType string
-			endpoint     string
-			apiKey       string
-			model        string
-		}
-		for _, cfg := range configs {
-			if cfg.IsActive {
-				decryptedKey, decErr := utils.DecryptAES(cfg.APIKey)
-				if decErr != nil {
-					continue
+	// 模型选择：ai_config_id 为空 → 智能生成（自动选启用配置）；"template" → 使用模板；具体 ID → 指定模型
+	var activeProviderType, activeEndpoint, activeAPIKey, activeModel string
+	if body.AIConfigID != "template" {
+		if body.AIConfigID == "" {
+			if configs, cfgErr := h.sysRepo.ListAIConfigs(); cfgErr == nil {
+				for _, cfg := range configs {
+					if !cfg.IsActive {
+						continue
+					}
+					decryptedKey, decErr := utils.DecryptAES(cfg.APIKey)
+					if decErr != nil {
+						continue
+					}
+					activeProviderType = cfg.ProviderType
+					activeEndpoint = cfg.APIEndpoint
+					activeAPIKey = decryptedKey
+					activeModel = cfg.ModelName
+					break
 				}
-				activeConfig = &struct {
-					providerType string
-					endpoint     string
-					apiKey       string
-					model        string
-				}{
-					providerType: cfg.ProviderType,
-					endpoint:     cfg.APIEndpoint,
-					apiKey:       decryptedKey,
-					model:        cfg.ModelName,
-				}
-				break
 			}
+		} else if cfg := h.findAIConfigByID(body.AIConfigID); cfg != nil {
+			activeProviderType = cfg.ProviderType
+			activeEndpoint = cfg.APIEndpoint
+			activeAPIKey = cfg.APIKey
+			activeModel = cfg.ModelName
 		}
-
-		if activeConfig != nil {
-			modelName := activeConfig.model
-			if modelName == "" {
-				modelName = "gpt-3.5-turbo"
-			}
-			prompt := buildReportPrompt(userName, periodLabel, stats, period)
-			aiReport, aiErr := services.CallAIService(activeConfig.providerType, activeConfig.endpoint, activeConfig.apiKey, modelName, prompt)
-			if aiErr == nil {
-				reportContent = aiReport
-				reportType = "ai"
-			}
-		}
-	}
-
-	if reportContent == "" {
-		reportContent = h.buildTemplateReport(userName, periodLabel, stats)
 	}
 
 	title := fmt.Sprintf("%s工作成效报告 - %s", titlePrefix, time.Now().Format("2006-01-02 15:04"))
 
-	// 需求25：采集本人任务/反馈快照附在报告下方
-	since := time.Now().AddDate(0, 0, -days)
-	dateRange := fmt.Sprintf("%s ~ %s", since.Format("2006-01-02"), time.Now().Format("2006-01-02"))
+	// AI 模式：本地大模型生成耗时可达数分钟，改为后台任务生成，
+	// 立即落一条 generating 状态的报告并返回，前端通过轮询获取结果，用户可离开页面
+	if activeEndpoint != "" {
+		modelName := activeModel
+		if modelName == "" {
+			modelName = "gpt-3.5-turbo"
+		}
+		intro := fmt.Sprintf("请基于以下真实统计数据，为 %s 生成一份%s（%s）的工作总结报告。", userName, periodLabel, dateRange)
+		prompt := assembleReportPrompt(intro, buildPersonalReportDataSection(stats), h.reportAIPrompt())
+
+		report := &models.WorkReport{
+			ID:           uuid.New(),
+			UserID:       userID,
+			UserName:     userName,
+			Period:       period,
+			PeriodLabel:  periodLabel,
+			ReportType:   "ai",
+			Status:       "generating",
+			Category:     "personal",
+			Title:        title,
+			StatsSummary: string(statsJSON),
+			Detail:       h.buildReportDetail([]string{userID}, since, time.Now(), dateRange),
+		}
+		if err := h.sysRepo.CreateWorkReport(report); err != nil {
+			utils.InternalError(c, "创建报告任务失败")
+			return
+		}
+
+		// 后台生成：仅使用值拷贝与线程安全的 repo，不引用 gin.Context
+		go func(reportID, reportUserID, providerType, endpoint, apiKey, model, aiPrompt string) {
+			content, aiErr := services.CallAIService(providerType, endpoint, apiKey, model, aiPrompt)
+			if aiErr != nil || strings.TrimSpace(content) == "" {
+				reason := "AI 服务无响应内容"
+				if aiErr != nil {
+					reason = aiErr.Error()
+				}
+				_ = h.sysRepo.UpdateWorkReportResult(reportID, "failed", "ai",
+					"> **生成失败**："+reason+"\n\n请删除本条记录后重新生成。")
+				return
+			}
+			_ = h.sysRepo.UpdateWorkReportResult(reportID, "completed", "ai", content)
+			// 积分：AI 个人报告生成完成
+			services.AwardPoints(reportUserID, "report_generate", "work_report", reportID, "AI 生成个人工作报告")
+		}(report.ID.String(), userID, activeProviderType, activeEndpoint, activeAPIKey, modelName, prompt)
+
+		utils.Success(c, gin.H{
+			"report_id":    report.ID.String(),
+			"status":       "generating",
+			"period":       period,
+			"period_label": periodLabel,
+			"report_type":  "ai",
+			"category":     report.Category,
+			"stats":        stats,
+			"report":       "",
+			"generated_at": report.CreatedAt.Format(time.RFC3339),
+		})
+		return
+	}
+
+	// 模板模式：同步生成（毫秒级完成，无需后台任务）
+	reportContent := h.buildTemplateReport(userName, periodLabel, stats)
 
 	report := &models.WorkReport{
 		ID:           uuid.New(),
@@ -468,7 +558,8 @@ func (h *AnalyticsHandler) GenerateAIReport(c *gin.Context) {
 		UserName:     userName,
 		Period:       period,
 		PeriodLabel:  periodLabel,
-		ReportType:   reportType,
+		ReportType:   "template",
+		Status:       "completed",
 		Category:     "personal",
 		Title:        title,
 		Content:      reportContent,
@@ -477,11 +568,15 @@ func (h *AnalyticsHandler) GenerateAIReport(c *gin.Context) {
 	}
 	_ = h.sysRepo.CreateWorkReport(report)
 
+	// 积分：模板个人报告生成完成
+	services.AwardPoints(userID, "report_generate", "work_report", report.ID.String(), "生成个人工作报告")
+
 	utils.Success(c, gin.H{
 		"report_id":    report.ID.String(),
+		"status":       "completed",
 		"period":       period,
 		"period_label": periodLabel,
-		"report_type":  reportType,
+		"report_type":  "template",
 		"category":     report.Category,
 		"stats":        stats,
 		"report":       reportContent,
@@ -530,6 +625,20 @@ func (h *AnalyticsHandler) GetReport(c *gin.Context) {
 		return
 	}
 	utils.Success(c, report)
+}
+
+// ListPendingReports 查询当前用户仍在后台生成中的报告（前端切回页面时恢复轮询用）
+func (h *AnalyticsHandler) ListPendingReports(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	reports, err := h.sysRepo.ListPendingWorkReports(userID)
+	if err != nil {
+		utils.InternalError(c, "查询生成中报告失败")
+		return
+	}
+	if reports == nil {
+		reports = []models.WorkReport{}
+	}
+	utils.Success(c, reports)
 }
 
 // GetReportDetail 需求25：报告详情（含报告周期内各成员任务/反馈明细，供报告文章下方展示）
@@ -702,6 +811,75 @@ func (h *AnalyticsHandler) SaveReportTemplate(c *gin.Context) {
 	utils.SuccessWithMessage(c, "模板保存成功", tpl)
 }
 
+// ==================== AI 报告提示词（个人/团队报告共用） ====================
+
+// aiPromptTemplateID 提示词存储复用 report_templates 表，固定 ID
+const aiPromptTemplateID = "ai_prompt"
+
+// getDefaultAIPrompt 默认 AI 报告提示词（用户未自定义时使用）
+func getDefaultAIPrompt() string {
+	return `你是一位资深的工作效能分析师。请基于系统提供的真实工作统计数据，撰写一份结构完整、内容详实的工作总结报告。
+
+写作要求：
+1. 报告使用 Markdown 格式，包含以下章节：工作概览、数据分析、成果亮点、问题与反思、改进建议、下一步计划；
+2. 数据分析需解读数字背后的含义与趋势（例如完成率高低说明了什么、平均耗时是否合理、被盯办次数反映了哪些执行问题），而不是简单罗列数字；
+3. 成果亮点与改进建议必须紧密结合数据，给出具体、可执行的描述，避免空泛套话；
+4. 若数据较少，应基于现有数据合理总结，不得编造不存在的数据；
+5. 使用中文撰写，语气专业且具有鼓励性，全文不少于 500 字；
+6. 直接输出报告正文，不要输出前言、结束语或对本要求的复述。`
+}
+
+// reportAIPrompt 读取用户自定义 AI 提示词，未自定义或为空时返回默认提示词
+func (h *AnalyticsHandler) reportAIPrompt() string {
+	if tpl, err := h.sysRepo.GetReportTemplate(aiPromptTemplateID); err == nil && strings.TrimSpace(tpl.Content) != "" {
+		return tpl.Content
+	}
+	return getDefaultAIPrompt()
+}
+
+// GetReportAIPrompt GET /api/v1/analytics/ai-prompt 获取 AI 报告提示词（自定义或默认）
+func (h *AnalyticsHandler) GetReportAIPrompt(c *gin.Context) {
+	customized := false
+	content := ""
+	if tpl, err := h.sysRepo.GetReportTemplate(aiPromptTemplateID); err == nil && strings.TrimSpace(tpl.Content) != "" {
+		customized = true
+		content = tpl.Content
+	}
+	if content == "" {
+		content = getDefaultAIPrompt()
+	}
+	utils.Success(c, gin.H{
+		"content":       content,
+		"is_customized": customized,
+		"default":       getDefaultAIPrompt(),
+	})
+}
+
+// SaveReportAIPrompt PUT /api/v1/analytics/ai-prompt 保存 AI 报告提示词（生成个人/团队报告时由 AI 使用）
+func (h *AnalyticsHandler) SaveReportAIPrompt(c *gin.Context) {
+	var body struct {
+		Content string `json:"content" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		utils.BadRequest(c, "请提供提示词内容")
+		return
+	}
+	if strings.TrimSpace(body.Content) == "" {
+		utils.BadRequest(c, "提示词内容不能为空")
+		return
+	}
+	tpl := &models.ReportTemplate{
+		ID:      aiPromptTemplateID,
+		Name:    "AI 报告提示词",
+		Content: body.Content,
+	}
+	if err := h.sysRepo.SaveReportTemplate(tpl); err != nil {
+		utils.InternalError(c, "保存提示词失败")
+		return
+	}
+	utils.SuccessWithMessage(c, "提示词保存成功", tpl)
+}
+
 func (h *AnalyticsHandler) GenerateDailyReport(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	userName := c.GetString("username")
@@ -793,6 +971,9 @@ func (h *AnalyticsHandler) generatePeriodReport(c *gin.Context, userID, userName
 	}
 	_ = h.sysRepo.CreateWorkReport(workReport)
 
+	// 积分：个人工作报告生成完成
+	services.AwardPoints(userID, "report_generate", "work_report", workReport.ID.String(), "生成个人工作报告")
+
 	utils.Success(c, gin.H{
 		"report_id":    workReport.ID.String(),
 		"period":       period,
@@ -863,58 +1044,50 @@ func getDefaultReportTemplateForPeriod() string {
 *本报告由系统自动生成，基于实际工作数据统计分析*`
 }
 
-func buildReportPrompt(userName, periodLabel string, stats *repository.PersonalStats, period string) string {
-	tagList := ""
-	for i, t := range stats.TagBreakdown {
-		if i > 0 {
-			tagList += ", "
+// buildPersonalReportDataSection 个人报告统计数据上下文（真实数据，不允许 AI 编造）
+func buildPersonalReportDataSection(stats *repository.PersonalStats) string {
+	var sb strings.Builder
+	sb.WriteString("## 统计数据\n")
+	sb.WriteString(fmt.Sprintf("- 创建任务总数：%d\n", stats.TotalCreated))
+	sb.WriteString(fmt.Sprintf("- 完成任务数：%d\n", stats.TotalCompleted))
+	sb.WriteString(fmt.Sprintf("- 完成率：%.1f%%\n", stats.CompletionRate))
+	sb.WriteString(fmt.Sprintf("- 被盯办次数：%d\n", stats.RemindReceived))
+	sb.WriteString(fmt.Sprintf("- 平均完成耗时：%.1f 小时\n\n", stats.AvgCompletionHours))
+
+	sb.WriteString("## 标签使用分布\n")
+	if len(stats.TagBreakdown) == 0 {
+		sb.WriteString("- 无标签数据\n")
+	} else {
+		for _, t := range stats.TagBreakdown {
+			sb.WriteString(fmt.Sprintf("- %s：%d次\n", t.TagName, t.Count))
 		}
-		tagList += fmt.Sprintf("%s(%d次)", t.TagName, t.Count)
-	}
-	if tagList == "" {
-		tagList = "无标签数据"
 	}
 
-	dailyTrendDesc := ""
-	for _, d := range stats.DailyTrend {
-		dailyTrendDesc += fmt.Sprintf("%s: %d条\n", d.Date, d.Count)
+	sb.WriteString("\n## 每日任务趋势\n")
+	if len(stats.DailyTrend) == 0 {
+		sb.WriteString("- 无日趋势数据\n")
+	} else if len(stats.DailyTrend) <= 40 {
+		// 周/月报告：逐日列出，条数可控
+		for _, d := range stats.DailyTrend {
+			sb.WriteString(fmt.Sprintf("- %s：%d条\n", d.Date, d.Count))
+		}
+	} else {
+		// 年度报告：365 行逐日数据会让提示词过长、拖慢模型推理，按月聚合
+		monthly := make(map[string]int64)
+		months := make([]string, 0)
+		for _, d := range stats.DailyTrend {
+			if len(d.Date) < 7 {
+				continue
+			}
+			m := d.Date[:7]
+			if _, ok := monthly[m]; !ok {
+				months = append(months, m)
+			}
+			monthly[m] += d.Count
+		}
+		for _, m := range months {
+			sb.WriteString(fmt.Sprintf("- %s月：合计%d条\n", m, monthly[m]))
+		}
 	}
-	if dailyTrendDesc == "" {
-		dailyTrendDesc = "无日趋势数据"
-	}
-
-	return fmt.Sprintf(`你是一位专业的工作效能分析师。请根据以下数据，为%s生成一份%s的结构化个人工作报告。
-
-## 统计数据
-- 周期：%s
-- 创建任务总数：%d
-- 完成任务数：%d
-- 完成率：%.1f%%
-- 被盯办次数：%d
-- 平均完成耗时：%.1f 小时
-
-## 标签使用分布
-%s
-
-## 每日任务趋势
-%s
-
-## 要求
-请生成一份包含以下部分的报告（使用 Markdown 格式）：
-1. **工作概览**：用一段话总结整体表现
-2. **数据分析**：解读关键数字的含义和趋势
-3. **趋势总结**：分析变化趋势
-4. **成果亮点**：指出值得肯定的成绩
-5. **改进建议**：提出针对性的改进方向
-
-报告语言使用中文，语气专业且鼓励性。直接输出报告内容，不需要前言。`,
-		userName, periodLabel, periodLabel,
-		stats.TotalCreated,
-		stats.TotalCompleted,
-		stats.CompletionRate,
-		stats.RemindReceived,
-		stats.AvgCompletionHours,
-		tagList,
-		dailyTrendDesc,
-	)
+	return sb.String()
 }

@@ -12,6 +12,8 @@ import '@fontsource/inter/500.css'
 import '@fontsource/inter/600.css'
 import '@fontsource/inter/700.css'
 import './style.css'
+// 全站统一美化装饰样式（玻璃拟态 + 晨曦/深空双主题，源自个人中心设计语言）
+import './styles/decor.css'
 
 const app = createApp(App)
 

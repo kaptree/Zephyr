@@ -97,9 +97,20 @@ async function handleDelete(tag: Tag) {
 </script>
 
 <template>
-  <div>
-    <div class="flex items-center justify-between mb-6">
-      <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">标签库管理</h2>
+  <div class="page-shell p-5">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
+    <div class="rise flex items-center justify-between mb-6">
+      <h2 class="page-title text-lg font-semibold">标签库管理</h2>
       <button class="btn-primary text-sm" @click="openNewModal">新建标签</button>
     </div>
 

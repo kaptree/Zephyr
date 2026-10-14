@@ -10,6 +10,7 @@ import type {
   NotePositionInput,
 } from '@/types';
 import * as noteService from '@/services/notes';
+import { useAchievementStore } from '@/stores/achievements';
 
 type BackendNote = Note & Record<string, unknown>;
 
@@ -107,6 +108,8 @@ export const useNoteStore = defineStore('notes', () => {
     const res = await noteService.createNote(payload);
     const newNote = normalizeNote(res.data as unknown as BackendNote);
     activeNotes.value.unshift(newNote);
+    // 成就检查：任务创建里程碑
+    useAchievementStore().checkAndNotify();
     return newNote;
   }
 
@@ -118,6 +121,10 @@ export const useNoteStore = defineStore('notes', () => {
     }
     const original = { ...activeNotes.value[index] };
     const optimistic: Record<string, unknown> = { ...payload };
+    // 参与人员/抄送人员为短结构（仅 user_id），不宜直接乐观覆盖本地展示；
+    // 保存成功后以服务端响应（含 user 预加载）整体覆盖
+    delete optimistic.assignees;
+    delete optimistic.cc_user_ids;
     activeNotes.value[index] = { ...activeNotes.value[index], ...optimistic } as Note;
     try {
       const res = await noteService.updateNote(id, payload);
@@ -183,6 +190,8 @@ export const useNoteStore = defineStore('notes', () => {
     if (index !== -1) {
       activeNotes.value.splice(index, 1);
     }
+    // 成就检查：任务完成里程碑（含凌晨彩蛋）
+    useAchievementStore().checkAndNotify();
   }
 
   async function remindNote(id: string, targetId: string, message?: string) {
@@ -210,6 +219,8 @@ export const useNoteStore = defineStore('notes', () => {
   async function archiveNote(id: string) {
     await noteService.archiveNote(id);
     activeNotes.value = activeNotes.value.filter((n) => n.id !== id);
+    // 成就检查：归档里程碑
+    useAchievementStore().checkAndNotify();
   }
 
   async function restoreNote(id: string) {
@@ -219,18 +230,35 @@ export const useNoteStore = defineStore('notes', () => {
     archivedNotes.value = archivedNotes.value.filter((n) => n.id !== id);
   }
 
-  async function fetchArchivedNotes(archiveFilters: Record<string, unknown>) {
+  /** 归档列表每页条数（与后端默认一致） */
+  const ARCHIVE_PAGE_SIZE = 20;
+
+  /**
+   * 查询归档任务。
+   * @param opts.page 页码（默认 1）
+   * @param opts.append 是否追加到现有列表（“加载更多”），默认覆盖
+   */
+  async function fetchArchivedNotes(
+    archiveFilters: Record<string, unknown>,
+    opts?: { page?: number; append?: boolean }
+  ) {
+    const page = opts?.page ?? 1;
+    const append = opts?.append ?? false;
     loading.value = true;
     try {
       const res = await noteService.fetchNotes({
         ...archiveFilters,
         status: 'archived',
+        page,
+        page_size: ARCHIVE_PAGE_SIZE,
       } as NoteFilters);
       const paginated = res.data as unknown as PaginatedData<Note>;
-      archivedNotes.value = (paginated.data || []).map((raw) =>
+      const list = (paginated.data || []).map((raw) =>
         normalizeNote(raw as unknown as BackendNote)
       );
+      archivedNotes.value = append ? [...archivedNotes.value, ...list] : list;
       totalCount.value = paginated.total || 0;
+      currentPage.value = page;
     } finally {
       loading.value = false;
     }

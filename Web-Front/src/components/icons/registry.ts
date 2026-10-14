@@ -43,9 +43,11 @@ import {
   MoonIcon,
   PencilSquareIcon,
   QueueListIcon,
+  Squares2X2Icon,
   StarIcon,
   SunIcon,
   TagIcon,
+  TrophyIcon,
   UserGroupIcon,
   XCircleIcon,
 } from '@heroicons/vue/24/outline';
@@ -92,6 +94,7 @@ export const ICON_REGISTRY = {
   monitor: { outline: ComputerDesktopIcon },
   settings: { outline: Cog6ToothIcon },
   list: { outline: QueueListIcon },
+  grid: { outline: Squares2X2Icon },
   // —— 通用 ——
   bars: { outline: Bars3Icon },
   logout: { outline: ArrowRightStartOnRectangleIcon },
@@ -108,6 +111,7 @@ export const ICON_REGISTRY = {
   warning: { outline: ExclamationTriangleIcon, solid: ExclamationTriangleSolidIcon },
   info: { outline: InformationCircleIcon, solid: InformationCircleSolidIcon },
   star: { outline: StarIcon, solid: StarSolidIcon },
+  crown: { outline: TrophyIcon },
 } satisfies Record<string, IconEntry>;
 
 export type IconName = keyof typeof ICON_REGISTRY;

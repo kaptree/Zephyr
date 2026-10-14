@@ -3,16 +3,23 @@ import { ref, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notification';
+import { useAchievementStore } from '@/stores/achievements';
 import { AppIcon, BrandLogo } from '@/components/icons';
 import type { IconName } from '@/components/icons';
 
 const auth = useAuthStore();
 const notif = useNotificationStore();
+const achievementStore = useAchievementStore();
 const route = useRoute();
 const router = useRouter();
 
 // 聊天未读总数（私聊 + 群聊）：>0 时侧边栏「聊天」图标叠加闪红点
 const chatUnread = computed(() => notif.chatUnreadTotal);
+
+// 成就解锁进度：菜单项右侧显示「x/100」小角标
+const achievementSummary = computed(
+  () => `${achievementStore.unlockedCount}/${achievementStore.total}`
+);
 
 const collapsed = ref(localStorage.getItem('sidebar_collapsed') === 'true');
 
@@ -39,6 +46,9 @@ const menuItems: MenuItem[] = [
   },
   { icon: 'chart', label: '工作成效分析', path: '/analytics' },
   { icon: 'chat', label: '聊天', path: '/chat' },
+  { icon: 'star', label: '成就殿堂', path: '/achievements' },
+  { icon: 'crown', label: '积分排行榜', path: '/points' },
+  { icon: 'grid', label: '小工具', path: '/tools' },
   { icon: 'bug', label: 'Bug 反馈', path: '/issues' },
   {
     icon: 'users',
@@ -144,6 +154,13 @@ function navigate(path: string) {
               </span>
             </span>
             <span v-if="!collapsed" class="truncate">{{ item.label }}</span>
+            <!-- 成就殿堂：解锁进度角标（x/100） -->
+            <span
+              v-if="!collapsed && item.path === '/achievements' && achievementStore.total > 0"
+              class="ml-auto shrink-0 text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300"
+            >
+              {{ achievementSummary }}
+            </span>
           </button>
         </li>
       </ul>
@@ -171,21 +188,42 @@ function navigate(path: string) {
         </li>
       </ul>
 
-      <!-- 用户信息 -->
+      <!-- 用户信息：点击头像/昵称跳转个人中心 -->
       <div v-if="auth.user" class="flex items-center gap-3 px-3 py-2.5 mt-1">
-        <div
-          class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-medium shrink-0"
+        <button
+          type="button"
+          class="w-8 h-8 rounded-full shrink-0 overflow-hidden ring-2 ring-transparent hover:ring-blue-400/60 focus:outline-none transition-all duration-200 hover:scale-110"
+          :title="collapsed ? '个人中心' : ''"
+          aria-label="进入个人中心"
+          @click="router.push('/profile')"
         >
-          {{ auth.user.name.charAt(0) }}
-        </div>
-        <div v-if="!collapsed" class="flex-1 min-w-0">
+          <img
+            v-if="auth.user.avatar"
+            :src="auth.user.avatar"
+            alt="头像"
+            class="w-full h-full object-cover"
+          />
+          <div
+            v-else
+            class="w-full h-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white text-xs font-medium"
+          >
+            {{ auth.user.name.charAt(0) }}
+          </div>
+        </button>
+        <button
+          v-if="!collapsed"
+          type="button"
+          class="flex-1 min-w-0 text-left rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none transition-smooth"
+          title="进入个人中心"
+          @click="router.push('/profile')"
+        >
           <div class="text-xs font-medium text-slate-900 dark:text-slate-100 truncate">
             {{ auth.user.name }}
           </div>
           <div class="text-[10px] text-slate-400 dark:text-slate-500 truncate">
             {{ auth.user.dept_name }}
           </div>
-        </div>
+        </button>
         <button
           v-if="!collapsed"
           class="shrink-0 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-smooth"

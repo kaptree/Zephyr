@@ -84,7 +84,6 @@
   .card-note-red {
     background-color: #FEE2E2;
     border: 1px solid #DC2626;
-    animation: pulse-alert 2s ease-in-out infinite;
   }
 
   .btn-primary {
@@ -206,6 +205,13 @@
   .note-content-expanded {
     mask-image: none;
     -webkit-mask-image: none;
+  }
+
+  /* 富文本内容中的图片：随容器缩放，避免上传的大图撑破卡片/详情布局 */
+  .rich-content-display img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
   }
 
   /* ===== 沉浸式书写（美化工程 · 第 6 项） ===== */
@@ -792,7 +798,7 @@
   }
 }
 .page-fold-out {
-  /* !important：覆盖任务卡 pulse-alert 等内联 animation，保证退场动画必定播放 */
+  /* !important：覆盖卡片自身可能存在的 animation，保证退场动画必定播放 */
   animation: page-fold-out 0.5s cubic-bezier(0.4, 0, 1, 1) forwards !important;
   transform-origin: center center;
 }

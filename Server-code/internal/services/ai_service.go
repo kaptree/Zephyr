@@ -27,6 +27,18 @@ var aiHTTPClient = &http.Client{
 	},
 }
 
+// 本地 Ollama 生成完整报告时推理较慢（大模型 + 长输出），单独使用较长超时，
+// 避免 10s 短超时导致 AI 报告生成超时失败、回退到模板。
+// 需与服务器 WriteTimeout（config.json write_timeout_seconds=620）和前端 axios 超时（600s）对齐，
+// 否则任一环节先超时都会导致连接被强制断开（前端表现为 502）。
+var ollamaClient = &http.Client{
+	Timeout: 600 * time.Second,
+	Transport: &http.Transport{
+		DialContext:         (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
+		TLSHandshakeTimeout: 5 * time.Second,
+	},
+}
+
 // NormalizeProviderType 归一化服务商类型，旧数据为空时按 openai 处理
 func NormalizeProviderType(t string) string {
 	t = strings.TrimSpace(strings.ToLower(t))
@@ -46,6 +58,16 @@ func TestAIConnection(providerType, endpoint, apiKey, model string) (*AIConnecti
 
 	if providerType == "dify" {
 		msg, detail, err := testDify(endpoint, apiKey)
+		result.Message = msg
+		result.Detail = detail
+		result.LatencyMS = time.Since(start).Milliseconds()
+		result.Success = err == nil
+		return result, err
+	}
+
+	// Ollama 本地模型：通过 OpenAI 兼容 /v1/models 轻量测连通（无需密钥、不跑推理）
+	if providerType == "ollama" {
+		msg, detail, err := testOllama(endpoint, model)
 		result.Message = msg
 		result.Detail = detail
 		result.LatencyMS = time.Since(start).Milliseconds()
@@ -133,13 +155,70 @@ func testDify(endpoint, apiKey string) (string, string, error) {
 	return "连通失败", lastErr.Error(), lastErr
 }
 
-// CallAIService 调用 AI 服务生成文本（OpenAI 兼容 / Dify）
+// testOllama 测试本地 Ollama 服务连通性：GET {endpoint}/models（OpenAI 兼容），
+// 无需密钥、不触发模型推理；可选校验 model 是否已安装（未安装仅提示，不判定失败）。
+func testOllama(endpoint, model string) (string, string, error) {
+	req, err := http.NewRequest("GET", endpoint+"/models", nil)
+	if err != nil {
+		return "连通失败", "", err
+	}
+
+	resp, err := aiHTTPClient.Do(req)
+	if err != nil {
+		return "连接失败", err.Error(), err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != 200 {
+		detail := strings.TrimSpace(string(body))
+		if len(detail) > 300 {
+			detail = detail[:300]
+		}
+		return fmt.Sprintf("服务返回错误（状态码 %d）", resp.StatusCode), detail,
+			fmt.Errorf("status %d: %s", resp.StatusCode, detail)
+	}
+
+	var list struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(body, &list)
+
+	msg := "连通成功（Ollama）"
+	if model != "" {
+		found := false
+		for _, m := range list.Data {
+			if m.ID == model {
+				found = true
+				break
+			}
+		}
+		if found {
+			msg = fmt.Sprintf("连通成功（Ollama 模型 %s 已就绪）", model)
+		} else {
+			msg = fmt.Sprintf("连通成功（但未检测到模型 %s，请确认已通过 ollama pull 安装）", model)
+		}
+	}
+
+	detail := strings.TrimSpace(string(body))
+	if len(detail) > 300 {
+		detail = detail[:300]
+	}
+	return msg, detail, nil
+}
+
+// CallAIService 调用 AI 服务生成文本（OpenAI 兼容 / Ollama / Dify）
 func CallAIService(providerType, endpoint, apiKey, model, prompt string) (string, error) {
 	providerType = NormalizeProviderType(providerType)
 	endpoint = strings.TrimRight(endpoint, "/")
 
 	if providerType == "dify" {
 		return callDify(endpoint, apiKey, prompt)
+	}
+	if providerType == "ollama" {
+		return callOllama(endpoint, apiKey, model, prompt)
 	}
 	return callOpenAICompatible(endpoint, apiKey, model, prompt)
 }
@@ -163,6 +242,16 @@ type chatResponse struct {
 }
 
 func callOpenAICompatible(endpoint, apiKey, model, prompt string) (string, error) {
+	return callChatCompletions(aiHTTPClient, endpoint, apiKey, model, prompt)
+}
+
+// callOllama 调用本地 Ollama 的 OpenAI 兼容 /chat/completions，使用较长超时
+func callOllama(endpoint, apiKey, model, prompt string) (string, error) {
+	return callChatCompletions(ollamaClient, endpoint, apiKey, model, prompt)
+}
+
+// callChatCompletions 走 OpenAI 兼容协议生成文本（POST /chat/completions）
+func callChatCompletions(client *http.Client, endpoint, apiKey, model, prompt string) (string, error) {
 	if model == "" {
 		model = "gpt-3.5-turbo"
 	}
@@ -182,9 +271,11 @@ func callOpenAICompatible(endpoint, apiKey, model, prompt string) (string, error
 		return "", fmt.Errorf("创建请求失败: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
 
-	resp, err := aiHTTPClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("AI服务请求失败: %w", err)
 	}

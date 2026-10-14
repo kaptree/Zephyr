@@ -154,6 +154,40 @@ describe('useNoteStore', () => {
       expect(store.activeNotes).toHaveLength(2);
       expect(store.totalCount).toBe(2);
     });
+
+    it('应将筛选参数（关键词/时间范围）合并进查询条件', async () => {
+      const { fetchNotes } = await import('@/services/notes');
+      const store = useNoteStore();
+      await store.fetchNotes({
+        keyword: '电诈',
+        date_from: '2026-10-01',
+        date_to: '2026-10-13',
+        page: 1,
+      });
+      expect(fetchNotes).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          keyword: '电诈',
+          date_from: '2026-10-01',
+          date_to: '2026-10-13',
+          status: 'active',
+        })
+      );
+      // 筛选条件保留在 store.filters 中：再次无参调用仍携带
+      await store.fetchNotes();
+      expect(fetchNotes).toHaveBeenLastCalledWith(expect.objectContaining({ keyword: '电诈' }));
+    });
+
+    it('显式传 undefined 应清除旧筛选参数（重置场景）', async () => {
+      const { fetchNotes } = await import('@/services/notes');
+      const store = useNoteStore();
+      await store.fetchNotes({ keyword: '旧关键词', date_from: '2026-09-01' });
+      await store.fetchNotes({ keyword: undefined, date_from: undefined, date_to: undefined });
+      const calls = (fetchNotes as ReturnType<typeof vi.fn>).mock.calls;
+      const last = calls[calls.length - 1][0];
+      expect(last.keyword).toBeUndefined();
+      expect(last.date_from).toBeUndefined();
+      expect(last.date_to).toBeUndefined();
+    });
   });
 
   describe('createNote', () => {

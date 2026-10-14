@@ -73,6 +73,11 @@ export function uploadChatFile(file: File) {
   );
 }
 
+// 聊天文件传输策略（图片/文件大小限制，MB）
+export function getChatTransferPolicy() {
+  return get<{ max_image_size_mb: number; max_file_size_mb: number }>('/api/v1/chat/file-policy');
+}
+
 export function markConversationRead(peerId: string) {
   return post<{ success: boolean }>(`/api/v1/chat/${peerId}/read`)
 }

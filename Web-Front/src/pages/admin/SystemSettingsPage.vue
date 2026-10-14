@@ -42,9 +42,16 @@ const tabs = [
 ]
 
 // ===== 聊天文件传输策略 Tab =====
-const filePolicy = ref<{ allow_extensions: string; blocked_extensions: string }>({
+const filePolicy = ref<{
+  allow_extensions: string
+  blocked_extensions: string
+  max_image_size_mb: number
+  max_file_size_mb: number
+}>({
   allow_extensions: '',
   blocked_extensions: '',
+  max_image_size_mb: 20,
+  max_file_size_mb: 50,
 })
 const filePolicyLoading = ref(false)
 const filePolicySaving = ref(false)
@@ -58,11 +65,15 @@ async function loadFilePolicy() {
     const data = res.data as unknown as {
       allow_extensions: string
       blocked_extensions: string
+      max_image_size_mb: number
+      max_file_size_mb: number
       updated_at: string
     }
     filePolicy.value = {
       allow_extensions: data.allow_extensions || '',
       blocked_extensions: data.blocked_extensions || '',
+      max_image_size_mb: data.max_image_size_mb || 20,
+      max_file_size_mb: data.max_file_size_mb || 50,
     }
     filePolicyUpdatedAt.value = data.updated_at || ''
   } catch {
@@ -75,11 +86,25 @@ async function loadFilePolicy() {
 
 async function saveFilePolicy() {
   if (filePolicySaving.value) return
+  const maxImage = Math.floor(Number(filePolicy.value.max_image_size_mb))
+  const maxFile = Math.floor(Number(filePolicy.value.max_file_size_mb))
+  if (!Number.isFinite(maxImage) || maxImage <= 0 || maxImage > 4096) {
+    filePolicyToast.value = { type: 'error', message: '图片大小限制需为 1~4096 之间的整数（MB）' }
+    setTimeout(() => (filePolicyToast.value = null), 3000)
+    return
+  }
+  if (!Number.isFinite(maxFile) || maxFile <= 0 || maxFile > 4096) {
+    filePolicyToast.value = { type: 'error', message: '文件大小限制需为 1~4096 之间的整数（MB）' }
+    setTimeout(() => (filePolicyToast.value = null), 3000)
+    return
+  }
   filePolicySaving.value = true
   try {
     await updateChatFilePolicy({
       allow_extensions: filePolicy.value.allow_extensions,
       blocked_extensions: filePolicy.value.blocked_extensions,
+      max_image_size_mb: maxImage,
+      max_file_size_mb: maxFile,
     })
     filePolicyToast.value = { type: 'success', message: '保存成功，策略已即时生效（热加载）' }
     setTimeout(() => (filePolicyToast.value = null), 3000)
@@ -211,6 +236,7 @@ const AI_PROVIDER_PRESETS: { type: AIProviderType; label: string; endpointPlaceh
   { type: 'qwen', label: '通义千问（阿里云）', endpointPlaceholder: 'https://dashscope.aliyuncs.com/compatible-mode/v1', modelPlaceholder: 'qwen-plus', hint: '阿里云百炼兼容模式' },
   { type: 'zhipu', label: '智谱 GLM', endpointPlaceholder: 'https://open.bigmodel.cn/api/paas/v4', modelPlaceholder: 'glm-4-plus', hint: '智谱 AI（OpenAI 兼容）' },
   { type: 'dify', label: 'Dify', endpointPlaceholder: 'https://api.dify.ai/v1', modelPlaceholder: '（Dify 无需模型名称）', hint: 'Dify 应用服务端 API，测试走 /info 接口' },
+  { type: 'ollama', label: 'Ollama（本地）', endpointPlaceholder: 'http://localhost:11434/v1', modelPlaceholder: 'gemma3:12b', hint: '本地 Ollama（OpenAI 兼容），无需密钥' },
   { type: 'custom', label: '自定义（OpenAI 兼容）', endpointPlaceholder: 'https://your-api.com/v1', modelPlaceholder: 'your-model', hint: '其他 OpenAI 兼容服务商' },
 ]
 
@@ -322,8 +348,10 @@ function closeAIForm() {
 
 // 一键测试连通性
 async function handleTestConnection() {
-  if (!aiForm.value.api_endpoint || !aiForm.value.api_key) {
-    showAIToast('error', '请先填写API端点和密钥')
+  // 本地 Ollama 无需密钥
+  const needKey = aiForm.value.provider_type !== 'ollama'
+  if (!aiForm.value.api_endpoint || (needKey && !aiForm.value.api_key)) {
+    showAIToast('error', needKey ? '请先填写API端点和密钥' : '请先填写API端点')
     return
   }
   aiTesting.value = true
@@ -355,7 +383,9 @@ async function saveAIForm() {
     showAIToast('error', '请填写服务商名称和API端点')
     return
   }
-  if (!editingAIId.value && !aiForm.value.api_key) {
+  // 本地 Ollama 无需密钥
+  const needKey = aiForm.value.provider_type !== 'ollama'
+  if (!editingAIId.value && needKey && !aiForm.value.api_key) {
     showAIToast('error', '请填写API密钥')
     return
   }
@@ -546,10 +576,21 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col bg-white dark:bg-slate-900 transition-colors duration-300">
+  <div class="page-shell h-full flex flex-col transition-colors duration-300">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
     <!-- Header -->
-    <div class="shrink-0 px-6 py-4 border-b border-slate-200 dark:border-slate-700">
-      <h1 class="text-xl font-semibold text-slate-900 dark:text-slate-100">系统管理</h1>
+    <div class="rise shrink-0 px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+      <h1 class="page-title text-xl font-semibold">系统管理</h1>
       <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">管理系统配置、AI服务与配置文件</p>
     </div>
 
@@ -694,13 +735,13 @@ onMounted(() => {
             </div>
             <div>
               <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-                API密钥 {{ editingAIId ? '(留空不修改)' : '*' }}
+                API密钥 {{ editingAIId ? '(留空不修改)' : aiForm.provider_type === 'ollama' ? '(本地无需密钥)' : '*' }}
               </label>
               <input
                 v-model="aiForm.api_key"
                 type="password"
                 class="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                :placeholder="editingAIId ? '留空则不修改密钥' : 'sk-... 或 app-...'"
+                :placeholder="editingAIId ? '留空则不修改密钥' : aiForm.provider_type === 'ollama' ? '本地 Ollama 无需密钥' : 'sk-... 或 app-...'"
               />
             </div>
             <div>
@@ -849,7 +890,8 @@ onMounted(() => {
           <span>{{ filePolicyToast.message }}</span>
         </div>
 
-        <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-card p-6">
+        <div class="glass-card p-6">
+          <div class="card-top-line" aria-hidden="true" />
           <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100">📎 聊天文件传输策略</h3>
           <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">
             控制聊天中可发送的文件格式，保存后<span class="text-blue-500 font-medium">立即生效（热加载）</span>，无需重启服务。扩展名以逗号分隔，如
@@ -888,6 +930,43 @@ onMounted(() => {
               ></textarea>
             </div>
 
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+              <div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <span class="text-sm font-medium text-slate-700 dark:text-slate-200">图片大小限制</span>
+                  <span class="text-[10px] text-slate-400">范围 1~4096</span>
+                </div>
+                <div class="relative">
+                  <input
+                    v-model.number="filePolicy.max_image_size_mb"
+                    type="number"
+                    min="1"
+                    max="4096"
+                    class="input-field pr-10"
+                    placeholder="20"
+                  />
+                  <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">MB</span>
+                </div>
+              </div>
+              <div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <span class="text-sm font-medium text-slate-700 dark:text-slate-200">文件大小限制</span>
+                  <span class="text-[10px] text-slate-400">范围 1~4096</span>
+                </div>
+                <div class="relative">
+                  <input
+                    v-model.number="filePolicy.max_file_size_mb"
+                    type="number"
+                    min="1"
+                    max="4096"
+                    class="input-field pr-10"
+                    placeholder="50"
+                  />
+                  <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">MB</span>
+                </div>
+              </div>
+            </div>
+
             <div class="flex items-center gap-3 mt-5">
               <button
                 class="btn-primary text-sm !py-2 !px-5 disabled:opacity-50"
@@ -910,7 +989,8 @@ onMounted(() => {
                 <li>① 先检查黑名单：命中黑名单的格式一律拒绝；</li>
                 <li>② 若白名单非空：只有白名单内的格式允许发送；</li>
                 <li>③ 若白名单为空：除黑名单外的所有格式均允许发送（推荐）。</li>
-                <li>图片格式（png/jpg/jpeg/gif/webp）在聊天记录中直接显示图片，其余格式显示文件卡片。</li>
+                <li>④ 图片/文件分别按上方“图片大小限制/文件大小限制”校验，超出大小将无法发送。</li>
+                <li>图片格式（png/jpg/jpeg/gif/webp/bmp）在聊天记录中直接显示图片，其余格式显示文件卡片。</li>
               </ul>
             </div>
           </template>

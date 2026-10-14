@@ -119,7 +119,8 @@ export interface GenerateReportResult {
 }
 
 export function generateGroupReport(groupId: string): Promise<ApiResponse<GenerateReportResult>> {
-  return post(`/api/v1/groups/${groupId}/reports`)
+  // 工作组报告同样可能走 AI 生成，放宽超时兼容本地 Ollama 较慢推理
+  return post(`/api/v1/groups/${groupId}/reports`, undefined, { timeout: 300000 })
 }
 
 export function listGroupReports(

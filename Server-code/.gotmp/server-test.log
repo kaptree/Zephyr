@@ -1,0 +1,420 @@
+2026-10-14T15:41:09.222+0800	info	Server-code/main.go:47	Starting LabelPro Server...	{"version": "1.0.0", "mode": "debug"}
+2026-10-14T15:41:09.231+0800	info	database/postgres.go:58	PostgreSQL connected successfully	{"host": "127.0.0.1", "port": 5432, "dbname": "labelpro"}
+2026-10-14T15:41:09.490+0800	info	Server-code/main.go:109	Database migration completed
+
+2026/10/14 15:41:09 [31;1m/Users/admin/codespace/golang/Zephyr/Server-code/main.go:131 [35;1mERROR: duplicate key value violates unique constraint "report_templates_pkey" (SQLSTATE 23505)
+[0m[33m[0.935ms] [34;1m[rows:0][0m INSERT INTO "report_templates" ("id","name","content","updated_at") VALUES ('default','默认报告模板','## 工作概览
+
+{{userName}}（{{periodLabel}}）共创建任务 **{{totalCreated}}** 条，完成 **{{totalCompleted}}** 条，完成率为 **{{completionRate}}%**。{{completionDesc}}。{{remindDesc}}。
+
+## 数据分析
+
+- **创建任务总数**：{{totalCreated}} 条，反映了{{userName}}的工作投入量
+- **完成任务数**：{{totalCompleted}} 条，体现了任务执行效率
+- **完成率**：{{completionRate}}%，{{completionDesc}}
+- **被盯办次数**：{{remindReceived}} 次
+- **平均完成耗时**：{{avgCompletionHours}} 小时
+
+## 标签使用分布
+
+{{tagList}}
+## 每日任务趋势
+
+{{dailyTrend}}
+## 成果亮点
+
+基于以上数据，{{periodLabel}}期间的工作展现出以下亮点：
+
+- 保持了任务创建的持续性和稳定性
+- 在重点关注领域有明确的工作投入
+{{activeTagMsg}}
+
+## 改进建议
+
+1. 继续保持任务推进的节奏，关注高优先级事项
+2. 合理分配工作时间，避免任务积压
+3. 善用标签分类，提高工作梳理效率
+4. 定期回顾工作成效，及时调整工作策略
+
+---
+*本报告由系统自动生成，基于实际工作数据统计分析*','2026-10-14 15:41:09.523')
+2026-10-14T15:41:09.525+0800	info	Server-code/main.go:222	Database already has users, skipping default admin creation
+2026-10-14T15:41:09.526+0800	info	database/redis.go:39	Redis connected successfully	{"addr": "127.0.0.1:6379", "db": 0}
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] GET    /health                   --> labelpro-server/internal/router.healthCheck (7 handlers)
+[GIN-debug] GET    /ws/:note_id              --> labelpro-server/internal/router.Setup.HandleWebSocket.func8 (7 handlers)
+[GIN-debug] GET    /ws/group/:group_id       --> labelpro-server/internal/router.Setup.HandleGroupWebSocket.func9 (7 handlers)
+[GIN-debug] GET    /ws/user/:user_id         --> labelpro-server/internal/router.Setup.HandleUserWebSocket.func10 (7 handlers)
+[GIN-debug] GET    /uploads/*filepath        --> github.com/gin-gonic/gin.(*RouterGroup).createStaticHandler.func1 (7 handlers)
+[GIN-debug] HEAD   /uploads/*filepath        --> github.com/gin-gonic/gin.(*RouterGroup).createStaticHandler.func1 (7 handlers)
+[GIN-debug] GET    /api/v1/ping              --> labelpro-server/internal/router.Setup.func1 (7 handlers)
+[GIN-debug] POST   /api/v1/auth/login        --> labelpro-server/internal/handlers.(*AuthHandler).Login-fm (8 handlers)
+[GIN-debug] POST   /api/v1/auth/refresh      --> labelpro-server/internal/handlers.(*AuthHandler).RefreshToken-fm (8 handlers)
+[GIN-debug] POST   /api/v1/auth/logout       --> labelpro-server/internal/handlers.(*AuthHandler).Logout-fm (9 handlers)
+[GIN-debug] GET    /api/v1/auth/me           --> labelpro-server/internal/handlers.(*AuthHandler).GetCurrentUser-fm (9 handlers)
+[GIN-debug] GET    /api/v1/departments       --> labelpro-server/internal/handlers.(*DepartmentHandler).GetTree-fm (9 handlers)
+[GIN-debug] GET    /api/v1/departments/:id   --> labelpro-server/internal/handlers.(*DepartmentHandler).GetDetail-fm (9 handlers)
+[GIN-debug] POST   /api/v1/departments       --> labelpro-server/internal/handlers.(*DepartmentHandler).Create-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/departments/:id   --> labelpro-server/internal/handlers.(*DepartmentHandler).Update-fm (10 handlers)
+[GIN-debug] DELETE /api/v1/departments/:id   --> labelpro-server/internal/handlers.(*DepartmentHandler).Delete-fm (10 handlers)
+[GIN-debug] GET    /api/v1/users             --> labelpro-server/internal/handlers.(*UserHandler).ListUsers-fm (9 handlers)
+[GIN-debug] GET    /api/v1/users/visible     --> labelpro-server/internal/handlers.(*UserHandler).GetVisibleUsers-fm (9 handlers)
+[GIN-debug] GET    /api/v1/users/recommend   --> labelpro-server/internal/handlers.(*UserHandler).RecommendUsers-fm (9 handlers)
+[GIN-debug] GET    /api/v1/users/work-type-options --> labelpro-server/internal/handlers.(*UserHandler).WorkTypeOptions-fm (9 handlers)
+[GIN-debug] GET    /api/v1/users/with-stats  --> labelpro-server/internal/handlers.(*UserHandler).ListUsersWithStats-fm (9 handlers)
+[GIN-debug] GET    /api/v1/users/:id         --> labelpro-server/internal/handlers.(*UserHandler).GetUser-fm (9 handlers)
+[GIN-debug] GET    /api/v1/users/:id/profile --> labelpro-server/internal/handlers.(*UserHandler).GetUserProfile-fm (9 handlers)
+[GIN-debug] PUT    /api/v1/users/:id         --> labelpro-server/internal/handlers.(*UserHandler).UpdateUser-fm (10 handlers)
+[GIN-debug] DELETE /api/v1/users/:id         --> labelpro-server/internal/handlers.(*UserHandler).DeleteUser-fm (10 handlers)
+[GIN-debug] POST   /api/v1/users             --> labelpro-server/internal/handlers.(*AuthHandler).Register-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/profile           --> labelpro-server/internal/handlers.(*UserHandler).UpdateMyProfile-fm (9 handlers)
+[GIN-debug] POST   /api/v1/uploads/image     --> labelpro-server/internal/handlers.(*UploadHandler).UploadImage-fm (9 handlers)
+[GIN-debug] GET    /api/v1/notes             --> labelpro-server/internal/handlers.(*NoteHandler).ListNotes-fm (9 handlers)
+[GIN-debug] POST   /api/v1/notes             --> labelpro-server/internal/handlers.(*NoteHandler).CreateNote-fm (9 handlers)
+[GIN-debug] GET    /api/v1/notes/users/:userId/workbench --> labelpro-server/internal/handlers.(*NoteHandler).InspectUserNotes-fm (10 handlers)
+[GIN-debug] GET    /api/v1/notes/export      --> labelpro-server/internal/handlers.(*NoteHandler).ExportNotes-fm (9 handlers)
+[GIN-debug] PUT    /api/v1/notes/positions   --> labelpro-server/internal/handlers.(*NoteHandler).UpdateNotePositions-fm (9 handlers)
+[GIN-debug] GET    /api/v1/notes/:id         --> labelpro-server/internal/handlers.(*NoteHandler).GetNote-fm (9 handlers)
+[GIN-debug] PUT    /api/v1/notes/:id         --> labelpro-server/internal/handlers.(*NoteHandler).UpdateNote-fm (9 handlers)
+[GIN-debug] POST   /api/v1/notes/:id/complete --> labelpro-server/internal/handlers.(*NoteHandler).CompleteNote-fm (9 handlers)
+[GIN-debug] POST   /api/v1/notes/:id/feedback --> labelpro-server/internal/handlers.(*NoteHandler).Feedback-fm (9 handlers)
+[GIN-debug] GET    /api/v1/notes/:id/feedbacks --> labelpro-server/internal/handlers.(*NoteHandler).ListStageFeedbacks-fm (9 handlers)
+[GIN-debug] POST   /api/v1/notes/:id/feedbacks --> labelpro-server/internal/handlers.(*NoteHandler).AddStageFeedback-fm (9 handlers)
+[GIN-debug] POST   /api/v1/notes/:id/remind  --> labelpro-server/internal/handlers.(*NoteHandler).RemindNote-fm (9 handlers)
+[GIN-debug] POST   /api/v1/notes/:id/sign    --> labelpro-server/internal/handlers.(*NoteHandler).SignNote-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/notes/:id         --> labelpro-server/internal/handlers.(*NoteHandler).DeleteNote-fm (9 handlers)
+[GIN-debug] POST   /api/v1/notes/:id/restore --> labelpro-server/internal/handlers.(*NoteHandler).RestoreNote-fm (9 handlers)
+[GIN-debug] GET    /api/v1/notes/stats       --> labelpro-server/internal/handlers.(*NoteHandler).Stats-fm (9 handlers)
+[GIN-debug] GET    /api/v1/notes/heatmap     --> labelpro-server/internal/handlers.(*NoteHandler).Heatmap-fm (9 handlers)
+[GIN-debug] GET    /api/v1/notes/:id/export  --> labelpro-server/internal/handlers.(*NoteHandler).ExportNote-fm (9 handlers)
+[GIN-debug] POST   /api/v1/notes/:id/attachments --> labelpro-server/internal/handlers.(*UploadHandler).Upload-fm (9 handlers)
+[GIN-debug] GET    /api/v1/notes/:id/attachments --> labelpro-server/internal/handlers.(*UploadHandler).ListAttachments-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/notes/:id/attachments/:attachmentId --> labelpro-server/internal/handlers.(*UploadHandler).DeleteAttachment-fm (9 handlers)
+[GIN-debug] GET    /api/v1/tags              --> labelpro-server/internal/handlers.(*TagHandler).List-fm (9 handlers)
+[GIN-debug] POST   /api/v1/tags              --> labelpro-server/internal/handlers.(*TagHandler).Create-fm (9 handlers)
+[GIN-debug] PUT    /api/v1/tags/:id          --> labelpro-server/internal/handlers.(*TagHandler).Update-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/tags/:id          --> labelpro-server/internal/handlers.(*TagHandler).Delete-fm (9 handlers)
+[GIN-debug] GET    /api/v1/templates         --> labelpro-server/internal/handlers.(*TemplateHandler).List-fm (9 handlers)
+[GIN-debug] GET    /api/v1/templates/:id     --> labelpro-server/internal/handlers.(*TemplateHandler).Get-fm (9 handlers)
+[GIN-debug] POST   /api/v1/templates         --> labelpro-server/internal/handlers.(*TemplateHandler).Create-fm (9 handlers)
+[GIN-debug] PUT    /api/v1/templates/:id     --> labelpro-server/internal/handlers.(*TemplateHandler).Update-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/templates/:id     --> labelpro-server/internal/handlers.(*TemplateHandler).Delete-fm (9 handlers)
+[GIN-debug] GET    /api/v1/groups            --> labelpro-server/internal/handlers.(*WorkGroupHandler).Search-fm (9 handlers)
+[GIN-debug] GET    /api/v1/groups/mine       --> labelpro-server/internal/handlers.(*WorkGroupHandler).MyGroups-fm (9 handlers)
+[GIN-debug] POST   /api/v1/groups            --> labelpro-server/internal/handlers.(*WorkGroupHandler).Create-fm (9 handlers)
+[GIN-debug] GET    /api/v1/groups/:id        --> labelpro-server/internal/handlers.(*WorkGroupHandler).GetDetail-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/groups/:id        --> labelpro-server/internal/handlers.(*WorkGroupHandler).Delete-fm (9 handlers)
+[GIN-debug] GET    /api/v1/groups/:id/members --> labelpro-server/internal/handlers.(*WorkGroupHandler).GetMembers-fm (9 handlers)
+[GIN-debug] POST   /api/v1/groups/:id/members --> labelpro-server/internal/handlers.(*WorkGroupHandler).AddMember-fm (9 handlers)
+[GIN-debug] PUT    /api/v1/groups/:id/members/:user_id --> labelpro-server/internal/handlers.(*WorkGroupHandler).UpdateMember-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/groups/:id/members/:user_id --> labelpro-server/internal/handlers.(*WorkGroupHandler).RemoveMember-fm (9 handlers)
+[GIN-debug] GET    /api/v1/groups/:id/notes  --> labelpro-server/internal/handlers.(*WorkGroupHandler).GetGroupNotes-fm (9 handlers)
+[GIN-debug] POST   /api/v1/groups/:id/notes  --> labelpro-server/internal/handlers.(*WorkGroupHandler).CreateGroupNote-fm (9 handlers)
+[GIN-debug] GET    /api/v1/groups/:id/dashboard --> labelpro-server/internal/handlers.(*WorkGroupHandler).GetDashboard-fm (9 handlers)
+[GIN-debug] POST   /api/v1/groups/:id/reports --> labelpro-server/internal/handlers.(*WorkGroupHandler).GenerateReport-fm (9 handlers)
+[GIN-debug] GET    /api/v1/groups/:id/reports --> labelpro-server/internal/handlers.(*WorkGroupHandler).ListReports-fm (9 handlers)
+[GIN-debug] GET    /api/v1/groups/:id/reports/:reportId --> labelpro-server/internal/handlers.(*WorkGroupHandler).GetReport-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/groups/:id/reports/:reportId --> labelpro-server/internal/handlers.(*WorkGroupHandler).DeleteReport-fm (9 handlers)
+[GIN-debug] GET    /api/v1/groups/:id/reports/:reportId/export --> labelpro-server/internal/handlers.(*WorkGroupHandler).ExportReport-fm (9 handlers)
+[GIN-debug] GET    /api/v1/rooms/:note_id/canvas --> labelpro-server/internal/handlers.(*RoomHandler).GetCanvas-fm (9 handlers)
+[GIN-debug] GET    /api/v1/rooms/:note_id/commands --> labelpro-server/internal/handlers.(*RoomHandler).ListCommands-fm (9 handlers)
+[GIN-debug] POST   /api/v1/rooms/:note_id/command --> labelpro-server/internal/handlers.(*RoomHandler).SendCommand-fm (10 handlers)
+[GIN-debug] GET    /api/v1/presets           --> labelpro-server/internal/handlers.(*PresetGroupHandler).List-fm (9 handlers)
+[GIN-debug] POST   /api/v1/presets           --> labelpro-server/internal/handlers.(*PresetGroupHandler).Create-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/presets/:id       --> labelpro-server/internal/handlers.(*PresetGroupHandler).Update-fm (10 handlers)
+[GIN-debug] DELETE /api/v1/presets/:id       --> labelpro-server/internal/handlers.(*PresetGroupHandler).Delete-fm (10 handlers)
+[GIN-debug] GET    /api/v1/ledger            --> labelpro-server/internal/handlers.(*LedgerHandler).List-fm (9 handlers)
+[GIN-debug] GET    /api/v1/ledger/stats      --> labelpro-server/internal/handlers.(*LedgerHandler).Stats-fm (10 handlers)
+[GIN-debug] GET    /api/v1/notifications     --> labelpro-server/internal/handlers.(*NotificationHandler).List-fm (9 handlers)
+[GIN-debug] GET    /api/v1/notifications/unread-count --> labelpro-server/internal/handlers.(*NotificationHandler).UnreadCount-fm (9 handlers)
+[GIN-debug] POST   /api/v1/notifications/read-all --> labelpro-server/internal/handlers.(*NotificationHandler).MarkAllRead-fm (9 handlers)
+[GIN-debug] POST   /api/v1/notifications/:id/read --> labelpro-server/internal/handlers.(*NotificationHandler).MarkRead-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/notifications/:id --> labelpro-server/internal/handlers.(*NotificationHandler).Delete-fm (9 handlers)
+[GIN-debug] GET    /api/v1/chat/conversations --> labelpro-server/internal/handlers.(*NotificationHandler).Conversations-fm (9 handlers)
+[GIN-debug] GET    /api/v1/chat/online       --> labelpro-server/internal/handlers.(*NotificationHandler).ChatOnline-fm (9 handlers)
+[GIN-debug] GET    /api/v1/chat/file-policy  --> labelpro-server/internal/handlers.(*UploadHandler).GetChatTransferPolicy-fm (9 handlers)
+[GIN-debug] POST   /api/v1/chat/attachments  --> labelpro-server/internal/handlers.(*UploadHandler).UploadChatFile-fm (9 handlers)
+[GIN-debug] GET    /api/v1/chat/:userId/messages --> labelpro-server/internal/handlers.(*NotificationHandler).ListMessages-fm (9 handlers)
+[GIN-debug] POST   /api/v1/chat/:userId/messages --> labelpro-server/internal/handlers.(*NotificationHandler).SendMessage-fm (9 handlers)
+[GIN-debug] POST   /api/v1/chat/:userId/read --> labelpro-server/internal/handlers.(*NotificationHandler).MarkConversationRead-fm (9 handlers)
+[GIN-debug] GET    /api/v1/chat/groups       --> labelpro-server/internal/handlers.(*GroupChatHandler).MyGroups-fm (9 handlers)
+[GIN-debug] POST   /api/v1/chat/groups       --> labelpro-server/internal/handlers.(*GroupChatHandler).Create-fm (9 handlers)
+[GIN-debug] GET    /api/v1/chat/groups/:id   --> labelpro-server/internal/handlers.(*GroupChatHandler).Detail-fm (9 handlers)
+[GIN-debug] PUT    /api/v1/chat/groups/:id   --> labelpro-server/internal/handlers.(*GroupChatHandler).Rename-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/chat/groups/:id   --> labelpro-server/internal/handlers.(*GroupChatHandler).Dissolve-fm (9 handlers)
+[GIN-debug] GET    /api/v1/chat/groups/:id/members --> labelpro-server/internal/handlers.(*GroupChatHandler).Members-fm (9 handlers)
+[GIN-debug] POST   /api/v1/chat/groups/:id/members --> labelpro-server/internal/handlers.(*GroupChatHandler).AddMembers-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/chat/groups/:id/members/:userId --> labelpro-server/internal/handlers.(*GroupChatHandler).RemoveMember-fm (9 handlers)
+[GIN-debug] POST   /api/v1/chat/groups/:id/quit --> labelpro-server/internal/handlers.(*GroupChatHandler).Quit-fm (9 handlers)
+[GIN-debug] GET    /api/v1/chat/groups/:id/messages --> labelpro-server/internal/handlers.(*GroupChatHandler).ListMessages-fm (9 handlers)
+[GIN-debug] POST   /api/v1/chat/groups/:id/messages --> labelpro-server/internal/handlers.(*GroupChatHandler).SendMessage-fm (9 handlers)
+[GIN-debug] POST   /api/v1/chat/groups/:id/read --> labelpro-server/internal/handlers.(*GroupChatHandler).MarkRead-fm (9 handlers)
+[GIN-debug] GET    /api/v1/chat/groups/:id/announcement --> labelpro-server/internal/handlers.(*GroupChatHandler).GetAnnouncement-fm (9 handlers)
+[GIN-debug] PUT    /api/v1/chat/groups/:id/announcement --> labelpro-server/internal/handlers.(*GroupChatHandler).SetAnnouncement-fm (9 handlers)
+[GIN-debug] GET    /api/v1/chat/groups/:id/files --> labelpro-server/internal/handlers.(*GroupChatHandler).ListGroupFiles-fm (9 handlers)
+[GIN-debug] POST   /api/v1/chat/groups/:id/files --> labelpro-server/internal/handlers.(*GroupChatHandler).UploadGroupFile-fm (9 handlers)
+[GIN-debug] GET    /api/v1/chat/groups/:id/files/:fileId/download --> labelpro-server/internal/handlers.(*GroupChatHandler).DownloadGroupFile-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/chat/groups/:id/files/:fileId --> labelpro-server/internal/handlers.(*GroupChatHandler).DeleteGroupFile-fm (9 handlers)
+[GIN-debug] GET    /api/v1/emoticons         --> labelpro-server/internal/handlers.(*EmoticonHandler).List-fm (9 handlers)
+[GIN-debug] POST   /api/v1/emoticons         --> labelpro-server/internal/handlers.(*EmoticonHandler).Upload-fm (9 handlers)
+[GIN-debug] POST   /api/v1/emoticons/batch   --> labelpro-server/internal/handlers.(*EmoticonHandler).BatchUpload-fm (10 handlers)
+[GIN-debug] DELETE /api/v1/emoticons/:id     --> labelpro-server/internal/handlers.(*EmoticonHandler).Delete-fm (9 handlers)
+[GIN-debug] GET    /api/v1/reminders         --> labelpro-server/internal/handlers.(*NotificationHandler).ListReminders-fm (9 handlers)
+[GIN-debug] POST   /api/v1/reminders/:id/acknowledge --> labelpro-server/internal/handlers.(*NotificationHandler).AcknowledgeReminder-fm (9 handlers)
+[GIN-debug] GET    /api/v1/issues            --> labelpro-server/internal/handlers.(*IssueHandler).List-fm (9 handlers)
+[GIN-debug] POST   /api/v1/issues            --> labelpro-server/internal/handlers.(*IssueHandler).Create-fm (9 handlers)
+[GIN-debug] GET    /api/v1/issues/watching   --> labelpro-server/internal/handlers.(*IssueHandler).GetWatching-fm (9 handlers)
+[GIN-debug] POST   /api/v1/issues/watch      --> labelpro-server/internal/handlers.(*IssueHandler).Watch-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/issues/watch      --> labelpro-server/internal/handlers.(*IssueHandler).Unwatch-fm (9 handlers)
+[GIN-debug] GET    /api/v1/issues/:id        --> labelpro-server/internal/handlers.(*IssueHandler).Get-fm (9 handlers)
+[GIN-debug] POST   /api/v1/issues/:id/comments --> labelpro-server/internal/handlers.(*IssueHandler).AddComment-fm (9 handlers)
+[GIN-debug] PUT    /api/v1/issues/:id/status --> labelpro-server/internal/handlers.(*IssueHandler).UpdateStatus-fm (9 handlers)
+[GIN-debug] POST   /api/v1/issues/:id/subscribe --> labelpro-server/internal/handlers.(*IssueHandler).Subscribe-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/issues/:id/subscribe --> labelpro-server/internal/handlers.(*IssueHandler).Unsubscribe-fm (9 handlers)
+[GIN-debug] GET    /api/v1/achievements      --> labelpro-server/internal/handlers.(*AchievementHandler).List-fm (9 handlers)
+[GIN-debug] POST   /api/v1/achievements/check --> labelpro-server/internal/handlers.(*AchievementHandler).Check-fm (9 handlers)
+[GIN-debug] GET    /api/v1/points/leaderboard --> labelpro-server/internal/handlers.(*PointsHandler).Leaderboard-fm (9 handlers)
+[GIN-debug] GET    /api/v1/points/me         --> labelpro-server/internal/handlers.(*PointsHandler).Me-fm (9 handlers)
+[GIN-debug] GET    /api/v1/points/rules      --> labelpro-server/internal/handlers.(*PointsHandler).Rules-fm (9 handlers)
+[GIN-debug] GET    /api/v1/tools             --> labelpro-server/internal/handlers.(*ToolHandler).List-fm (9 handlers)
+[GIN-debug] GET    /api/v1/tools/categories  --> labelpro-server/internal/handlers.(*ToolHandler).Categories-fm (9 handlers)
+[GIN-debug] GET    /api/v1/tools/mine        --> labelpro-server/internal/handlers.(*ToolHandler).Mine-fm (9 handlers)
+[GIN-debug] GET    /api/v1/tools/pending     --> labelpro-server/internal/handlers.(*ToolHandler).PendingList-fm (10 handlers)
+[GIN-debug] POST   /api/v1/tools             --> labelpro-server/internal/handlers.(*ToolHandler).Upload-fm (9 handlers)
+[GIN-debug] GET    /api/v1/tools/:slug       --> labelpro-server/internal/handlers.(*ToolHandler).Detail-fm (9 handlers)
+[GIN-debug] POST   /api/v1/tools/:slug/launch --> labelpro-server/internal/handlers.(*ToolHandler).Launch-fm (9 handlers)
+[GIN-debug] POST   /api/v1/tools/:slug/exit  --> labelpro-server/internal/handlers.(*ToolHandler).Exit-fm (9 handlers)
+[GIN-debug] PUT    /api/v1/tools/:slug/status --> labelpro-server/internal/handlers.(*ToolHandler).UpdateStatus-fm (10 handlers)
+[GIN-debug] DELETE /api/v1/tools/:slug       --> labelpro-server/internal/handlers.(*ToolHandler).Delete-fm (9 handlers)
+[GIN-debug] GET    /api/v1/tools/:slug/run   --> labelpro-server/internal/handlers.(*ToolHandler).Run-fm (7 handlers)
+[GIN-debug] GET    /api/v1/vault/entries     --> labelpro-server/internal/handlers.(*VaultHandler).List-fm (9 handlers)
+[GIN-debug] POST   /api/v1/vault/entries     --> labelpro-server/internal/handlers.(*VaultHandler).Create-fm (9 handlers)
+[GIN-debug] PUT    /api/v1/vault/entries/:id --> labelpro-server/internal/handlers.(*VaultHandler).Update-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/vault/entries/:id --> labelpro-server/internal/handlers.(*VaultHandler).Delete-fm (9 handlers)
+[GIN-debug] PUT    /api/v1/vault/entries/:id/share --> labelpro-server/internal/handlers.(*VaultHandler).Share-fm (9 handlers)
+[GIN-debug] GET    /api/v1/vault/plaza       --> labelpro-server/internal/handlers.(*VaultHandler).Plaza-fm (9 handlers)
+[GIN-debug] GET    /api/v1/vault/plaza/:id/reveal --> labelpro-server/internal/handlers.(*VaultHandler).Reveal-fm (9 handlers)
+[GIN-debug] GET    /api/v1/analytics/personal-stats --> labelpro-server/internal/handlers.(*AnalyticsHandler).PersonalStats-fm (9 handlers)
+[GIN-debug] GET    /api/v1/analytics/team-stats --> labelpro-server/internal/handlers.(*AnalyticsHandler).TeamStats-fm (9 handlers)
+[GIN-debug] POST   /api/v1/analytics/team-report --> labelpro-server/internal/handlers.(*AnalyticsHandler).GenerateTeamReport-fm (9 handlers)
+[GIN-debug] GET    /api/v1/analytics/ai-configs --> labelpro-server/internal/handlers.(*AnalyticsHandler).ListAIConfigsForReport-fm (9 handlers)
+[GIN-debug] POST   /api/v1/analytics/ai-report --> labelpro-server/internal/handlers.(*AnalyticsHandler).GenerateAIReport-fm (9 handlers)
+[GIN-debug] GET    /api/v1/analytics/reports --> labelpro-server/internal/handlers.(*AnalyticsHandler).ListReports-fm (9 handlers)
+[GIN-debug] GET    /api/v1/analytics/reports/pending --> labelpro-server/internal/handlers.(*AnalyticsHandler).ListPendingReports-fm (9 handlers)
+[GIN-debug] GET    /api/v1/analytics/reports/:id --> labelpro-server/internal/handlers.(*AnalyticsHandler).GetReport-fm (9 handlers)
+[GIN-debug] GET    /api/v1/analytics/reports/:id/detail --> labelpro-server/internal/handlers.(*AnalyticsHandler).GetReportDetail-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/analytics/reports/:id --> labelpro-server/internal/handlers.(*AnalyticsHandler).DeleteReport-fm (9 handlers)
+[GIN-debug] GET    /api/v1/analytics/report-template --> labelpro-server/internal/handlers.(*AnalyticsHandler).GetReportTemplate-fm (9 handlers)
+[GIN-debug] PUT    /api/v1/analytics/report-template --> labelpro-server/internal/handlers.(*AnalyticsHandler).SaveReportTemplate-fm (9 handlers)
+[GIN-debug] GET    /api/v1/analytics/ai-prompt --> labelpro-server/internal/handlers.(*AnalyticsHandler).GetReportAIPrompt-fm (9 handlers)
+[GIN-debug] PUT    /api/v1/analytics/ai-prompt --> labelpro-server/internal/handlers.(*AnalyticsHandler).SaveReportAIPrompt-fm (9 handlers)
+[GIN-debug] POST   /api/v1/analytics/daily-report --> labelpro-server/internal/handlers.(*AnalyticsHandler).GenerateDailyReport-fm (9 handlers)
+[GIN-debug] POST   /api/v1/analytics/weekly-report --> labelpro-server/internal/handlers.(*AnalyticsHandler).GenerateWeeklyReport-fm (9 handlers)
+[GIN-debug] POST   /api/v1/analytics/monthly-report --> labelpro-server/internal/handlers.(*AnalyticsHandler).GenerateMonthlyReport-fm (9 handlers)
+[GIN-debug] GET    /api/v1/system/config     --> labelpro-server/internal/handlers.(*SystemHandler).GetConfig-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/system/config     --> labelpro-server/internal/handlers.(*SystemHandler).UpdateConfig-fm (10 handlers)
+[GIN-debug] GET    /api/v1/system/ai-configs --> labelpro-server/internal/handlers.(*SystemHandler).ListAIConfigs-fm (10 handlers)
+[GIN-debug] POST   /api/v1/system/ai-configs --> labelpro-server/internal/handlers.(*SystemHandler).CreateAIConfig-fm (10 handlers)
+[GIN-debug] POST   /api/v1/system/ai-configs/test --> labelpro-server/internal/handlers.(*SystemHandler).TestAIConfig-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/system/ai-configs/:id --> labelpro-server/internal/handlers.(*SystemHandler).UpdateAIConfig-fm (10 handlers)
+[GIN-debug] DELETE /api/v1/system/ai-configs/:id --> labelpro-server/internal/handlers.(*SystemHandler).DeleteAIConfig-fm (10 handlers)
+[GIN-debug] GET    /api/v1/system/config-files --> labelpro-server/internal/handlers.(*SystemHandler).ListConfigFiles-fm (10 handlers)
+[GIN-debug] GET    /api/v1/system/config-files/:name --> labelpro-server/internal/handlers.(*SystemHandler).GetConfigFile-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/system/config-files/:name --> labelpro-server/internal/handlers.(*SystemHandler).UpdateConfigFile-fm (10 handlers)
+[GIN-debug] GET    /api/v1/system/config-files/:name/history --> labelpro-server/internal/handlers.(*SystemHandler).GetConfigFileHistory-fm (10 handlers)
+[GIN-debug] GET    /api/v1/system/logs       --> labelpro-server/internal/handlers.(*SystemHandler).ListAdminLogs-fm (10 handlers)
+[GIN-debug] GET    /api/v1/system/operations --> labelpro-server/internal/handlers.(*SystemHandler).ListOperations-fm (10 handlers)
+[GIN-debug] GET    /api/v1/system/operations/actions --> labelpro-server/internal/handlers.(*SystemHandler).GetOperationActions-fm (10 handlers)
+[GIN-debug] GET    /api/v1/system/chat-file-policy --> labelpro-server/internal/handlers.(*SystemHandler).GetChatFilePolicy-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/system/chat-file-policy --> labelpro-server/internal/handlers.(*SystemHandler).UpdateChatFilePolicy-fm (10 handlers)
+2026-10-14T15:41:09.528+0800	info	Server-code/main.go:193	Server listening	{"addr": "0.0.0.0:8090"}
+2026-10-14T15:41:09.528+0800	info	services/points_service.go:280	积分周期校准完成	{"trigger": "startup"}
+2026-10-14T15:41:15.591+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000053667, "request_id": "20261014154115yyyyyyyy"}
+2026-10-14T15:41:17.189+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "POST", "path": "/api/v1/auth/login", "query": "", "ip": "::1", "latency": 0.074071458, "request_id": "20261014154117uuuuuuum"}
+2026-10-14T15:41:17.212+0800	info	services/tool_service.go:152	工具上传成功	{"slug": "cun-chu-ce-shi-gong-ju", "name": "存储测试工具", "user_id": "255e9eb1-3c27-4a51-bcba-c986cebdadf2"}
+2026-10-14T15:41:17.212+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "POST", "path": "/api/v1/tools", "query": "", "ip": "::1", "latency": 0.00348125, "request_id": "20261014154117mmmmmmmm"}
+2026-10-14T15:41:17.260+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "PUT", "path": "/api/v1/tools/cun-chu-ce-shi-gong-ju/status", "query": "", "ip": "::1", "latency": 0.001582916, "request_id": "20261014154117qqqqqqqq"}
+2026-10-14T15:41:17.280+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools/cun-chu-ce-shi-gong-ju/run", "query": "", "ip": "::1", "latency": 0.000594917, "request_id": "20261014154117iiiiiiii"}
+2026-10-14T15:41:17.297+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools/cun-chu-ce-shi-gong-ju/run", "query": "", "ip": "::1", "latency": 0.000510625, "request_id": "20261014154117aaaaaaaa"}
+2026-10-14T15:41:30.592+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000053334, "request_id": "20261014154130a22222uu"}
+2026-10-14T15:41:38.018+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000026, "request_id": "2026101415413822222222"}
+2026-10-14T15:41:38.105+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/ws/user/255e9eb1-3c27-4a51-bcba-c986cebdadf2", "query": "token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMjU1ZTllYjEtM2MyNy00YTUxLWJjYmEtYzk4NmNlYmRhZGYyIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJzdXBlcl9hZG1pbiIsImRlcGFydG1lbnRfaWQiOiJlNTgwM2U1NS0wY2YwLTRhNzktYjBlOC00NWJiZGI1Njk3ZjIiLCJpc3MiOiJsYWJlbHByby1zZXJ2ZXIiLCJleHAiOjE3OTE5Njg4NTgsIm5iZiI6MTc5MTk2MTY1OCwiaWF0IjoxNzkxOTYxNjU4LCJqdGkiOiJiNTM4N2VhMi1jY2NjLTQ1MWEtODEzYi0zN2VhNmZkMWIxZjcifQ.tlad8I2bd7XktrhwBXn0j4zqlKmhKdX7pbehqXSMBxoi362f81fuAAGQKImKzKbu-6_JYoGjpoQeqNiKim4nqAiH_yJnehoBeWlKyMK_FYvJMK99H8tbGAjyQTWSe9koJeHeE-7bt19pYDiz19WbsgBJE1DotLJumNz0J8g6cPw_XjMBW1fGJ_RWq0EIy0kpITBmbVm6duRfCqBKRLYEnRL3QVg2pm3g5VA9U0159JQE6p1pl66zGj0OCdXWJiOCp2Xl9Ml-L6LNvgUWAvq21Cco5l23Oim4xzwmGwWTXGNSjtH64zVXDIHQgCtfhEGqsCXbvBV3FInmdpafESGIyw", "ip": "127.0.0.1", "latency": 0.000131417, "request_id": "20261014154138mmmmmmmm"}
+2026-10-14T15:41:38.121+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/users/work-type-options", "query": "", "ip": "127.0.0.1", "latency": 0.000073542, "request_id": "20261014154138yyyyyyyy"}
+2026-10-14T15:41:38.122+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/notifications/unread-count", "query": "", "ip": "127.0.0.1", "latency": 0.002983792, "request_id": "20261014154138mmmmmmmm"}
+2026-10-14T15:41:38.123+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/users/visible", "query": "", "ip": "127.0.0.1", "latency": 0.001690125, "request_id": "20261014154138uuuuuuuu"}
+2026-10-14T15:41:38.127+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/templates", "query": "", "ip": "127.0.0.1", "latency": 0.00171875, "request_id": "20261014154138qiiiiiii"}
+2026-10-14T15:41:38.144+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/presets", "query": "", "ip": "127.0.0.1", "latency": 0.022467042, "request_id": "20261014154138qqiiiiii"}
+2026-10-14T15:41:38.157+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/groups", "query": "page=1&page_size=20", "ip": "127.0.0.1", "latency": 0.0356745, "request_id": "20261014154138yqqqqqqq"}
+2026-10-14T15:41:38.159+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/notifications", "query": "page=1&page_size=20&unread_only=true", "ip": "127.0.0.1", "latency": 0.005567833, "request_id": "20261014154138qqqqqqqi"}
+2026-10-14T15:41:38.162+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/conversations", "query": "", "ip": "127.0.0.1", "latency": 0.006831208, "request_id": "20261014154138qqqqqqii"}
+2026-10-14T15:41:38.169+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/notes", "query": "status=active&page=1&page_size=20", "ip": "127.0.0.1", "latency": 0.047777167, "request_id": "20261014154138mmmeeeee"}
+2026-10-14T15:41:38.176+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/groups", "query": "", "ip": "127.0.0.1", "latency": 0.014402125, "request_id": "20261014154138yyyyyyyy"}
+2026-10-14T15:41:38.177+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/conversations", "query": "", "ip": "127.0.0.1", "latency": 0.011028292, "request_id": "20261014154138yqqqqqqq"}
+2026-10-14T15:41:38.185+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "POST", "path": "/api/v1/achievements/check", "query": "", "ip": "127.0.0.1", "latency": 0.059558084, "request_id": "20261014154138iiiiiiii"}
+2026-10-14T15:41:38.186+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/achievements", "query": "", "ip": "127.0.0.1", "latency": 0.05977525, "request_id": "20261014154138mmmmmmmm"}
+2026-10-14T15:41:38.222+0800	info	middleware/request_logger.go:40	request completed	{"status": 304, "method": "GET", "path": "/uploads/images/7583b5fc-6910-44f4-9683-d2ed40a54943.gif", "query": "", "ip": "127.0.0.1", "latency": 0.000280334, "request_id": "20261014154138yqqqqqqq"}
+2026-10-14T15:41:38.222+0800	info	middleware/request_logger.go:40	request completed	{"status": 304, "method": "GET", "path": "/uploads/images/d0e49fdd-d000-4f8a-8c6e-ebacc8072834.gif", "query": "", "ip": "127.0.0.1", "latency": 0.00027475, "request_id": "20261014154138mmmmmmmm"}
+2026-10-14T15:41:39.538+0800	info	services/tool_service.go:693	工具使用统计校准完成	{"tools": 5, "yesterday_rows": 4}
+2026-10-14T15:41:44.212+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000042667, "request_id": "20261014154144uuuuuuuu"}
+2026-10-14T15:41:44.264+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/ws/user/255e9eb1-3c27-4a51-bcba-c986cebdadf2", "query": "token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMjU1ZTllYjEtM2MyNy00YTUxLWJjYmEtYzk4NmNlYmRhZGYyIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJzdXBlcl9hZG1pbiIsImRlcGFydG1lbnRfaWQiOiJlNTgwM2U1NS0wY2YwLTRhNzktYjBlOC00NWJiZGI1Njk3ZjIiLCJpc3MiOiJsYWJlbHByby1zZXJ2ZXIiLCJleHAiOjE3OTE5Njg4NTgsIm5iZiI6MTc5MTk2MTY1OCwiaWF0IjoxNzkxOTYxNjU4LCJqdGkiOiJiNTM4N2VhMi1jY2NjLTQ1MWEtODEzYi0zN2VhNmZkMWIxZjcifQ.tlad8I2bd7XktrhwBXn0j4zqlKmhKdX7pbehqXSMBxoi362f81fuAAGQKImKzKbu-6_JYoGjpoQeqNiKim4nqAiH_yJnehoBeWlKyMK_FYvJMK99H8tbGAjyQTWSe9koJeHeE-7bt19pYDiz19WbsgBJE1DotLJumNz0J8g6cPw_XjMBW1fGJ_RWq0EIy0kpITBmbVm6duRfCqBKRLYEnRL3QVg2pm3g5VA9U0159JQE6p1pl66zGj0OCdXWJiOCp2Xl9Ml-L6LNvgUWAvq21Cco5l23Oim4xzwmGwWTXGNSjtH64zVXDIHQgCtfhEGqsCXbvBV3FInmdpafESGIyw", "ip": "127.0.0.1", "latency": 0.000198333, "request_id": "20261014154144uuuuuuum"}
+2026-10-14T15:41:44.265+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/notifications/unread-count", "query": "", "ip": "127.0.0.1", "latency": 0.001056459, "request_id": "20261014154144e6666666"}
+2026-10-14T15:41:44.266+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools/cun-chu-ce-shi-gong-ju", "query": "", "ip": "127.0.0.1", "latency": 0.001432625, "request_id": "20261014154144ee666666"}
+2026-10-14T15:41:44.268+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/users/visible", "query": "", "ip": "127.0.0.1", "latency": 0.003678666, "request_id": "20261014154144qqqqqqqq"}
+2026-10-14T15:41:44.307+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools/cun-chu-ce-shi-gong-ju/run", "query": "", "ip": "127.0.0.1", "latency": 0.002700375, "request_id": "20261014154144e6666666"}
+2026-10-14T15:41:44.309+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/groups", "query": "", "ip": "127.0.0.1", "latency": 0.004936125, "request_id": "20261014154144yyyyyyyy"}
+2026-10-14T15:41:44.310+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/notifications", "query": "page=1&page_size=20&unread_only=true", "ip": "127.0.0.1", "latency": 0.005461167, "request_id": "20261014154144uuuuuuuu"}
+2026-10-14T15:41:44.315+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/conversations", "query": "", "ip": "127.0.0.1", "latency": 0.010754625, "request_id": "2026101415414466666666"}
+
+2026/10/14 15:41:44 [31;1m/Users/admin/codespace/golang/Zephyr/Server-code/internal/services/tool_service.go:603 [35;1mrecord not found
+[0m[33m[0.426ms] [34;1m[rows:0][0m SELECT * FROM "tool_usage_daily" WHERE tool_id = '64d8bcef-4cff-4215-a0b9-9345a5f511f8' AND date = '2026-10-14' ORDER BY "tool_usage_daily"."id" LIMIT 1
+2026-10-14T15:41:44.322+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/conversations", "query": "", "ip": "127.0.0.1", "latency": 0.003818875, "request_id": "20261014154144iiiiiiii"}
+2026-10-14T15:41:44.323+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "POST", "path": "/api/v1/tools/cun-chu-ce-shi-gong-ju/launch", "query": "", "ip": "127.0.0.1", "latency": 0.009060667, "request_id": "20261014154144iiiiaaaa"}
+2026-10-14T15:41:44.325+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "POST", "path": "/api/v1/achievements/check", "query": "", "ip": "127.0.0.1", "latency": 0.060388417, "request_id": "20261014154144eeeeeeee"}
+2026-10-14T15:41:44.325+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/achievements", "query": "", "ip": "127.0.0.1", "latency": 0.061185833, "request_id": "20261014154144ee666666"}
+2026-10-14T15:41:45.591+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000061333, "request_id": "20261014154145uuuuummm"}
+2026-10-14T15:41:59.198+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000027583, "request_id": "20261014154159eeeeeeee"}
+2026-10-14T15:42:00.590+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000014708, "request_id": "20261014154200iiiiiaaa"}
+2026-10-14T15:42:14.200+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000064042, "request_id": "20261014154214yyyqqqqq"}
+2026-10-14T15:42:15.591+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000033958, "request_id": "20261014154215qiiiiiii"}
+2026-10-14T15:42:16.043+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "POST", "path": "/api/v1/auth/login", "query": "", "ip": "::1", "latency": 0.068987833, "request_id": "20261014154215qqiiiiii"}
+2026-10-14T15:42:16.063+0800	info	services/tool_service.go:152	工具上传成功	{"slug": "cun-chu-tan-zhen-gong-ju", "name": "存储探针工具", "user_id": "255e9eb1-3c27-4a51-bcba-c986cebdadf2"}
+2026-10-14T15:42:16.063+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "POST", "path": "/api/v1/tools", "query": "", "ip": "::1", "latency": 0.001937667, "request_id": "20261014154216eeeeeeee"}
+2026-10-14T15:42:16.097+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "PUT", "path": "/api/v1/tools/cun-chu-tan-zhen-gong-ju/status", "query": "", "ip": "::1", "latency": 0.001374041, "request_id": "20261014154216qqqqqqqi"}
+2026-10-14T15:42:23.380+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000016875, "request_id": "20261014154223mmeeeeee"}
+2026-10-14T15:42:23.415+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/ws/user/255e9eb1-3c27-4a51-bcba-c986cebdadf2", "query": "token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMjU1ZTllYjEtM2MyNy00YTUxLWJjYmEtYzk4NmNlYmRhZGYyIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJzdXBlcl9hZG1pbiIsImRlcGFydG1lbnRfaWQiOiJlNTgwM2U1NS0wY2YwLTRhNzktYjBlOC00NWJiZGI1Njk3ZjIiLCJpc3MiOiJsYWJlbHByby1zZXJ2ZXIiLCJleHAiOjE3OTE5Njg4NTgsIm5iZiI6MTc5MTk2MTY1OCwiaWF0IjoxNzkxOTYxNjU4LCJqdGkiOiJiNTM4N2VhMi1jY2NjLTQ1MWEtODEzYi0zN2VhNmZkMWIxZjcifQ.tlad8I2bd7XktrhwBXn0j4zqlKmhKdX7pbehqXSMBxoi362f81fuAAGQKImKzKbu-6_JYoGjpoQeqNiKim4nqAiH_yJnehoBeWlKyMK_FYvJMK99H8tbGAjyQTWSe9koJeHeE-7bt19pYDiz19WbsgBJE1DotLJumNz0J8g6cPw_XjMBW1fGJ_RWq0EIy0kpITBmbVm6duRfCqBKRLYEnRL3QVg2pm3g5VA9U0159JQE6p1pl66zGj0OCdXWJiOCp2Xl9Ml-L6LNvgUWAvq21Cco5l23Oim4xzwmGwWTXGNSjtH64zVXDIHQgCtfhEGqsCXbvBV3FInmdpafESGIyw", "ip": "127.0.0.1", "latency": 0.000119209, "request_id": "20261014154223yyyyyyyy"}
+2026-10-14T15:42:23.416+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools/cun-chu-tan-zhen-gong-ju", "query": "", "ip": "127.0.0.1", "latency": 0.000920333, "request_id": "20261014154223mmmmmmmm"}
+2026-10-14T15:42:23.416+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/notifications/unread-count", "query": "", "ip": "127.0.0.1", "latency": 0.001136667, "request_id": "20261014154223qiiiiiii"}
+2026-10-14T15:42:23.416+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/users/visible", "query": "", "ip": "127.0.0.1", "latency": 0.001202584, "request_id": "20261014154223yyqqqqqq"}
+2026-10-14T15:42:23.424+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/notifications", "query": "page=1&page_size=20&unread_only=true", "ip": "127.0.0.1", "latency": 0.002623, "request_id": "2026101415422366666yyy"}
+2026-10-14T15:42:23.424+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools/cun-chu-tan-zhen-gong-ju/run", "query": "", "ip": "127.0.0.1", "latency": 0.0007395, "request_id": "20261014154223uuuuuuum"}
+2026-10-14T15:42:23.435+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/conversations", "query": "", "ip": "127.0.0.1", "latency": 0.012763792, "request_id": "2026101415422366666666"}
+2026-10-14T15:42:23.436+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/groups", "query": "", "ip": "127.0.0.1", "latency": 0.013285167, "request_id": "20261014154223uuuuuuuu"}
+2026-10-14T15:42:23.442+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/conversations", "query": "", "ip": "127.0.0.1", "latency": 0.002107, "request_id": "20261014154223uuuuuuuu"}
+
+2026/10/14 15:42:23 [31;1m/Users/admin/codespace/golang/Zephyr/Server-code/internal/services/tool_service.go:603 [35;1mrecord not found
+[0m[33m[0.618ms] [34;1m[rows:0][0m SELECT * FROM "tool_usage_daily" WHERE tool_id = 'fcd9cf73-b161-48c7-a427-c02541f27a35' AND date = '2026-10-14' ORDER BY "tool_usage_daily"."id" LIMIT 1
+2026-10-14T15:42:23.444+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "POST", "path": "/api/v1/achievements/check", "query": "", "ip": "127.0.0.1", "latency": 0.029894375, "request_id": "2026101415422366yyyyyy"}
+2026-10-14T15:42:23.446+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "POST", "path": "/api/v1/tools/cun-chu-tan-zhen-gong-ju/launch", "query": "", "ip": "127.0.0.1", "latency": 0.007500875, "request_id": "20261014154223iaaaaaaa"}
+2026-10-14T15:42:23.451+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/achievements", "query": "", "ip": "127.0.0.1", "latency": 0.03657725, "request_id": "20261014154223yqqqqqqq"}
+2026-10-14T15:42:27.682+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools/cun-chu-tan-zhen-gong-ju/run", "query": "", "ip": "127.0.0.1", "latency": 0.002027209, "request_id": "20261014154227uuuummmm"}
+2026-10-14T15:42:30.590+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.00005875, "request_id": "20261014154230eee66666"}
+2026-10-14T15:42:38.384+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.00007625, "request_id": "20261014154238iaaaaaaa"}
+2026-10-14T15:42:45.589+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000025916, "request_id": "20261014154245a2222222"}
+2026-10-14T15:42:53.384+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000071625, "request_id": "202610141542536yyyyyqq"}
+2026-10-14T15:42:55.585+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "POST", "path": "/api/v1/auth/login", "query": "", "ip": "::1", "latency": 0.070662792, "request_id": "20261014154255iiiiiiii"}
+2026-10-14T15:42:55.605+0800	info	services/tool_service.go:152	工具上传成功	{"slug": "an-niu-zi-ce-gong-ju", "name": "按钮自测工具", "user_id": "255e9eb1-3c27-4a51-bcba-c986cebdadf2"}
+2026-10-14T15:42:55.605+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "POST", "path": "/api/v1/tools", "query": "", "ip": "::1", "latency": 0.001878, "request_id": "20261014154255iiiiiiii"}
+2026-10-14T15:42:55.640+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "PUT", "path": "/api/v1/tools/an-niu-zi-ce-gong-ju/status", "query": "", "ip": "::1", "latency": 0.001290125, "request_id": "20261014154255qiiiiiii"}
+2026-10-14T15:43:00.558+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.00005375, "request_id": "20261014154300yqqqqqqq"}
+2026-10-14T15:43:00.588+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000049666, "request_id": "20261014154300iiaaaaaa"}
+2026-10-14T15:43:00.592+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/ws/user/255e9eb1-3c27-4a51-bcba-c986cebdadf2", "query": "token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMjU1ZTllYjEtM2MyNy00YTUxLWJjYmEtYzk4NmNlYmRhZGYyIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJzdXBlcl9hZG1pbiIsImRlcGFydG1lbnRfaWQiOiJlNTgwM2U1NS0wY2YwLTRhNzktYjBlOC00NWJiZGI1Njk3ZjIiLCJpc3MiOiJsYWJlbHByby1zZXJ2ZXIiLCJleHAiOjE3OTE5Njg4NTgsIm5iZiI6MTc5MTk2MTY1OCwiaWF0IjoxNzkxOTYxNjU4LCJqdGkiOiJiNTM4N2VhMi1jY2NjLTQ1MWEtODEzYi0zN2VhNmZkMWIxZjcifQ.tlad8I2bd7XktrhwBXn0j4zqlKmhKdX7pbehqXSMBxoi362f81fuAAGQKImKzKbu-6_JYoGjpoQeqNiKim4nqAiH_yJnehoBeWlKyMK_FYvJMK99H8tbGAjyQTWSe9koJeHeE-7bt19pYDiz19WbsgBJE1DotLJumNz0J8g6cPw_XjMBW1fGJ_RWq0EIy0kpITBmbVm6duRfCqBKRLYEnRL3QVg2pm3g5VA9U0159JQE6p1pl66zGj0OCdXWJiOCp2Xl9Ml-L6LNvgUWAvq21Cco5l23Oim4xzwmGwWTXGNSjtH64zVXDIHQgCtfhEGqsCXbvBV3FInmdpafESGIyw", "ip": "127.0.0.1", "latency": 0.000408625, "request_id": "202610141543006yyyyyyy"}
+2026-10-14T15:43:00.595+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/notifications/unread-count", "query": "", "ip": "127.0.0.1", "latency": 0.002772209, "request_id": "20261014154300iiiiiiii"}
+2026-10-14T15:43:00.602+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/users/visible", "query": "", "ip": "127.0.0.1", "latency": 0.007016333, "request_id": "20261014154300qqqqqqqq"}
+2026-10-14T15:43:00.604+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools/an-niu-zi-ce-gong-ju", "query": "", "ip": "127.0.0.1", "latency": 0.008384167, "request_id": "20261014154300yyyyyqqq"}
+2026-10-14T15:43:00.609+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/notifications", "query": "page=1&page_size=20&unread_only=true", "ip": "127.0.0.1", "latency": 0.002439166, "request_id": "20261014154300mmmmmmmm"}
+2026-10-14T15:43:00.614+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools/an-niu-zi-ce-gong-ju/run", "query": "", "ip": "127.0.0.1", "latency": 0.001510625, "request_id": "20261014154300eeeee666"}
+2026-10-14T15:43:00.616+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/conversations", "query": "", "ip": "127.0.0.1", "latency": 0.009692459, "request_id": "20261014154300mmmmeeee"}
+2026-10-14T15:43:00.620+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/groups", "query": "", "ip": "127.0.0.1", "latency": 0.0130325, "request_id": "20261014154300mmmeeeee"}
+
+2026/10/14 15:43:00 [31;1m/Users/admin/codespace/golang/Zephyr/Server-code/internal/services/tool_service.go:603 [35;1mrecord not found
+[0m[33m[0.247ms] [34;1m[rows:0][0m SELECT * FROM "tool_usage_daily" WHERE tool_id = '7ef85f06-4da9-447d-bcf9-8bd0d878dd24' AND date = '2026-10-14' ORDER BY "tool_usage_daily"."id" LIMIT 1
+2026-10-14T15:43:00.621+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/conversations", "query": "", "ip": "127.0.0.1", "latency": 0.001689, "request_id": "20261014154300eeeeeeee"}
+2026-10-14T15:43:00.622+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "POST", "path": "/api/v1/tools/an-niu-zi-ce-gong-ju/launch", "query": "", "ip": "127.0.0.1", "latency": 0.007157959, "request_id": "20261014154300uuuuuuuu"}
+2026-10-14T15:43:00.625+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "POST", "path": "/api/v1/achievements/check", "query": "", "ip": "127.0.0.1", "latency": 0.030323042, "request_id": "202610141543006yyyyyyy"}
+2026-10-14T15:43:00.630+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/achievements", "query": "", "ip": "127.0.0.1", "latency": 0.035166209, "request_id": "20261014154300yyyyyyyy"}
+2026-10-14T15:43:04.758+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools/an-niu-zi-ce-gong-ju/run", "query": "", "ip": "127.0.0.1", "latency": 0.000749375, "request_id": "20261014154304qiiiiiii"}
+2026-10-14T15:43:14.019+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "POST", "path": "/api/v1/auth/login", "query": "", "ip": "::1", "latency": 0.071960792, "request_id": "20261014154313aaaaaaaa"}
+2026-10-14T15:43:14.044+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "DELETE", "path": "/api/v1/tools/cun-chu-ce-shi-gong-ju", "query": "", "ip": "::1", "latency": 0.005222417, "request_id": "20261014154314e6666666"}
+2026-10-14T15:43:14.065+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "DELETE", "path": "/api/v1/tools/cun-chu-tan-zhen-gong-ju", "query": "", "ip": "::1", "latency": 0.002955541, "request_id": "20261014154314uuuummmm"}
+2026-10-14T15:43:14.086+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "DELETE", "path": "/api/v1/tools/an-niu-zi-ce-gong-ju", "query": "", "ip": "::1", "latency": 0.002546334, "request_id": "20261014154314aaa22222"}
+2026-10-14T15:43:14.106+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools", "query": "", "ip": "::1", "latency": 0.000726, "request_id": "2026101415431422222222"}
+2026-10-14T15:43:15.560+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000024583, "request_id": "20261014154315ummmmmme"}
+2026-10-14T15:43:15.590+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000056916, "request_id": "20261014154315222uuuuu"}
+2026-10-14T15:43:30.561+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000051, "request_id": "20261014154330qqqiiiii"}
+2026-10-14T15:43:30.589+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000060042, "request_id": "202610141543306yyyyyqq"}
+2026-10-14T15:43:45.562+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000052417, "request_id": "20261014154345iiaaaaaa"}
+2026-10-14T15:43:45.588+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000048791, "request_id": "202610141543452uuuuuuu"}
+2026-10-14T15:44:00.560+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000061417, "request_id": "20261014154400iiiiaaaa"}
+2026-10-14T15:44:00.587+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.00005125, "request_id": "20261014154400yyyqqqqq"}
+2026-10-14T15:44:15.589+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.00005275, "request_id": "20261014154415a22222uu"}
+2026-10-14T15:44:26.127+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools", "query": "sort=hot", "ip": "127.0.0.1", "latency": 0.001021583, "request_id": "20261014154426iiiiiaaa"}
+2026-10-14T15:44:26.127+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools/mine", "query": "", "ip": "127.0.0.1", "latency": 0.000899334, "request_id": "20261014154426uuuuuuuu"}
+2026-10-14T15:44:26.127+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools/pending", "query": "", "ip": "127.0.0.1", "latency": 0.000876625, "request_id": "20261014154426uuuuuumm"}
+2026-10-14T15:44:29.513+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000014666, "request_id": "20261014154429iiiiiiii"}
+2026-10-14T15:44:29.572+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/ws/user/255e9eb1-3c27-4a51-bcba-c986cebdadf2", "query": "token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMjU1ZTllYjEtM2MyNy00YTUxLWJjYmEtYzk4NmNlYmRhZGYyIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJzdXBlcl9hZG1pbiIsImRlcGFydG1lbnRfaWQiOiJlNTgwM2U1NS0wY2YwLTRhNzktYjBlOC00NWJiZGI1Njk3ZjIiLCJpc3MiOiJsYWJlbHByby1zZXJ2ZXIiLCJleHAiOjE3OTE5NjcxNDAsIm5iZiI6MTc5MTk1OTk0MCwiaWF0IjoxNzkxOTU5OTQwLCJqdGkiOiJlYzliYTljZC03ZGE0LTQ5ZDktODRjOS01YjIyZjlmNjg4MWEifQ.DACC-IeldJEKmEjOTWowIkOVg4PWB4FFPPNegJMc1a27fLgEk4UMVZB_EKRGltxmGtOvy2vyqZqaH-mhbC1jnwlgO9wcb7hWRuOPY3k3PsN9TL-M2z6jtbeukrKAKWVbHbnjixx9Kf0Z1DGx6qMEYf6hh7M-O7z8YcS-4IJHqCjreQAkc2MDO7SftEaPI1igwz0FwPXguJcR1jrvaKw-rw7JjA0KkVkN7nzxqfInmoDNJDZ72eY1Iv88Vg8do2k4H1Ruqg3_WhQoEJtZEn9bLnon3XR46LQpHjNIk5gzug2ZCnfvmtNUh19P0ZQ_Zi9-TgyqRVfmLZ7BOM4Qdrn6qg", "ip": "127.0.0.1", "latency": 0.001156375, "request_id": "20261014154429uuuuuumm"}
+2026-10-14T15:44:29.576+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/notifications/unread-count", "query": "", "ip": "127.0.0.1", "latency": 0.000835584, "request_id": "20261014154429mmmmmmmm"}
+2026-10-14T15:44:29.578+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools/pending", "query": "", "ip": "127.0.0.1", "latency": 0.001402833, "request_id": "20261014154429qqqqqqii"}
+2026-10-14T15:44:29.579+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools/mine", "query": "", "ip": "127.0.0.1", "latency": 0.002258625, "request_id": "20261014154429a2222222"}
+2026-10-14T15:44:29.580+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools", "query": "sort=hot", "ip": "127.0.0.1", "latency": 0.00401675, "request_id": "20261014154429666yyyyy"}
+2026-10-14T15:44:29.581+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/users/visible", "query": "", "ip": "127.0.0.1", "latency": 0.004046792, "request_id": "20261014154429yqqqqqqq"}
+2026-10-14T15:44:29.589+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/notifications", "query": "page=1&page_size=20&unread_only=true", "ip": "127.0.0.1", "latency": 0.00135625, "request_id": "20261014154429qqqqqqii"}
+2026-10-14T15:44:29.590+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/conversations", "query": "", "ip": "127.0.0.1", "latency": 0.002391708, "request_id": "20261014154429iiiaaaaa"}
+2026-10-14T15:44:29.590+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/groups", "query": "", "ip": "127.0.0.1", "latency": 0.002437417, "request_id": "20261014154429iiiaaaaa"}
+2026-10-14T15:44:29.594+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/conversations", "query": "", "ip": "127.0.0.1", "latency": 0.001551459, "request_id": "2026101415442922222222"}
+2026-10-14T15:44:29.596+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "POST", "path": "/api/v1/achievements/check", "query": "", "ip": "127.0.0.1", "latency": 0.018770541, "request_id": "20261014154429iiiiiiia"}
+2026-10-14T15:44:29.622+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/achievements", "query": "", "ip": "127.0.0.1", "latency": 0.036409, "request_id": "20261014154429qiiiiiii"}
+2026-10-14T15:44:44.516+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000049375, "request_id": "20261014154444mmmmmmme"}
+2026-10-14T15:44:59.516+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000041959, "request_id": "202610141544592uuuuuuu"}
+2026-10-14T15:45:14.516+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000052708, "request_id": "20261014154514aaaaaaa2"}
+2026-10-14T15:45:29.516+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000032458, "request_id": "20261014154529aaaaaaaa"}
+2026-10-14T15:45:44.516+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.00005, "request_id": "20261014154544uuuuummm"}
+2026-10-14T15:45:59.514+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000050041, "request_id": "20261014154559meeeeeee"}
+2026-10-14T15:46:14.515+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000049708, "request_id": "20261014154614222222uu"}
+2026-10-14T15:46:29.514+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.00004925, "request_id": "20261014154629eee66666"}
+2026-10-14T15:46:44.514+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000034333, "request_id": "20261014154644a2222222"}
+2026-10-14T15:46:59.512+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000063708, "request_id": "2026101415465922222222"}
+2026-10-14T15:47:14.513+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000036125, "request_id": "20261014154714aaaaaaaa"}
+2026-10-14T15:47:29.515+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000101084, "request_id": "20261014154729yqqqqqqq"}
+2026-10-14T15:47:44.516+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000063, "request_id": "202610141547446yyyyqqq"}
+2026-10-14T15:47:59.512+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000024333, "request_id": "20261014154759iiiaaaaa"}
+2026-10-14T15:48:14.514+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000097834, "request_id": "202610141548142uuuuumm"}
+2026-10-14T15:48:29.513+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000097666, "request_id": "20261014154829iaaaaaaa"}
+2026-10-14T15:48:44.509+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000013541, "request_id": "20261014154844yyyyyyyy"}
+2026-10-14T15:48:59.512+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000083125, "request_id": "20261014154859222uuuuu"}
+2026-10-14T15:49:14.513+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.00007175, "request_id": "20261014154914mmeeeeee"}
+2026-10-14T15:49:29.512+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000050833, "request_id": "20261014154929uuuummmm"}
+2026-10-14T15:49:44.512+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000058583, "request_id": "202610141549446yyqqqqq"}
+2026-10-14T15:49:59.510+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000083167, "request_id": "202610141549592uuuuuuu"}
+2026-10-14T15:50:14.511+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000083459, "request_id": "20261014155014qqqiiiii"}
+2026-10-14T15:50:29.511+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000081667, "request_id": "20261014155029e666666y"}
+2026-10-14T15:50:44.508+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000030917, "request_id": "20261014155044aaaaa222"}
+2026-10-14T15:50:59.509+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000061041, "request_id": "2026101415505922222uuu"}
+2026-10-14T15:51:14.509+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000107292, "request_id": "20261014155114uuuuummm"}
+2026-10-14T15:51:29.506+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000022541, "request_id": "20261014155129yyyyyyyq"}
+2026-10-14T15:51:44.508+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000054834, "request_id": "20261014155144qqiiiiii"}
+2026-10-14T15:51:59.508+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.00008925, "request_id": "20261014155159iiiiaaaa"}
+2026-10-14T15:52:14.505+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000022667, "request_id": "20261014155214yyyyyyyy"}
+2026-10-14T15:52:29.508+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000057083, "request_id": "20261014155229iiiaaaaa"}
+2026-10-14T15:52:44.508+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000065875, "request_id": "20261014155244e6666666"}
+2026-10-14T15:52:59.506+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.0000545, "request_id": "2026101415525966yyyyyy"}
+2026-10-14T15:53:14.504+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000039166, "request_id": "2026101415531422222222"}
+2026-10-14T15:53:29.504+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000055584, "request_id": "202610141553296yyyyyyy"}
+2026-10-14T15:53:44.505+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000088791, "request_id": "20261014155344meeeeeee"}
+2026-10-14T15:53:55.664+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000029667, "request_id": "20261014155355iiiiiiaa"}
+2026-10-14T15:53:55.723+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/ws/user/255e9eb1-3c27-4a51-bcba-c986cebdadf2", "query": "token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMjU1ZTllYjEtM2MyNy00YTUxLWJjYmEtYzk4NmNlYmRhZGYyIiwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJzdXBlcl9hZG1pbiIsImRlcGFydG1lbnRfaWQiOiJlNTgwM2U1NS0wY2YwLTRhNzktYjBlOC00NWJiZGI1Njk3ZjIiLCJpc3MiOiJsYWJlbHByby1zZXJ2ZXIiLCJleHAiOjE3OTE5NjcxNDAsIm5iZiI6MTc5MTk1OTk0MCwiaWF0IjoxNzkxOTU5OTQwLCJqdGkiOiJlYzliYTljZC03ZGE0LTQ5ZDktODRjOS01YjIyZjlmNjg4MWEifQ.DACC-IeldJEKmEjOTWowIkOVg4PWB4FFPPNegJMc1a27fLgEk4UMVZB_EKRGltxmGtOvy2vyqZqaH-mhbC1jnwlgO9wcb7hWRuOPY3k3PsN9TL-M2z6jtbeukrKAKWVbHbnjixx9Kf0Z1DGx6qMEYf6hh7M-O7z8YcS-4IJHqCjreQAkc2MDO7SftEaPI1igwz0FwPXguJcR1jrvaKw-rw7JjA0KkVkN7nzxqfInmoDNJDZ72eY1Iv88Vg8do2k4H1Ruqg3_WhQoEJtZEn9bLnon3XR46LQpHjNIk5gzug2ZCnfvmtNUh19P0ZQ_Zi9-TgyqRVfmLZ7BOM4Qdrn6qg", "ip": "127.0.0.1", "latency": 0.0006905, "request_id": "20261014155355aaaaaaaa"}
+2026-10-14T15:53:55.725+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/notifications/unread-count", "query": "", "ip": "127.0.0.1", "latency": 0.001950666, "request_id": "20261014155355eeeeeeee"}
+2026-10-14T15:53:55.735+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/users/visible", "query": "", "ip": "127.0.0.1", "latency": 0.00808725, "request_id": "20261014155355iaaaaaaa"}
+2026-10-14T15:53:55.740+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools/mine", "query": "", "ip": "127.0.0.1", "latency": 0.0108775, "request_id": "20261014155355eeeeeeee"}
+2026-10-14T15:53:55.741+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools/pending", "query": "", "ip": "127.0.0.1", "latency": 0.01219425, "request_id": "20261014155355aaaaaaa2"}
+2026-10-14T15:53:55.742+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tools", "query": "sort=hot", "ip": "127.0.0.1", "latency": 0.012767166, "request_id": "20261014155355mmmmmeee"}
+2026-10-14T15:53:55.745+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/notifications", "query": "page=1&page_size=20&unread_only=true", "ip": "127.0.0.1", "latency": 0.005509542, "request_id": "20261014155355mmmmeeee"}
+2026-10-14T15:53:55.746+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/conversations", "query": "", "ip": "127.0.0.1", "latency": 0.002800208, "request_id": "20261014155355uuuuuuum"}
+2026-10-14T15:53:55.748+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/groups", "query": "", "ip": "127.0.0.1", "latency": 0.004114667, "request_id": "20261014155355qiiiiiii"}
+2026-10-14T15:53:55.751+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/chat/conversations", "query": "", "ip": "127.0.0.1", "latency": 0.003511417, "request_id": "2026101415535566yyyyyy"}
+2026-10-14T15:53:55.769+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "POST", "path": "/api/v1/achievements/check", "query": "", "ip": "127.0.0.1", "latency": 0.041453, "request_id": "202610141553556yyyyyyy"}
+2026-10-14T15:53:55.769+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/achievements", "query": "", "ip": "127.0.0.1", "latency": 0.032429083, "request_id": "20261014155355qqqqqiii"}
+2026-10-14T15:53:57.803+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/users/work-type-options", "query": "", "ip": "127.0.0.1", "latency": 0.000203083, "request_id": "20261014155357eeeeeee6"}
+2026-10-14T15:53:57.805+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/templates", "query": "", "ip": "127.0.0.1", "latency": 0.001878083, "request_id": "20261014155357666yyyyy"}
+2026-10-14T15:53:57.823+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/notes", "query": "status=active&page=1&page_size=20", "ip": "127.0.0.1", "latency": 0.020368458, "request_id": "20261014155357meeeeeee"}
+2026-10-14T15:53:57.830+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/groups", "query": "page=1&page_size=20", "ip": "127.0.0.1", "latency": 0.027438792, "request_id": "20261014155357uuuuummm"}
+2026-10-14T15:53:57.850+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/presets", "query": "", "ip": "127.0.0.1", "latency": 0.046898583, "request_id": "20261014155357mmmmmmmm"}
+2026-10-14T15:53:57.854+0800	info	middleware/request_logger.go:40	request completed	{"status": 304, "method": "GET", "path": "/uploads/images/7583b5fc-6910-44f4-9683-d2ed40a54943.gif", "query": "", "ip": "127.0.0.1", "latency": 0.000641459, "request_id": "20261014155357yqqqqqqq"}
+2026-10-14T15:54:00.366+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tags", "query": "scope=all", "ip": "127.0.0.1", "latency": 0.002535458, "request_id": "20261014155400uuuuuuuu"}
+2026-10-14T15:54:00.374+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/notes/131fd189-3bd3-449b-9d34-087dd78fcab2/feedbacks", "query": "", "ip": "127.0.0.1", "latency": 0.01014625, "request_id": "20261014155400uuuuuuuu"}
+2026-10-14T15:54:04.940+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/tags", "query": "scope=all", "ip": "127.0.0.1", "latency": 0.017392, "request_id": "20261014155404eee66666"}
+2026-10-14T15:54:05.026+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/notes/17d2b2c9-570c-449b-83c3-676ae949b8f9/feedbacks", "query": "", "ip": "127.0.0.1", "latency": 0.102750667, "request_id": "20261014155404eee66666"}
+2026-10-14T15:54:10.663+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000048791, "request_id": "20261014155410mmmmmmme"}
+2026-10-14T15:54:25.671+0800	info	middleware/request_logger.go:40	request completed	{"status": 200, "method": "GET", "path": "/api/v1/ping", "query": "", "ip": "127.0.0.1", "latency": 0.000095292, "request_id": "20261014155425qiiiiiii"}

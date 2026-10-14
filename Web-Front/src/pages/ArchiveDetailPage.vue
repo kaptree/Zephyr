@@ -98,10 +98,21 @@ onMounted(load);
 </script>
 
 <template>
-  <div>
+  <div class="page-shell p-5">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
     <!-- 返回按钮 -->
     <button
-      class="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 mb-4 transition-smooth"
+      class="rise text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 mb-4 transition-smooth"
       @click="router.push('/workbench/archive')"
     >
       ← 返回归档列表
@@ -122,12 +133,13 @@ onMounted(load);
     <template v-else-if="note">
       <!-- 主卡片：标题 + 内容 -->
       <div
-        class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300"
+        class="glass-card p-6 transition-colors duration-300"
       >
+        <div class="card-top-line" aria-hidden="true" />
         <!-- 头部 -->
         <div class="flex items-start justify-between gap-4 mb-4">
           <div class="min-w-0">
-            <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100 leading-snug">
+            <h2 class="text-lg font-semibold page-title leading-snug">
               {{ note.title || '无标题' }}
             </h2>
             <div class="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -182,8 +194,9 @@ onMounted(load);
 
       <!-- 元数据卡片 -->
       <div
-        class="mt-5 bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300"
+        class="mt-5 glass-card p-6 transition-colors duration-300"
       >
+        <div class="card-top-line" aria-hidden="true" />
         <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4">📋 任务信息</h3>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           <div class="flex justify-between p-2.5 bg-slate-50 dark:bg-slate-900 rounded-lg">
@@ -248,8 +261,9 @@ onMounted(load);
 
       <!-- 任务反馈卡片 -->
       <div
-        class="mt-5 bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300"
+        class="mt-5 glass-card p-6 transition-colors duration-300"
       >
+        <div class="card-top-line" aria-hidden="true" />
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">
             💬 任务反馈（{{ feedbackList.length }}）

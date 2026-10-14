@@ -3,6 +3,8 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { listIssues, createIssue, getIssueWatching, watchIssues, unwatchIssues } from '@/services/issues';
 import type { IssueItem } from '@/services/issues';
+import { useAchievementStore } from '@/stores/achievements';
+import { useImageUpload } from '@/composables/useImageUpload';
 
 // 组件名供 AdminLayout 的 <keep-alive :include> 匹配缓存
 defineOptions({ name: 'IssuesPage' });
@@ -31,6 +33,15 @@ const formContent = ref('');
 const formType = ref<'bug' | 'feature'>('bug');
 const creating = ref(false);
 const createError = ref('');
+
+// 图片上传：上传后追加 <img> 到描述内容（内容以 HTML 渲染，图片可直接显示）
+const { uploading: imageUploading, pickImage } = useImageUpload();
+function insertIssueImage() {
+  pickImage((url) => {
+    const img = `<img src="${url}" />`;
+    formContent.value = formContent.value ? `${formContent.value}\n${img}` : img;
+  });
+}
 
 const typeBadge: Record<string, { cls: string; icon: string; label: string }> = {
   bug: { cls: 'bg-red-50 dark:bg-red-900/40 text-red-600 dark:text-red-300', icon: '🐛', label: 'Bug 缺陷' },
@@ -118,6 +129,8 @@ async function handleCreate() {
     });
     const created = res.data as unknown as IssueItem;
     showCreateModal.value = false;
+    // 成就检查：问题提交里程碑
+    useAchievementStore().checkAndNotify();
     router.push(`/issues/${created.id}`);
   } catch {
     createError.value = '创建问题失败，请重试';
@@ -181,10 +194,21 @@ onMounted(() => {
 </script>
 
 <template>
-  <div>
-    <div class="flex items-center justify-between mb-5">
+  <div class="page-shell p-5">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
+    <div class="rise flex items-center justify-between mb-5">
       <div>
-        <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">🐛 Bug 反馈</h2>
+        <h2 class="page-title text-lg font-semibold">🐛 Bug 反馈</h2>
         <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
           提交系统缺陷或功能建议，与大家一同跟进解决
         </p>
@@ -268,7 +292,8 @@ onMounted(() => {
     </div>
 
     <!-- 列表 -->
-    <div v-else class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 overflow-hidden">
+    <div v-else class="glass-card overflow-hidden">
+      <div class="card-top-line" aria-hidden="true" />
       <div v-for="(issue, idx) in issues" :key="issue.id">
         <div
           :class="[
@@ -347,6 +372,16 @@ onMounted(() => {
             <div>
               <span class="text-xs text-slate-500 dark:text-slate-400 mb-1 block">详细描述</span>
               <textarea v-model="formContent" rows="5" class="input-field resize-none" placeholder="请详细描述问题现象、复现步骤，或预期功能的使用场景..."></textarea>
+              <div class="flex justify-end mt-2">
+                <button
+                  type="button"
+                  class="text-xs px-3 py-1.5 rounded-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-smooth disabled:opacity-50"
+                  :disabled="imageUploading"
+                  @click="insertIssueImage"
+                >
+                  {{ imageUploading ? '上传中...' : '🖼️ 上传图片' }}
+                </button>
+              </div>
             </div>
             <p v-if="createError" class="text-xs text-red-500 dark:text-red-400">{{ createError }}</p>
             <div class="flex justify-end gap-3 pt-2">

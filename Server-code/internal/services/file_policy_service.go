@@ -13,13 +13,15 @@ import (
 // FilePolicyService 聊天文件传输策略服务
 // 提供内存缓存 + 数据库持久化，管理员修改策略后调用 Update 即热加载（无需重启）
 type FilePolicyService struct {
-	mu       sync.RWMutex
-	db       *gorm.DB
-	allow    map[string]bool   // 白名单（空 = 不限制）
-	blocked  map[string]bool   // 黑名单
-	allowRaw string
-	blockRaw string
-	updated  time.Time
+	mu        sync.RWMutex
+	db        *gorm.DB
+	allow     map[string]bool // 白名单（空 = 不限制）
+	blocked   map[string]bool // 黑名单
+	allowRaw  string
+	blockRaw  string
+	maxImage  int
+	maxFile   int
+	updated   time.Time
 }
 
 var (
@@ -29,6 +31,12 @@ var (
 
 // 默认黑名单：可执行 / 脚本 / 网页等潜在危险文件
 const defaultBlockedExtensions = ".exe,.bat,.cmd,.com,.scr,.msi,.ps1,.vbs,.js,.jar,.dll,.sys,.sh,.bin,.apk,.msc,.reg,.hta,.cpl,.pif,.wsf,.wsh,.html,.htm,.svg"
+
+// 大小限制默认值（MB）：图片与普通文件分开限制
+const (
+	DefaultMaxImageSizeMB = 20
+	DefaultMaxFileSizeMB  = 50
+)
 
 // GetFilePolicyService 获取全局单例（未初始化时返回 nil）
 func GetFilePolicyService() *FilePolicyService {
@@ -57,6 +65,8 @@ func (s *FilePolicyService) ensureSeed() error {
 			ID:                1,
 			AllowExtensions:   "",
 			BlockedExtensions: defaultBlockedExtensions,
+			MaxImageSizeMB:    DefaultMaxImageSizeMB,
+			MaxFileSizeMB:     DefaultMaxFileSizeMB,
 			UpdatedAt:         time.Now(),
 		}).Error
 	}
@@ -75,14 +85,18 @@ func (s *FilePolicyService) Reload() error {
 	s.blocked = parseExtensions(p.BlockedExtensions)
 	s.allowRaw = p.AllowExtensions
 	s.blockRaw = p.BlockedExtensions
+	s.maxImage = clampSizeMB(p.MaxImageSizeMB, DefaultMaxImageSizeMB)
+	s.maxFile = clampSizeMB(p.MaxFileSizeMB, DefaultMaxFileSizeMB)
 	s.updated = p.UpdatedAt
 	return nil
 }
 
 // Update 保存策略到数据库并刷新内存缓存（立即生效）
-func (s *FilePolicyService) Update(allow, blocked string) error {
+func (s *FilePolicyService) Update(allow, blocked string, maxImageMB, maxFileMB int) error {
 	allow = normalizeExtensions(allow)
 	blocked = normalizeExtensions(blocked)
+	maxImageMB = clampSizeMB(maxImageMB, DefaultMaxImageSizeMB)
+	maxFileMB = clampSizeMB(maxFileMB, DefaultMaxFileSizeMB)
 
 	var p models.ChatFilePolicy
 	if err := s.db.First(&p).Error; err != nil {
@@ -90,6 +104,8 @@ func (s *FilePolicyService) Update(allow, blocked string) error {
 			ID:                1,
 			AllowExtensions:   allow,
 			BlockedExtensions: blocked,
+			MaxImageSizeMB:    maxImageMB,
+			MaxFileSizeMB:     maxFileMB,
 			UpdatedAt:         time.Now(),
 		}).Error; err != nil {
 			return err
@@ -98,12 +114,22 @@ func (s *FilePolicyService) Update(allow, blocked string) error {
 		if err := s.db.Model(&p).Updates(map[string]interface{}{
 			"allow_extensions":   allow,
 			"blocked_extensions": blocked,
+			"max_image_size_mb":  maxImageMB,
+			"max_file_size_mb":   maxFileMB,
 			"updated_at":         time.Now(),
 		}).Error; err != nil {
 			return err
 		}
 	}
 	return s.Reload()
+}
+
+// clampSizeMB 非法值（≤0 或超过 4096MB）回退默认值，防止策略被配置成不可用
+func clampSizeMB(v, def int) int {
+	if v <= 0 || v > 4096 {
+		return def
+	}
+	return v
 }
 
 // AllowExtensions 白名单原始字符串
@@ -125,6 +151,43 @@ func (s *FilePolicyService) UpdatedAt() time.Time {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.updated
+}
+
+// MaxImageSizeBytes 图片大小上限（字节）
+func (s *FilePolicyService) MaxImageSizeBytes() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return int64(s.maxImage) << 20
+}
+
+// MaxFileSizeBytes 其他文件大小上限（字节）
+func (s *FilePolicyService) MaxFileSizeBytes() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return int64(s.maxFile) << 20
+}
+
+// MaxImageSizeMB 图片大小上限（MB）
+func (s *FilePolicyService) MaxImageSizeMB() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.maxImage
+}
+
+// MaxFileSizeMB 其他文件大小上限（MB）
+func (s *FilePolicyService) MaxFileSizeMB() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.maxFile
+}
+
+// IsImageExtension 判断扩展名是否属于图片（决定走图片大小限制，含 bmp）
+func IsImageExtension(ext string) bool {
+	switch strings.ToLower(strings.TrimSpace(ext)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp":
+		return true
+	}
+	return false
 }
 
 // IsAllowed 判断扩展名是否允许传输（ext 形如 ".png"）

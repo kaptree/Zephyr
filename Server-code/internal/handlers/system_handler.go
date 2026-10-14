@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -120,7 +121,7 @@ func (h *SystemHandler) CreateAIConfig(c *gin.Context) {
 		ProviderType string `json:"provider_type"`
 		ProviderName string `json:"provider_name" binding:"required"`
 		APIEndpoint  string `json:"api_endpoint" binding:"required"`
-		APIKey       string `json:"api_key" binding:"required"`
+		APIKey       string `json:"api_key"`
 		ModelName    string `json:"model_name"`
 		Description  string `json:"description"`
 		IsActive     *bool  `json:"is_active"`
@@ -132,6 +133,10 @@ func (h *SystemHandler) CreateAIConfig(c *gin.Context) {
 
 	// 连通后才能保存：创建前强制测试连通性
 	providerType := services.NormalizeProviderType(body.ProviderType)
+	// 本地 Ollama 无需密钥：空 key 用占位符存储，避免空字符串加密后掩码显示为空
+	if providerType == "ollama" && body.APIKey == "" {
+		body.APIKey = "ollama"
+	}
 	result, testErr := services.TestAIConnection(providerType, body.APIEndpoint, body.APIKey, body.ModelName)
 	if testErr != nil || !result.Success {
 		msg := "连通性测试未通过"
@@ -183,7 +188,7 @@ func (h *SystemHandler) TestAIConfig(c *gin.Context) {
 	var body struct {
 		ProviderType string `json:"provider_type"`
 		APIEndpoint  string `json:"api_endpoint" binding:"required"`
-		APIKey       string `json:"api_key" binding:"required"`
+		APIKey       string `json:"api_key"`
 		ModelName    string `json:"model_name"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -191,7 +196,11 @@ func (h *SystemHandler) TestAIConfig(c *gin.Context) {
 		return
 	}
 
-	result, _ := services.TestAIConnection(services.NormalizeProviderType(body.ProviderType), body.APIEndpoint, body.APIKey, body.ModelName)
+	providerType := services.NormalizeProviderType(body.ProviderType)
+	if providerType == "ollama" && body.APIKey == "" {
+		body.APIKey = "ollama"
+	}
+	result, _ := services.TestAIConnection(providerType, body.APIEndpoint, body.APIKey, body.ModelName)
 	if !result.Success {
 		utils.BadRequest(c, result.Message)
 		return
@@ -538,7 +547,7 @@ func (h *SystemHandler) GetOperationActions(c *gin.Context) {
 
 // ---------------- 聊天文件传输策略 ----------------
 
-// GET /api/v1/system/chat-file-policy 获取聊天文件白名单/黑名单
+// GET /api/v1/system/chat-file-policy 获取聊天文件白名单/黑名单与大小限制
 func (h *SystemHandler) GetChatFilePolicy(c *gin.Context) {
 	svc := services.GetFilePolicyService()
 	if svc == nil {
@@ -548,6 +557,8 @@ func (h *SystemHandler) GetChatFilePolicy(c *gin.Context) {
 	utils.Success(c, gin.H{
 		"allow_extensions":   svc.AllowExtensions(),
 		"blocked_extensions": svc.BlockedExtensions(),
+		"max_image_size_mb":  svc.MaxImageSizeMB(),
+		"max_file_size_mb":   svc.MaxFileSizeMB(),
 		"updated_at":         svc.UpdatedAt(),
 	})
 }
@@ -555,9 +566,11 @@ func (h *SystemHandler) GetChatFilePolicy(c *gin.Context) {
 type UpdateChatFilePolicyRequest struct {
 	AllowExtensions   string `json:"allow_extensions"`
 	BlockedExtensions string `json:"blocked_extensions"`
+	MaxImageSizeMB    int    `json:"max_image_size_mb"`
+	MaxFileSizeMB     int    `json:"max_file_size_mb"`
 }
 
-// PUT /api/v1/system/chat-file-policy 更新聊天文件白名单/黑名单（保存后立即热加载）
+// PUT /api/v1/system/chat-file-policy 更新聊天文件白名单/黑名单与大小限制（保存后立即热加载）
 func (h *SystemHandler) UpdateChatFilePolicy(c *gin.Context) {
 	var req UpdateChatFilePolicyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -569,12 +582,14 @@ func (h *SystemHandler) UpdateChatFilePolicy(c *gin.Context) {
 		utils.InternalError(c, "聊天文件策略未初始化")
 		return
 	}
-	before := svc.AllowExtensions() + " | " + svc.BlockedExtensions()
-	if err := svc.Update(req.AllowExtensions, req.BlockedExtensions); err != nil {
+	before := fmt.Sprintf("allow=%s | blocked=%s | image=%dMB | file=%dMB",
+		svc.AllowExtensions(), svc.BlockedExtensions(), svc.MaxImageSizeMB(), svc.MaxFileSizeMB())
+	if err := svc.Update(req.AllowExtensions, req.BlockedExtensions, req.MaxImageSizeMB, req.MaxFileSizeMB); err != nil {
 		utils.InternalError(c, "保存聊天文件策略失败")
 		return
 	}
-	after := svc.AllowExtensions() + " | " + svc.BlockedExtensions()
+	after := fmt.Sprintf("allow=%s | blocked=%s | image=%dMB | file=%dMB",
+		svc.AllowExtensions(), svc.BlockedExtensions(), svc.MaxImageSizeMB(), svc.MaxFileSizeMB())
 	h.saveAdminLog(c, middleware.GetUserID(c), c.GetString("username"),
 		"update_chat_file_policy", "chat_file_policy", "", "更新聊天文件传输策略", before, after)
 	utils.Success(c, gin.H{"success": true})

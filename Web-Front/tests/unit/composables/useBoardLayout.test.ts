@@ -15,6 +15,8 @@ import {
   relayoutAll,
   inferBoardColsFromNotes,
   fixOverflowPositions,
+  resolveDuplicatePositions,
+  compactBoardPositions,
 } from '@/composables/useBoardLayout';
 import { createMockNote } from '../../mocks/data';
 import type { Note } from '@/types';
@@ -314,6 +316,98 @@ describe('fixOverflowPositions', () => {
     expect(fixOverflowPositions(notes, 3)).toEqual([
       { id: 'pinned', pos_x: 0, pos_y: 0 },
       { id: 'plain', pos_x: 1, pos_y: 0 },
+    ]);
+  });
+});
+
+describe('resolveDuplicatePositions', () => {
+  it('无重复坐标时返回空数组（不改动现有布局）', () => {
+    expect(resolveDuplicatePositions([noteAt('a', 0, 0), noteAt('b', 2, 1)], 3)).toEqual([]);
+  });
+
+  it('两张便签占用同一格子时，把后一张移到空闲格', () => {
+    const notes = [noteAt('a', 2, 2), noteAt('b', 2, 2)];
+    // 保留 a(2,2)，b 被移到行优先扫描到的最近空闲格 (0,0)
+    expect(resolveDuplicatePositions(notes, 3)).toEqual([{ id: 'b', pos_x: 0, pos_y: 0 }]);
+  });
+
+  it('重复格在行中间时，优先补入靠前的空闲格（非末尾）', () => {
+    // a(2,2) 与 b(2,2) 重复；occupied 含 (2,2)/(0,0)，行优先扫描先到 (1,0)
+    const notes = [noteAt('a', 2, 2), noteAt('occupy', 0, 0), noteAt('b', 2, 2)];
+    const updates = resolveDuplicatePositions(notes, 3);
+    expect(updates).toEqual([{ id: 'b', pos_x: 1, pos_y: 0 }]);
+  });
+
+  it('保留置顶任务占位，重复的普通任务被移走', () => {
+    const notes = [
+      noteAt('plain', 1, 1),
+      noteAt('pinned', 1, 1, { is_pinned: true, pinned_at: '2024-01-01T00:00:00Z' }),
+    ];
+    // 置顶优先保留 (1,1)，普通任务移到空闲格 (0,0)
+    expect(resolveDuplicatePositions(notes, 3)).toEqual([{ id: 'plain', pos_x: 0, pos_y: 0 }]);
+  });
+
+  it('多个重复位置全部去重，结果无重叠且数量一致', () => {
+    const notes = [
+      noteAt('a', 0, 0),
+      noteAt('b', 0, 0),
+      noteAt('c', 1, 0),
+      noteAt('d', 1, 0),
+    ];
+    const updates = resolveDuplicatePositions(notes, 3);
+    expect(updates).toHaveLength(2);
+    // a 保留 (0,0)，c 保留 (1,0)；b、d 分别移到空闲格
+    const byId = new Map(updates.map((u) => [u.id, `${u.pos_x},${u.pos_y}`]));
+    const cells = new Set(['0,0', '1,0', byId.get('b')!, byId.get('d')!]);
+    expect(cells.size).toBe(4);
+    // b、d 不再落在原重复格
+    expect(byId.get('b')).not.toBe('0,0');
+    expect(byId.get('d')).not.toBe('1,0');
+  });
+});
+
+describe('compactBoardPositions', () => {
+  /** 以 note.pos_x/pos_y 作为当前渲染格子的取位函数 */
+  const posOf = (n: Note) => ({ x: n.pos_x ?? 0, y: n.pos_y ?? 0 });
+
+  it('归档空洞之后的便签各自前移一格，洞前卡片不动', () => {
+    // a(0,0) b(1,0) [空洞 2,0] c(0,1) d(1,1)，b 归档后 c/d 前移
+    const notes = [
+      noteAt('a', 0, 0),
+      noteAt('c', 0, 1),
+      noteAt('d', 1, 1),
+    ];
+    expect(compactBoardPositions(notes, 3, posOf)).toEqual([
+      { id: 'c', pos_x: 1, pos_y: 0 },
+      { id: 'd', pos_x: 2, pos_y: 0 },
+    ]);
+  });
+
+  it('位置已紧凑无空洞时返回空数组（无需补位）', () => {
+    const notes = [noteAt('a', 0, 0), noteAt('b', 1, 0), noteAt('c', 2, 0)];
+    expect(compactBoardPositions(notes, 3, posOf)).toEqual([]);
+  });
+
+  it('同一行多个空洞一次补齐，跨行卡片前移到行尾空格', () => {
+    // 3 列：a(0,0) [空] [空] c(2,1)，b/c 归档后 c 移到 (1,0)
+    const notes = [noteAt('a', 0, 0), noteAt('c', 2, 1)];
+    expect(compactBoardPositions(notes, 3, posOf)).toEqual([{ id: 'c', pos_x: 1, pos_y: 0 }]);
+  });
+
+  it('保留用户拖拽交换过的相对顺序（按当前位置排序，而非列表顺序）', () => {
+    // 用户曾把 a 拖到 c 前面：a(0,0) c(1,0)；列表顺序是 c a（后端返回序），
+    // 按当前位置排序应为 a c → 两者均无需移动（若按列表序会错误互换）
+    const notes = [noteAt('c', 1, 0), noteAt('a', 0, 0)];
+    expect(compactBoardPositions(notes, 3, posOf)).toEqual([]);
+  });
+
+  it('补位结果行优先连续且无重叠', () => {
+    // 3 列存量：a(0,0) b(2,0) c(1,1) d(2,1)，归档 b 后 c/d 前移
+    const notes = [noteAt('a', 0, 0), noteAt('c', 1, 1), noteAt('d', 2, 1)];
+    const updates = compactBoardPositions(notes, 3, posOf);
+    expect(updates).toEqual([
+      { id: 'c', pos_x: 1, pos_y: 0 },
+      { id: 'd', pos_x: 2, pos_y: 0 },
     ]);
   });
 });

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useNoteStore } from '@/stores/notes';
 import type { Note } from '@/types';
@@ -14,24 +14,49 @@ const keyword = ref('');
 const dateFrom = ref('');
 const dateTo = ref('');
 const restoring = ref(false);
+const loadingMore = ref(false);
+// 是否还有更多归档记录可加载（服务端分页，避免一次性拉取/渲染全部历史）
+const hasMore = computed(() => noteStore.archivedNotes.length < noteStore.totalCount);
 
-onMounted(() => {
-  noteStore.fetchArchivedNotes({});
-});
-
-function handleSearch() {
-  noteStore.fetchArchivedNotes({
+function buildFilters() {
+  return {
     keyword: keyword.value || undefined,
     date_from: dateFrom.value || undefined,
     date_to: dateTo.value || undefined,
-  });
+  };
+}
+
+/** reset=true：从第 1 页重新查询；reset=false：追加下一页（加载更多） */
+async function loadArchive(reset = true) {
+  if (reset) {
+    await noteStore.fetchArchivedNotes(buildFilters(), { page: 1 });
+    return;
+  }
+  if (loadingMore.value || !hasMore.value) return;
+  loadingMore.value = true;
+  try {
+    await noteStore.fetchArchivedNotes(buildFilters(), {
+      page: noteStore.currentPage + 1,
+      append: true,
+    });
+  } finally {
+    loadingMore.value = false;
+  }
+}
+
+onMounted(() => {
+  loadArchive(true);
+});
+
+function handleSearch() {
+  loadArchive(true);
 }
 
 function handleClear() {
   keyword.value = '';
   dateFrom.value = '';
   dateTo.value = '';
-  noteStore.fetchArchivedNotes({});
+  loadArchive(true);
 }
 
 // 需求35：点击归档记录跳转新页面展示详情
@@ -80,14 +105,37 @@ function feedbackList(note: Note) {
       time: a.feedback_at,
     }));
 }
+
+// 按月份分组（排序）与每卡反馈列表改为 computed：
+// 避免在模板里直接调用函数——那会在每次重渲染时重复排序/过滤（feedbackList 原本每卡还被调用两次）
+const groupedNotes = computed(() => groupNotesByMonth(noteStore.archivedNotes));
+const feedbackByNote = computed(() => {
+  const map = new Map<string, ReturnType<typeof feedbackList>>();
+  for (const note of noteStore.archivedNotes) {
+    map.set(note.id, feedbackList(note));
+  }
+  return map;
+});
 </script>
 
 <template>
-  <div>
+  <div class="page-shell p-5">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
     <!-- 筛选栏 -->
     <div
-      class="bg-white dark:bg-slate-800 rounded-card p-4 mb-6 flex flex-wrap items-center gap-3 border border-slate-100 dark:border-slate-700 transition-colors duration-300"
+      class="glass-card rise p-4 mb-6 flex flex-wrap items-center gap-3 transition-colors duration-300"
     >
+      <div class="card-top-line" aria-hidden="true" />
       <DateRangePicker
         v-model:from="dateFrom"
         v-model:to="dateTo"
@@ -218,9 +266,9 @@ function feedbackList(note: Note) {
               </div>
 
               <!-- Bug8：反馈信息 -->
-              <div v-if="feedbackList(note).length" class="mt-2.5 space-y-1.5">
+              <div v-if="feedbackByNote.get(note.id)?.length" class="mt-2.5 space-y-1.5">
                 <div
-                  v-for="(fb, i) in feedbackList(note)"
+                  v-for="(fb, i) in feedbackByNote.get(note.id) || []"
                   :key="i"
                   class="rounded-lg bg-green-50 dark:bg-green-900/30 border-l-2 border-green-500 px-2.5 py-1.5 text-xs text-green-700 dark:text-green-300"
                 >
@@ -255,6 +303,17 @@ function feedbackList(note: Note) {
         @click="openDetail(note)"
         @restore="handleRestore"
       />
+    </div>
+
+    <!-- 加载更多（服务端分页）：仍有历史记录时提供，避免一次性拉取/渲染全部归档 -->
+    <div v-if="hasMore" class="flex justify-center mt-8">
+      <button
+        class="px-5 py-2 text-sm text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-btn hover:bg-slate-50 dark:hover:bg-slate-700 transition-smooth disabled:opacity-50"
+        :disabled="loadingMore"
+        @click="loadArchive(false)"
+      >
+        {{ loadingMore ? '加载中...' : `加载更多（已显示 ${noteStore.archivedNotes.length} / ${noteStore.totalCount}）` }}
+      </button>
     </div>
 
   </div>

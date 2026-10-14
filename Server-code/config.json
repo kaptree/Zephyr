@@ -117,7 +117,7 @@
     "mode": "debug",
     "port": 8090,
     "read_timeout_seconds": 30,
-    "write_timeout_seconds": 200
+    "write_timeout_seconds": 620
   },
   "storage": {
     "_type说明": "local | minio",

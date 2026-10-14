@@ -1,5 +1,5 @@
 import { get, post, put, del } from './api'
-import type { Note, CreateNotePayload, UpdateNotePayload, NoteFilters, PaginatedData, CompleteNotePayload, RemindPayload, NotePositionInput } from '@/types'
+import type { Note, CreateNotePayload, UpdateNotePayload, NoteFilters, PaginatedData, CompleteNotePayload, RemindPayload, NotePositionInput, NoteFeedbackItem, NoteFeedbackTimelineResp } from '@/types'
 
 export function fetchNotes(filters: NoteFilters) {
   const params: Record<string, unknown> = {}
@@ -38,6 +38,16 @@ export function completeNote(id: string, payload?: CompleteNotePayload) {
 
 export function submitFeedback(id: string, content: string) {
   return post<Note>(`/api/v1/notes/${id}/feedback`, { content })
+}
+
+/** 阶段性反馈时间轴：时间正序反馈流 + 参与人统计（论坛式） */
+export function listNoteFeedbacks(id: string) {
+  return get<NoteFeedbackTimelineResp>(`/api/v1/notes/${id}/feedbacks`)
+}
+
+/** 追加一条阶段性反馈（仅创建人/交办人/被指派人） */
+export function addNoteFeedback(id: string, content: string) {
+  return post<NoteFeedbackItem>(`/api/v1/notes/${id}/feedbacks`, { content })
 }
 
 export function remindNote(id: string, payload?: RemindPayload) {

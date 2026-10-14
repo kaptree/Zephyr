@@ -28,6 +28,7 @@ var allowedMimeTypes = map[string]string{
 	"image/jpeg":      ".jpg",
 	"image/gif":       ".gif",
 	"image/webp":      ".webp",
+	"image/bmp":       ".bmp",
 	"application/pdf": ".pdf",
 	"application/msword": ".doc",
 	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
@@ -195,13 +196,8 @@ func (h *UploadHandler) DeleteAttachment(c *gin.Context) {
 }
 
 // UploadChatFile 聊天文件上传（独立于便签，仅返回文件元数据，不落库）
-// 策略：白名单/黑名单由管理员在系统设置中维护（chat_file_policies 表），保存后热加载
+// 策略：白名单/黑名单与大小限制（图片、其他文件分开）由管理员在系统设置中维护（chat_file_policies 表），保存后热加载
 func (h *UploadHandler) UploadChatFile(c *gin.Context) {
-	if c.Request.ContentLength > maxFileSize {
-		utils.BadRequest(c, fmt.Sprintf("文件大小超过限制，最大允许 %dMB", maxFileSize/(1024*1024)))
-		return
-	}
-
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
 		utils.BadRequest(c, "请选择要上传的文件")
@@ -209,12 +205,13 @@ func (h *UploadHandler) UploadChatFile(c *gin.Context) {
 	}
 	defer file.Close()
 
-	if header.Size > maxFileSize {
-		utils.BadRequest(c, fmt.Sprintf("文件大小超过限制，最大允许 %dMB", maxFileSize/(1024*1024)))
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	limit, kindLabel := chatUploadLimit(ext)
+	if c.Request.ContentLength > limit || header.Size > limit {
+		utils.BadRequest(c, fmt.Sprintf("%s大小超过限制（最大允许 %dMB），请联系管理员修改聊天文件大小限制", kindLabel, limit/(1<<20)))
 		return
 	}
 
-	ext := strings.ToLower(filepath.Ext(header.Filename))
 	policy := services.GetFilePolicyService()
 	if policy != nil && !policy.IsAllowed(ext) {
 		utils.BadRequest(c, fmt.Sprintf("该文件格式（%s）不在允许范围内，已由管理员禁用", ext))
@@ -253,10 +250,43 @@ func (h *UploadHandler) UploadChatFile(c *gin.Context) {
 	})
 }
 
-// UploadImage 通用图片上传（个人中心头像 / 平台背景图），仅允许 png/jpg/gif/webp，落盘 uploads/images/
+// chatUploadLimit 按扩展名区分图片与其他文件，返回对应大小上限与类型名称
+// 图片走 MaxImageSizeBytes（含 bmp，未压缩体积大），其余走 MaxFileSizeBytes
+func chatUploadLimit(ext string) (int64, string) {
+	policy := services.GetFilePolicyService()
+	if policy == nil {
+		return 10 << 20, "文件"
+	}
+	if services.IsImageExtension(ext) {
+		return policy.MaxImageSizeBytes(), "图片"
+	}
+	return policy.MaxFileSizeBytes(), "文件"
+}
+
+// GetChatTransferPolicy 登录用户可访问的聊天传输策略（前端发送前本地校验用）
+// GET /api/v1/chat/file-policy
+func (h *UploadHandler) GetChatTransferPolicy(c *gin.Context) {
+	policy := services.GetFilePolicyService()
+	if policy == nil {
+		utils.InternalError(c, "聊天文件策略未初始化")
+		return
+	}
+	utils.Success(c, gin.H{
+		"max_image_size_mb": policy.MaxImageSizeMB(),
+		"max_file_size_mb":  policy.MaxFileSizeMB(),
+	})
+}
+
+// UploadImage 通用图片上传（个人中心头像 / 平台背景图 / 任务 / 反馈 / Issue 内嵌图片），
+// 允许 png/jpg/gif/webp/bmp，落盘 uploads/images/；大小限制复用聊天文件策略中的「图片大小限制」
 func (h *UploadHandler) UploadImage(c *gin.Context) {
-	if c.Request.ContentLength > maxFileSize {
-		utils.BadRequest(c, fmt.Sprintf("图片大小超过限制，最大允许 %dMB", maxFileSize/(1024*1024)))
+	imageLimit := int64(20 << 20)
+	if policy := services.GetFilePolicyService(); policy != nil {
+		imageLimit = policy.MaxImageSizeBytes()
+	}
+
+	if c.Request.ContentLength > imageLimit {
+		utils.BadRequest(c, fmt.Sprintf("图片大小超过限制（最大允许 %dMB），请联系管理员修改聊天文件大小限制", imageLimit/(1<<20)))
 		return
 	}
 
@@ -267,16 +297,16 @@ func (h *UploadHandler) UploadImage(c *gin.Context) {
 	}
 	defer file.Close()
 
-	if header.Size > maxFileSize {
-		utils.BadRequest(c, fmt.Sprintf("图片大小超过限制，最大允许 %dMB", maxFileSize/(1024*1024)))
+	if header.Size > imageLimit {
+		utils.BadRequest(c, fmt.Sprintf("图片大小超过限制（最大允许 %dMB），请联系管理员修改聊天文件大小限制", imageLimit/(1<<20)))
 		return
 	}
 
 	ext := strings.ToLower(filepath.Ext(header.Filename))
 	switch ext {
-	case ".png", ".jpg", ".jpeg", ".gif", ".webp":
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp":
 	default:
-		utils.BadRequest(c, "仅支持 png/jpg/gif/webp 格式图片")
+		utils.BadRequest(c, "仅支持 png/jpg/jpeg/gif/webp/bmp 格式图片")
 		return
 	}
 
@@ -324,7 +354,7 @@ func (h *UploadHandler) UploadImage(c *gin.Context) {
 // detectChatMimeType 聊天文件 MIME 检测：图片精确识别（决定 image 消息），其余取 header 或通用类型
 func detectChatMimeType(file multipart.File, header *multipart.FileHeader, ext string) string {
 	switch ext {
-	case ".png", ".jpg", ".jpeg", ".gif", ".webp":
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp":
 		if mt := detectMimeType(file, header); mt != "" {
 			return mt
 		}
@@ -372,6 +402,10 @@ func detectByMagicBytes(data []byte) string {
 	}
 	if data[0] == 0x52 && data[1] == 0x49 && data[2] == 0x46 && data[3] == 0x46 {
 		return "image/webp"
+	}
+	// BMP：固定以 "BM"（0x42 0x4D）开头
+	if data[0] == 0x42 && data[1] == 0x4D {
+		return "image/bmp"
 	}
 	if data[0] == 0x25 && data[1] == 0x50 && data[2] == 0x44 && data[3] == 0x46 {
 		return "application/pdf"

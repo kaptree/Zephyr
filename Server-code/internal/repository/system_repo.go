@@ -240,6 +240,23 @@ func (r *SystemRepository) DeleteWorkReport(id string) error {
 	return r.db.Delete(&models.WorkReport{}, "id = ?", id).Error
 }
 
+// UpdateWorkReportResult 后台生成任务完成后更新报告结果与状态（AI 异步生成用）
+func (r *SystemRepository) UpdateWorkReportResult(id, status, reportType, content string) error {
+	return r.db.Model(&models.WorkReport{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"status":      status,
+		"report_type": reportType,
+		"content":     content,
+	}).Error
+}
+
+// ListPendingWorkReports 查询用户仍在后台生成中的报告（前端切回页面时恢复轮询用）
+func (r *SystemRepository) ListPendingWorkReports(userID string) ([]models.WorkReport, error) {
+	var reports []models.WorkReport
+	err := r.db.Where("user_id = ? AND status = ?", userID, "generating").
+		Order("created_at DESC").Limit(20).Find(&reports).Error
+	return reports, err
+}
+
 func (r *SystemRepository) ListGroupReports(groupID string, page, pageSize int) ([]models.WorkReport, int64, error) {
 	var reports []models.WorkReport
 	var total int64

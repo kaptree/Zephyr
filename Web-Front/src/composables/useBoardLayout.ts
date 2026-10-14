@@ -169,3 +169,53 @@ export function fixOverflowPositions(notes: Note[], cols: number): NotePositionI
   if (!hasOverflow) return [];
   return relayoutAll(notes, cols);
 }
+
+/**
+ * 重复坐标自愈：存在多张便签占用同一格子（pos_x/pos_y 相同）时，
+ * 保留排序后最靠前的一张（置顶优先，多个置顶按时间倒序，其余保持传入顺序），
+ * 把其余重复便签依次移到当前视图中最近的空闲格，避免渲染成重叠。
+ * 只返回被移动便签的位置更新；无重复坐标时返回空数组（不改动现有布局）。
+ */
+export function resolveDuplicatePositions(notes: Note[], cols: number): NotePositionInput[] {
+  const occupied = new Set<string>();
+  const duplicates: Note[] = [];
+  for (const n of sortForPlacement(notes)) {
+    if (n.pos_x === null || n.pos_y === null) continue;
+    const key = `${n.pos_x},${n.pos_y}`;
+    if (occupied.has(key)) duplicates.push(n);
+    else occupied.add(key);
+  }
+  if (!duplicates.length) return [];
+  const updates: NotePositionInput[] = [];
+  for (const n of duplicates) {
+    const slot = nextFreeSlot(occupied, cols);
+    occupied.add(`${slot.x},${slot.y}`);
+    updates.push({ id: n.id, pos_x: slot.x, pos_y: slot.y });
+  }
+  return updates;
+}
+
+/**
+ * 归档/删除后压缩补位：按当前渲染位置行优先排序（保留用户拖拽交换过的相对顺序），
+ * 依次重新分配连续格子，空洞之后的便签各自前移；只返回位置发生变化的便签，
+ * 供调用方乐观更新位置表并播放 FLIP 补位动画。
+ * @param posOf 取便签当前渲染格子的函数（页面侧会话覆盖优先于持久值）
+ */
+export function compactBoardPositions(
+  notes: Note[],
+  cols: number,
+  posOf: (note: Note) => { x: number; y: number }
+): NotePositionInput[] {
+  return [...notes]
+    .sort((a, b) => {
+      const pa = posOf(a);
+      const pb = posOf(b);
+      return pa.y - pb.y || pa.x - pb.x;
+    })
+    .map((note, index) => ({ note, slot: { x: index % cols, y: Math.floor(index / cols) } }))
+    .filter(({ note, slot }) => {
+      const cur = posOf(note);
+      return cur.x !== slot.x || cur.y !== slot.y;
+    })
+    .map(({ note, slot }) => ({ id: note.id, pos_x: slot.x, pos_y: slot.y }));
+}

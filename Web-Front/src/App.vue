@@ -4,6 +4,7 @@ import Toast from '@/components/common/Toast.vue'
 import FloatingPopups from '@/components/common/FloatingPopups.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import GloryCelebration from '@/components/celebration/GloryCelebration.vue'
+import AchievementPopup from '@/components/achievement/AchievementPopup.vue'
 import { useDarkMode } from '@/composables/useDarkMode'
 import { useOffline } from '@/composables/useOffline'
 
@@ -54,4 +55,6 @@ onUnmounted(() => {
   <ConfirmDialog />
   <!-- 归档「荣耀时刻」庆祝层：全局单例，任务归档反馈提交后触发三阶段庆祝 -->
   <GloryCelebration />
+  <!-- 成就解锁 2s 恭喜弹窗：全局单例，关键动作触发成就检查后弹出 -->
+  <AchievementPopup />
 </template>

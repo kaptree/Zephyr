@@ -1,0 +1,325 @@
+/* ============================================================
+   Zephyr 全站统一美化样式（源自个人中心设计语言）
+   风格：玻璃拟态 + 晨曦/深空双主题
+   - 日间：晨曦云霞（天空蓝渐变 + 太阳光晕 + 金色光尘）
+   - 夜间：深空极光（深蓝黑渐变 + 极光光晕 + 银白星点）
+   用法：
+   1. 页面根容器使用 .page-shell 替代原有背景类
+   2. 根容器内首个子元素插入 <div class="decor-layer"> 并放入装饰元素
+   3. 卡片使用 .glass-card + .card-top-line，数据块使用 .glass-cell
+   4. 标题使用 .page-title，入场动画使用 .rise
+   ============================================================ */
+
+/* ---------- 页面外壳（统一根容器骨架） ---------- */
+.page-shell {
+  position: relative;
+  /* 形成独立堆叠上下文，装饰层 z-index:-1 不会逃出外壳、不遮挡内容 */
+  isolation: isolate;
+  min-height: 100%;
+  border-radius: 1.5rem;
+  overflow: hidden;
+  /* clip 不产生滚动容器语义，内部 sticky 定位不受影响（旧浏览器回退 hidden） */
+  overflow: clip;
+  background: linear-gradient(to bottom, #e8f3fe, #f2f8ff 52%, #eef3fc);
+  color: #334155;
+  box-shadow:
+    0 20px 25px -5px rgba(15, 23, 42, 0.04),
+    0 8px 10px -6px rgba(15, 23, 42, 0.03);
+  outline: 1px solid rgba(8, 47, 73, 0.05);
+  outline-offset: -1px;
+}
+.dark .page-shell {
+  background: linear-gradient(to bottom, #070b18, #070b18 52%, #0b1226);
+  color: #e2e8f0;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  outline-color: rgba(255, 255, 255, 0.05);
+}
+
+/* 独立全屏页修饰（登录页 / 大屏 / 错误页）：铺满视口、无圆角无阴影 */
+.page-shell--screen {
+  min-height: 100vh;
+  border-radius: 0;
+  box-shadow: none;
+  outline: none;
+}
+
+/* ---------- 背景装饰层容器 ---------- */
+.decor-layer {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden; /* 装饰元素负偏移不得传导至外壳 scrollHeight */
+  pointer-events: none;
+}
+
+/* ---------- 极光光晕（日间晨曦云霞 / 夜间深空极光） ----------
+   性能说明：radial-gradient 自身已渐隐至透明，无需再叠加 filter: blur(90px)——
+   大尺寸模糊层是整页过渡动画掉帧的最大 GPU 开销之一，故直接省略。
+   v2 优化：漂移动画（drift）已取消，装饰改为静态图层——
+   常驻 transform 动画会让合成器每帧重新合成大图层，是低端客户端卡顿的主因之一。 */
+.aurora {
+  position: absolute;
+  border-radius: 9999px;
+}
+.aurora-1 {
+  width: 520px;
+  height: 520px;
+  top: -160px;
+  left: -120px;
+  background: radial-gradient(circle, rgba(125, 211, 252, 0.55), transparent 65%);
+}
+.aurora-2 {
+  width: 460px;
+  height: 460px;
+  top: 8%;
+  right: -140px;
+  background: radial-gradient(circle, rgba(253, 186, 116, 0.4), transparent 65%);
+}
+.aurora-3 {
+  width: 420px;
+  height: 420px;
+  bottom: -140px;
+  left: 30%;
+  background: radial-gradient(circle, rgba(249, 168, 212, 0.4), transparent 65%);
+}
+.dark .aurora-1 {
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.5), transparent 65%);
+}
+.dark .aurora-2 {
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.35), transparent 65%);
+}
+.dark .aurora-3 {
+  background: radial-gradient(circle, rgba(244, 63, 94, 0.22), transparent 65%);
+}
+
+/* ---------- 科技网格（顶部渐隐） ---------- */
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(59, 130, 246, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59, 130, 246, 0.09) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 25%, transparent 75%);
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 25%, transparent 75%);
+}
+.dark .grid-overlay {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.07) 1px, transparent 1px);
+}
+
+/* ---------- 日间：太阳光晕（夜间自动隐藏） ---------- */
+.sun-glow {
+  position: absolute;
+  top: -140px;
+  right: 6%;
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(254, 240, 138, 0.75), rgba(253, 186, 116, 0.2) 45%, transparent 70%);
+}
+.dark .sun-glow {
+  display: none;
+}
+
+/* ---------- 星点（日间金色光尘 / 夜间银白星点） ---------- */
+.stars {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 20% 30%, rgba(253, 224, 71, 0.75), transparent 55%),
+    radial-gradient(1px 1px at 70% 15%, rgba(251, 191, 36, 0.5), transparent 55%),
+    radial-gradient(1.5px 1.5px at 85% 45%, rgba(56, 189, 248, 0.5), transparent 55%),
+    radial-gradient(1px 1px at 40% 70%, rgba(249, 168, 212, 0.5), transparent 55%),
+    radial-gradient(1px 1px at 10% 80%, rgba(253, 224, 71, 0.45), transparent 55%),
+    radial-gradient(1.2px 1.2px at 60% 85%, rgba(56, 189, 248, 0.45), transparent 55%),
+    radial-gradient(1px 1px at 33% 12%, rgba(251, 146, 60, 0.5), transparent 55%),
+    radial-gradient(1px 1px at 92% 68%, rgba(249, 168, 212, 0.45), transparent 55%);
+}
+.dark .stars {
+  background-image:
+    radial-gradient(1.5px 1.5px at 20% 30%, rgba(255, 255, 255, 0.8), transparent 55%),
+    radial-gradient(1px 1px at 70% 15%, rgba(255, 255, 255, 0.55), transparent 55%),
+    radial-gradient(1.5px 1.5px at 85% 45%, rgba(255, 255, 255, 0.5), transparent 55%),
+    radial-gradient(1px 1px at 40% 70%, rgba(255, 255, 255, 0.45), transparent 55%),
+    radial-gradient(1px 1px at 10% 80%, rgba(255, 255, 255, 0.4), transparent 55%),
+    radial-gradient(1.2px 1.2px at 60% 85%, rgba(255, 255, 255, 0.5), transparent 55%),
+    radial-gradient(1px 1px at 33% 12%, rgba(255, 255, 255, 0.6), transparent 55%),
+    radial-gradient(1px 1px at 92% 68%, rgba(255, 255, 255, 0.45), transparent 55%);
+}
+
+/* ---------- 底部地平线光（日间暖阳 / 夜间蓝紫） ---------- */
+.horizon-glow {
+  position: absolute;
+  bottom: -120px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70%;
+  height: 240px;
+  background: radial-gradient(ellipse, rgba(253, 186, 116, 0.3), rgba(125, 211, 252, 0.18) 45%, transparent 70%);
+}
+.dark .horizon-glow {
+  background: radial-gradient(ellipse, rgba(56, 189, 248, 0.22), rgba(99, 102, 241, 0.12) 45%, transparent 70%);
+}
+
+/* ---------- 页面主标题（日间蓝紫渐变 / 夜间鎏金渐变） ---------- */
+.page-title {
+  background-image: linear-gradient(to right, #0ea5e9, #2563eb, #4f46e5);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.dark .page-title {
+  background-image: linear-gradient(to right, #fde68a, #fde047, #fb923c);
+}
+
+/* ---------- 玻璃卡片（日间白色玻璃 / 夜间深色玻璃） ---------- */
+.glass-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.66);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(125, 165, 220, 0.25);
+  box-shadow:
+    0 8px 30px rgba(56, 108, 180, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+.dark .glass-card {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+/* 卡片顶部高光线（默认天蓝 / line-cyan 鎏金） */
+.card-top-line {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(14, 165, 233, 0.55), transparent);
+}
+.card-top-line.line-cyan {
+  background: linear-gradient(to right, transparent, rgba(251, 191, 36, 0.6), transparent);
+}
+
+/* ---------- 玻璃数据块 ---------- */
+.glass-cell {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(125, 165, 220, 0.22);
+  background: rgba(255, 255, 255, 0.55);
+  padding: 0.625rem 0.75rem;
+}
+.dark .glass-cell {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* 统计块悬浮微动效 */
+.stat-cell {
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+.stat-cell:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(56, 108, 180, 0.12);
+}
+.dark .stat-cell:hover {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+/* ---------- LIVE 呼吸点 ----------
+   用伪元素 scale/opacity 合成器动画替代 box-shadow 逐帧重绘 */
+.live-dot {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: #10b981;
+}
+.live-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1.5px solid rgba(16, 185, 129, 0.6);
+  animation: live-ring 2s ease-out infinite;
+}
+@keyframes live-ring {
+  to {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+/* ---------- 头像旋转光环（个人名片） ---------- */
+.halo {
+  position: relative;
+  border-radius: 9999px;
+  padding: 3px;
+  background: conic-gradient(from 0deg, #38bdf8, #818cf8, #e0f2fe, #ffffff, #a5b4fc, #38bdf8);
+  animation: halo-spin 8s linear infinite;
+  box-shadow:
+    0 0 20px rgba(56, 189, 248, 0.45),
+    0 0 48px rgba(99, 102, 241, 0.2);
+}
+.dark .halo {
+  background: conic-gradient(from 0deg, #fbbf24, #f59e0b, #fef3c7, #ffffff, #fde68a, #fbbf24);
+  box-shadow:
+    0 0 20px rgba(251, 191, 36, 0.5),
+    0 0 48px rgba(251, 146, 60, 0.2);
+}
+@keyframes halo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.avatar-inner {
+  border-radius: 9999px;
+  padding: 2px;
+  background: #ffffff;
+}
+.dark .avatar-inner {
+  background: #0a0f22;
+}
+
+/* ---------- 入场动画 ---------- */
+.rise {
+  opacity: 0;
+  animation: rise-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- 路由过渡期性能降级 ----------
+   切页动画期间（AdminLayout 在 <main> 上标记 data-route-transitioning="true"）：
+   backdrop-filter 需逐帧重新采样下层背景，整页位移/缩放时会全部失效式重算，
+   是路由切换掉帧的主因。过渡期临时关闭，动画结束立即恢复，肉眼几乎无感知 */
+[data-route-transitioning='true'] .glass-card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ---------- 降低动态效果偏好（无障碍） ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .aurora,
+  .halo,
+  .live-dot,
+  .live-dot::after {
+    animation: none !important;
+  }
+  .rise {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}

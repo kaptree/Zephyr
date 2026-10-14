@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { markdownToHtml } from '@/utils/markdown';
+import { useImageUpload } from '@/composables/useImageUpload';
 
 const props = withDefaults(
   defineProps<{
@@ -80,6 +81,25 @@ function insertTable() {
 function toggleFullscreen() {
   fullscreen.value = !fullscreen.value;
 }
+
+// 图片上传：上传后插入 Markdown 图片语法（复用聊天图片大小限制）
+const { uploading: imageUploading, pickImage } = useImageUpload();
+function insertImage() {
+  const el = textareaRef.value;
+  const s = el?.selectionStart ?? 0;
+  const e = el?.selectionEnd ?? s;
+  pickImage((url) => {
+    const target = textareaRef.value;
+    if (!target) return;
+    const md = `![图片](${url})`;
+    const next = target.value.slice(0, s) + md + target.value.slice(e);
+    target.value = next;
+    const pos = s + md.length;
+    target.setSelectionRange(pos, pos);
+    target.focus();
+    emit('update:modelValue', next);
+  });
+}
 </script>
 
 <template>
@@ -138,9 +158,19 @@ function toggleFullscreen() {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 01-5.656-5.656l1.5-1.5M10.172 13.828a4 4 0 010-5.656l3-3a4 4 0 015.656 5.656l-1.5 1.5" />
         </svg>
       </button>
-      <button type="button" class="md-tool-btn" v-tooltip="'图片'" @mousedown.prevent="insertWrap('![', '](url)', '图片描述')">
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <button
+        type="button"
+        class="md-tool-btn"
+        v-tooltip="imageUploading ? '图片上传中...' : '上传图片'"
+        :disabled="imageUploading"
+        @mousedown.prevent="insertImage"
+      >
+        <svg v-if="!imageUploading" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <svg v-else class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke-width="4"></circle>
+          <path class="opacity-75" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12a8 8 0 018-8"></path>
         </svg>
       </button>
       <button type="button" class="md-tool-btn" v-tooltip="'表格'" @mousedown.prevent="insertTable">

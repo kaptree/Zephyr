@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue';
+import { ref, onMounted, watch, computed, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/stores/notes';
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notification';
-import type { Note, NotePositionInput } from '@/types';
+import type { Note, NotePositionInput, NoteFeedbackItem } from '@/types';
 import TagSelector from '@/components/common/TagSelector.vue';
 import StickyNoteCard from '@/components/note/StickyNoteCard.vue';
+import WorkbenchFilterBar from '@/components/note/WorkbenchFilterBar.vue';
+import FeedbackTimeline from '@/components/note/FeedbackTimeline.vue';
 import UserPicker from '@/components/common/UserPicker.vue';
 import MarkdownEditor from '@/components/common/MarkdownEditor.vue';
 import { markdownToHtml, htmlToMarkdown } from '@/utils/markdown';
@@ -16,12 +18,14 @@ import {
   BOARD_MAX_COLS,
   assignMissingPositions,
   clampBoardCols,
+  compactBoardPositions,
   findFirstFreeSlot,
   fixOverflowPositions,
   inferBoardColsFromNotes,
   loadBoardCols,
   readStoredBoardCols,
   relayoutAll,
+  resolveDuplicatePositions,
   saveBoardCols,
   stripLegacyPositions,
 } from '@/composables/useBoardLayout';
@@ -100,10 +104,54 @@ const saving = ref(false);
 const completing = ref(false);
 const tagSaving = ref(false);
 const tagError = ref('');
+// 创建人编辑参与人员/抄送人员（增删改）：详情弹窗编辑态，openDetail 时初始化
+const editingAssigneeIds = ref<string[]>([]);
+const editingCcIds = ref<string[]>([]);
 const feedbackVisible = ref(false);
 const feedbackNote = ref<Note | null>(null);
 
 const activeTab = ref('all');
+
+// ===== 任务筛选行：创建时间范围 + 标题/内容模糊查询（后端 GET /api/v1/notes 原生支持） =====
+const noteKeyword = ref('');
+const noteDateFrom = ref('');
+const noteDateTo = ref('');
+const noteFilterActive = computed(
+  () => !!(noteKeyword.value.trim() || noteDateFrom.value || noteDateTo.value)
+);
+
+/** 当前 tab 对应的 status 查询口径（与 handleTabClick 保持一致） */
+function statusParamForTab(): string | undefined {
+  if (activeTab.value === 'all' || activeTab.value === 'red' || activeTab.value === 'assigned') {
+    return undefined; // 拉活跃全集，前端 displayedNotes 按 tab 过滤
+  }
+  return activeTab.value; // 'active' | 'completed'
+}
+
+/** 触发筛选查询：重置到第一页，保留当前 tab 口径 */
+function searchNotes() {
+  noteStore.fetchNotes({
+    page: 1,
+    status: statusParamForTab(),
+    keyword: noteKeyword.value.trim() || undefined,
+    date_from: noteDateFrom.value || undefined,
+    date_to: noteDateTo.value || undefined,
+  });
+}
+
+/** 清空筛选并恢复默认列表 */
+function resetNoteFilters() {
+  noteKeyword.value = '';
+  noteDateFrom.value = '';
+  noteDateTo.value = '';
+  noteStore.fetchNotes({
+    page: 1,
+    status: statusParamForTab(),
+    keyword: undefined,
+    date_from: undefined,
+    date_to: undefined,
+  });
+}
 
 const showWorkGroupModal = ref(false);
 const workGroups = ref<WorkGroupData[]>([]);
@@ -145,7 +193,8 @@ const selectedTemplateId = ref('');
 const displayedNotes = computed(() => {
   let list = noteStore.activeNotes;
   if (activeTab.value === 'red') list = list.filter((n) => n.color_status === 'red');
-  else if (activeTab.value === 'blue') list = list.filter((n) => n.color_status === 'blue');
+  else if (activeTab.value === 'assigned')
+    list = list.filter((n) => n.source_type === 'assigned' || n.source_type === 'collaboration');
   // 置顶任务优先展示；多个置顶按置顶时间倒序，其余保持后端返回顺序
   return [...list].sort((a, b) => {
     if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
@@ -165,12 +214,38 @@ const localPositions = ref<Record<string, { x: number; y: number }>>({});
 const dragNoteId = ref<string | null>(null);
 const dragOverId = ref<string | null>(null);
 
-// 卡片实际渲染格子：会话覆盖优先，其次 store 持久值
-function posOf(note: Note): { x: number; y: number } {
+// 「子集视图」：渲染集合是全量板面的子集——关键词/时间筛选是服务端子集，
+// 盯办/指派 tab 是对活跃全集的前端子集。子集视图下布局走视图级紧凑排列，
+// 并禁用一切按子集坐标回写后端的位置操作（拖拽换位/置顶换位/压缩落盘），
+// 防止把子集坐标写进全量板面布局（见 handleTabClick 处的同类告诫）。
+const isSubsetView = computed(
+  () => noteFilterActive.value || activeTab.value === 'red' || activeTab.value === 'assigned'
+);
+
+// 子集视图的渲染布局：按展示顺序（置顶优先）行优先依次铺满，空洞被自然挤掉。
+// 只影响渲染：不写 localPositions、不回写后端；退出子集视图后原布局原样恢复。
+const viewPositions = computed<Record<string, { x: number; y: number }>>(() => {
+  if (!isSubsetView.value) return {};
+  const map: Record<string, { x: number; y: number }> = {};
+  displayedNotes.value.forEach((note, index) => {
+    map[note.id] = { x: index % boardCols.value, y: Math.floor(index / boardCols.value) };
+  });
+  return map;
+});
+
+// 卡片基础格子：会话覆盖优先，其次 store 持久值（不含视图级紧凑排列）
+function posOfBase(note: Note): { x: number; y: number } {
   const local = localPositions.value[note.id];
   if (local) return local;
   if (note.pos_x !== null && note.pos_y !== null) return { x: note.pos_x, y: note.pos_y };
   return { x: 0, y: 0 };
+}
+
+// 卡片实际渲染格子：子集视图用视图级紧凑位置，全量视图用基础位置
+function posOf(note: Note): { x: number; y: number } {
+  const view = viewPositions.value[note.id];
+  if (view) return view;
+  return posOfBase(note);
 }
 
 // 以 store 为准重建会话位置表，并为缺位置（pos_x/pos_y 为空）的卡片分配空闲格后回存
@@ -178,6 +253,9 @@ function syncBoardPositions() {
   const raw = noteStore.activeNotes;
   // Pinia 解包后为数组；若为其它形态（如测试 mock 未解包的 ref）则跳过
   if (!Array.isArray(raw)) return;
+  // 筛选生效时 activeNotes 是服务端子集：跳过位置分配/自愈与回写，
+  // 渲染由 viewPositions 兜底；清空筛选重新拉到全量后再统一整理
+  if (noteFilterActive.value) return;
   // 旧版像素坐标遗留数据自动清洗（pos_x/pos_y 按格子索引重排）
   const notes = stripLegacyPositions(raw);
   // 列数偏好丢失自愈：localStorage 无记录时（新设备/清缓存/换访问源），
@@ -206,7 +284,21 @@ function syncBoardPositions() {
   });
   // 超界自愈：存在 pos_x 超出当前列数的便签（如偏好恢复前按旧列数存储的位置）→ 整板重排补齐空洞
   const healed = fixOverflowPositions(merged, boardCols.value);
-  const updates = healed.length ? healed : assignMissingPositions(merged, boardCols.value);
+  let updates: NotePositionInput[];
+  if (healed.length) {
+    updates = healed;
+  } else {
+    // 重复坐标自愈：多张便签占用同一格子时，把后续重复便签移到空闲格（避免渲染重叠）
+    const deduped = resolveDuplicatePositions(merged, boardCols.value);
+    const dedupMap = new Map(deduped.map((u) => [u.id, u]));
+    const afterDup = merged.map((n) => {
+      const d = dedupMap.get(n.id);
+      return d ? { ...n, pos_x: d.pos_x, pos_y: d.pos_y } : n;
+    });
+    // 在修复重复后的基础上，再为缺位置的便签分配空闲格
+    const missing = assignMissingPositions(afterDup, boardCols.value);
+    updates = [...deduped, ...missing];
+  }
   for (const u of updates) map[u.id] = { x: u.pos_x, y: u.pos_y };
   localPositions.value = map;
   if (updates.length) {
@@ -214,8 +306,17 @@ function syncBoardPositions() {
   }
 }
 
-// immediate：数据可能先于画布渲染到达（同步不再依赖画布尺寸测量）
-watch(() => noteStore.activeNotes, syncBoardPositions, { immediate: true });
+// immediate：数据可能先于画布渲染到达（同步不再依赖画布尺寸测量）。
+// sync 之后追加压缩补位：板面出现空洞（如筛选期间归档/删除的任务留下的空格，
+// 要等清空筛选拉回全量后才可见）时行优先前移补齐；无空洞时为空操作、不发请求。
+watch(
+  () => noteStore.activeNotes,
+  () => {
+    syncBoardPositions();
+    compactBoardWithAnimation();
+  },
+  { immediate: true }
+);
 
 // 列数变更后：格网形状改变，整板按行优先重排（置顶优先占前排），回存后端
 function relayoutForCols(cols: number) {
@@ -234,6 +335,55 @@ function changeBoardCols(delta: number) {
   boardCols.value = next;
   saveBoardCols(next);
   relayoutForCols(next);
+}
+
+/**
+ * 归档/删除后压缩补位：空洞之后的便签按行优先顺序前移填满格子，
+ * 移动过程用 FLIP（First-Last-Invert-Play）位移动画平滑呈现。
+ * 需在便签已从 store 移除、但 DOM 尚未重渲染前调用（同步段会测量移动前位置）。
+ */
+async function compactBoardWithAnimation() {
+  const raw = noteStore.activeNotes;
+  if (!Array.isArray(raw) || !raw.length || !boardEl.value) return;
+  const moves = compactBoardPositions(raw, boardCols.value, posOf);
+  if (!moves.length) return;
+  // First：记录移动前各卡片容器的屏幕位置
+  const firstRects = new Map<string, DOMRect>();
+  for (const m of moves) {
+    const el = boardEl.value.querySelector(`[data-note-id="${m.id}"]`)?.parentElement;
+    if (el instanceof HTMLElement) firstRects.set(m.id, el.getBoundingClientRect());
+  }
+  // Last：乐观更新会话位置表（驱动重渲染到新格子），并持久化到后端
+  for (const m of moves) localPositions.value[m.id] = { x: m.pos_x, y: m.pos_y };
+  noteStore.updatePositions(moves).catch(() => toastError('位置保存失败'));
+  await nextTick();
+  // Invert + Play：新格子位置先被反向位移抵消，再过渡回 0 形成滑动补位效果；
+  // 用户偏好减少动效时直接跳过动画（位置已同步生效）
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  for (const m of moves) {
+    const el = boardEl.value.querySelector(`[data-note-id="${m.id}"]`)?.parentElement;
+    const first = firstRects.get(m.id);
+    if (!(el instanceof HTMLElement) || !first) continue;
+    const last = el.getBoundingClientRect();
+    const dx = first.left - last.left;
+    const dy = first.top - last.top;
+    if (!dx && !dy) continue;
+    el.style.transition = 'none';
+    el.style.transform = `translate(${dx}px, ${dy}px)`;
+    el.style.zIndex = '1'; // 滑动交叠时移动中的卡片浮在上层
+    void el.offsetWidth; // 强制回流，锁定反向位移起始状态
+    requestAnimationFrame(() => {
+      el.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+      el.style.transform = '';
+      const cleanup = () => {
+        el.style.transition = '';
+        el.style.transform = '';
+        el.style.zIndex = '';
+      };
+      el.addEventListener('transitionend', cleanup, { once: true });
+      setTimeout(cleanup, 500); // 兜底：transitionend 未触发时也要清掉内联样式
+    });
+  }
 }
 
 // 「最靠前」比较：先看行（y）再看列（x）
@@ -260,6 +410,9 @@ function onDragLeave(note: Note) {
 }
 
 function onDrop(note: Note) {
+  // 子集视图（筛选 / 盯办/指派 tab）下禁用拖拽换位：布局为视图级紧凑排列，
+  // 交换基础坐标不会反映到视图顺序，且筛选子集的坐标不能落盘
+  if (isSubsetView.value) return;
   const fromId = dragNoteId.value;
   dragNoteId.value = null;
   dragOverId.value = null;
@@ -319,6 +472,23 @@ const selectedIsAssigner = computed(
     !!auth.user &&
     selectedNote.value.creator_id === auth.user.id
 );
+
+// 创建人编辑参与人员/抄送人员（增删改）：仅指派/协作任务创建人且未归档时可用
+const canEditParticipants = computed(
+  () =>
+    !!selectedNote.value &&
+    selectedNote.value.source_type !== 'self' &&
+    !selectedNote.value.is_archived &&
+    selectedNote.value.creator_id === auth.user?.id
+);
+// 参与人员选择器禁用项：发起人锁定不可移除 + 已选抄送人员互斥
+const editingAssigneeDisabled = computed(() => {
+  const ids = new Set<string>(editingCcIds.value);
+  if (selectedNote.value?.creator_id) ids.add(selectedNote.value.creator_id);
+  return [...ids];
+});
+// 抄送人员选择器禁用项：与参与人员互斥（发起人已在参与人员中）
+const editingCcDisabled = computed(() => [...editingAssigneeIds.value]);
 
 // 签收体系（需求19）：当前账号在详情任务中的被指派人行，及是否可签收
 const selectedAssigneeMe = computed(() =>
@@ -389,6 +559,18 @@ const selectedCompleteDisabled = computed(() => {
   return true;
 });
 
+// 阶段性反馈提交成功：同步本地任务快照（被指派人最新反馈口径与后端一致）
+function handleStageFeedbackSubmitted(fb: NoteFeedbackItem) {
+  if (!selectedNote.value) return;
+  const me = (selectedNote.value.assignees || []).find(
+    (a: any) => (a.user_id || a.id) === fb.user_id
+  );
+  if (me) {
+    me.feedback_content = fb.content;
+    me.feedback_at = fb.created_at;
+  }
+}
+
 onMounted(() => {
   noteStore.fetchNotes();
   loadWorkGroups();
@@ -413,6 +595,15 @@ watch(
   () => notifStore.noteUpdateTick,
   () => {
     const last = notifStore.lastNoteUpdate;
+    // 被创建人移出指派/抄送：任务立即从本地工作台移除（详情面板打开中则一并关闭）
+    if (last?.action === 'removed' && last.note_id) {
+      noteStore.activeNotes = noteStore.activeNotes.filter((n) => n.id !== last.note_id);
+      if (showDetailPanel.value && selectedNote.value?.id === last.note_id) {
+        closeDetail();
+        toastSuccess('您已被移出该任务');
+      }
+      return;
+    }
     // 若新任务已在列表（刚通过其他途径加载过），仅刷新不重复弹出
     if (last?.note_id && noteStore.activeNotes.some((n) => n.id === last.note_id)) return;
     noteStore.fetchNotes();
@@ -481,18 +672,14 @@ function handleTabClick(tab: string) {
     loadWorkGroups();
     return;
   }
-  if (tab === 'all') noteStore.fetchNotes({ status: undefined });
-  else if (tab === 'red')
-    noteStore.fetchNotes({ status: undefined }).then(() => {
-      noteStore.activeNotes = noteStore.activeNotes.filter((n) => n.color_status === 'red');
-    });
-  else if (tab === 'assigned')
-    noteStore.fetchNotes({ status: undefined }).then(() => {
-      noteStore.activeNotes = noteStore.activeNotes.filter(
-        (n) => n.source_type === 'assigned' || n.source_type === 'collaboration'
-      );
-    });
-  else noteStore.fetchNotes({ status: tab });
+  // 「全部 / 盯办 / 指派」都基于活跃任务全集在前端过滤（displayedNotes 按 activeTab 过滤），
+  // 因此统一拉取活跃全集即可；绝不能直接改写 store.activeNotes，否则后续「调整列数」
+  // 会只重排被筛选的子集，污染后端位置，导致切回「全部」后整板错乱/重叠/丢失。
+  if (tab === 'all' || tab === 'red' || tab === 'assigned') {
+    noteStore.fetchNotes({ status: undefined });
+  } else {
+    noteStore.fetchNotes({ status: tab });
+  }
 }
 
 watch(sourceType, (val) => {
@@ -518,6 +705,9 @@ function openDetail(note: Note) {
   editingTitle.value = note.title || '';
   editingContent.value = htmlToMarkdown(note.content || '');
   selectedEditingTagIds.value = (note.tags || []).map((t) => t.id);
+  // 参与人员含发起人（选择器中锁定不可移除），抄送人员取全量
+  editingAssigneeIds.value = (note.assignees || []).map((a: any) => a.user_id || (a as any).id);
+  editingCcIds.value = (note.ccs || []).map((c: any) => c.user_id || (c as any).id);
   tagError.value = '';
   saveSubmitState.value = 'idle';
   showDetailPanel.value = true;
@@ -610,11 +800,17 @@ async function handleSaveDetail() {
   saving.value = true;
   saveSubmitState.value = 'loading';
   try {
-    await noteStore.updateNoteLocally(selectedNote.value.id, {
+    const payload: any = {
       title: editingTitle.value.trim(),
       content: markdownToHtml(editingContent.value),
       tags: selectedEditingTagIds.value,
-    } as any);
+    };
+    // 创建人编辑参与人员/抄送人员：后端按全量列表 diff 增删改
+    if (canEditParticipants.value) {
+      payload.assignees = editingAssigneeIds.value.map((id) => ({ user_id: id }));
+      payload.cc_user_ids = editingCcIds.value;
+    }
+    await noteStore.updateNoteLocally(selectedNote.value.id, payload);
     // 保存成功：按钮绿色弹动，随后延迟关闭详情面板
     saveSubmitState.value = 'success';
     toastSuccess('✓ 任务已保存');
@@ -662,6 +858,8 @@ async function handleComplete(note: Note) {
       // 优雅退场：卡片折叠 + 淡出（400ms）后再执行归档
       await playArchiveFold(document.querySelector(`[data-note-id="${note.id}"]`));
       await noteStore.completeNote(note.id, {});
+      // 归档后压缩补位：后续便签前移填满空格（FLIP 滑动动画）
+      await compactBoardWithAnimation();
       noteStore.fetchNotes();
       if (showDetailPanel.value && selectedNote.value?.id === note.id) closeDetail();
     } finally {
@@ -685,6 +883,8 @@ async function handleComplete(note: Note) {
       // 优雅退场：卡片折叠 + 淡出（400ms）后再执行归档
       await playArchiveFold(document.querySelector(`[data-note-id="${note.id}"]`));
       await noteStore.completeNote(note.id, {});
+      // 归档后压缩补位：后续便签前移填满空格（FLIP 滑动动画）
+      await compactBoardWithAnimation();
       noteStore.fetchNotes();
       if (showDetailPanel.value && selectedNote.value?.id === note.id) closeDetail();
     } catch (e: unknown) {
@@ -705,6 +905,8 @@ async function submitFeedback(content: string) {
   completing.value = true;
   try {
     await noteStore.completeNote(note.id, { feedback_content: content });
+    // 归档后压缩补位：后续便签前移填满空格（FLIP 滑动动画，与庆祝动画并行）
+    await compactBoardWithAnimation();
     // 完成任务后局部刷新，任务面板同步最新状态（完成/归档/倒计时移除）
     noteStore.fetchNotes();
     if (showDetailPanel.value && selectedNote.value?.id === note.id) closeDetail();
@@ -804,6 +1006,8 @@ async function handleDelete(note: Note) {
     // 优雅退场：红色闪烁 → 缩小 → 淡出三步动画（600ms）后再执行删除
     await playDeleteOut(document.querySelector(`[data-note-id="${note.id}"]`));
     await noteStore.archiveNote(note.id);
+    // 删除后压缩补位：后续便签前移填满空格（FLIP 滑动动画）
+    await compactBoardWithAnimation();
     noteStore.fetchNotes();
     if (showDetailPanel.value && selectedNote.value?.id === note.id) closeDetail();
   } catch {
@@ -1054,9 +1258,20 @@ const templateLabels: Record<string, string> = {
 </script>
 
 <template>
-  <div class="relative min-h-full">
+  <div class="page-shell">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
     <!-- Tab bar -->
-    <div class="flex items-center gap-3 mb-6">
+    <div class="rise flex items-center gap-3 mb-6">
       <button
         v-for="tab in [
           { label: '全部', value: 'all' },
@@ -1292,6 +1507,15 @@ const templateLabels: Record<string, string> = {
 
         <!-- ====== 任务内容区 ====== -->
         <template v-else>
+          <!-- 筛选行：创建时间范围 + 标题/内容模糊查询 -->
+          <WorkbenchFilterBar
+            v-model:keyword="noteKeyword"
+            v-model:date-from="noteDateFrom"
+            v-model:date-to="noteDateTo"
+            @search="searchNotes"
+            @date-change="searchNotes"
+            @reset="resetNoteFilters"
+          />
           <div
             v-if="noteStore.loading && noteStore.activeNotes.length === 0"
             class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5"
@@ -1320,9 +1544,14 @@ const templateLabels: Record<string, string> = {
               </svg>
             </div>
             <p class="text-slate-400 dark:text-slate-500 text-sm">
-              {{ activeTab === 'completed' ? '暂无已完成任务' : '暂无活跃任务' }}
+              <template v-if="noteFilterActive">未找到匹配的任务，试试调整筛选条件</template>
+              <template v-else>{{
+                activeTab === 'completed' ? '暂无已完成任务' : '暂无活跃任务'
+              }}</template>
             </p>
-            <p class="text-slate-300 dark:text-slate-600 text-xs mt-1">点击右下角 '+' 新建任务</p>
+            <p v-if="!noteFilterActive" class="text-slate-300 dark:text-slate-600 text-xs mt-1">
+              点击右下角 '+' 新建任务
+            </p>
           </div>
           <!-- 格子画布：N 列网格（用户可调）填满工作台，每张便签独占一格（内容展开），拖拽互换格子 -->
           <div
@@ -1344,7 +1573,7 @@ const templateLabels: Record<string, string> = {
                 gridColumn: `${Math.min(posOf(note).x, boardCols - 1) + 1} / span 1`,
                 gridRow: `${posOf(note).y + 1} / span 1`,
               }"
-              :draggable="editingNoteId !== note.id"
+              :draggable="editingNoteId !== note.id && !isSubsetView"
               @dragstart="onDragStart(note, $event)"
               @dragover="onDragOver(note, $event)"
               @dragleave="onDragLeave(note)"
@@ -1705,6 +1934,13 @@ const templateLabels: Record<string, string> = {
                     :min-height="220"
                   />
                 </div>
+                <!-- 阶段性反馈（论坛式时间轴）：仅指派任务（有被指派人）显示 -->
+                <FeedbackTimeline
+                  v-if="selectedNote.assignees?.length"
+                  :note="selectedNote"
+                  :current-user-id="auth.user?.id"
+                  @submitted="handleStageFeedbackSubmitted"
+                />
                 <div>
                   <span class="text-xs text-slate-400 mb-1 flex items-center gap-2">
                     标签
@@ -1717,6 +1953,33 @@ const templateLabels: Record<string, string> = {
                     scope="all"
                     @update:model-value="handleUpdateTags"
                   />
+                </div>
+                <!-- 创建人编辑参与人员/抄送人员（增删改）：被移除者的工作台将实时移除该任务 -->
+                <div v-if="canEditParticipants" class="space-y-3">
+                  <div>
+                    <span class="text-xs text-slate-400 mb-1 block"
+                      >参与人员（可增删；发起人不可移除，被移除者将不再看到该任务）</span
+                    ><UserPicker
+                      v-model="editingAssigneeIds"
+                      :multiple="true"
+                      :max="50"
+                      :drop-up="true"
+                      :disabled-ids="editingAssigneeDisabled"
+                      disabled-note="为发起人或在抄送人员中"
+                    />
+                  </div>
+                  <div>
+                    <span class="text-xs text-slate-400 mb-1 block"
+                      >抄送人员（可增删，仅查看任务）</span
+                    ><UserPicker
+                      v-model="editingCcIds"
+                      :multiple="true"
+                      :max="50"
+                      :drop-up="true"
+                      :disabled-ids="editingCcDisabled"
+                      disabled-note="已在参与人员中"
+                    />
+                  </div>
                 </div>
                 <div class="bg-slate-50 dark:bg-slate-900 rounded-card p-4 space-y-2">
                   <div class="flex justify-between text-xs">

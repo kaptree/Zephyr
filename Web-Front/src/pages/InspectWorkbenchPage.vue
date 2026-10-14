@@ -97,11 +97,22 @@ onMounted(loadUsers);
 </script>
 
 <template>
-  <div class="space-y-5">
+  <div class="page-shell p-5 space-y-5">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
     <!-- 顶部：用户选择 -->
-    <div class="flex items-center justify-between">
+    <div class="rise flex items-center justify-between">
       <div>
-        <h1 class="text-xl font-semibold text-slate-900 dark:text-slate-100">用户工作台</h1>
+        <h1 class="text-xl font-semibold page-title">用户工作台</h1>
         <p class="text-xs text-slate-400 mt-0.5">选择一位用户，查看其工作台任务内容</p>
       </div>
     </div>
@@ -155,8 +166,9 @@ onMounted(loadUsers);
     <!-- 状态筛选 + 用户信息 -->
     <div
       v-if="selectedUser"
-      class="bg-white dark:bg-slate-800 rounded-card shadow-sm p-4 flex flex-wrap items-center justify-between gap-3"
+      class="glass-card p-4 flex flex-wrap items-center justify-between gap-3"
     >
+      <div class="card-top-line" aria-hidden="true" />
       <div class="flex items-center gap-3">
         <div
           class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-medium"

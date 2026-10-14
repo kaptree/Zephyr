@@ -68,6 +68,10 @@ type UpdateNoteRequest struct {
 	ColorStatus *string    `json:"color_status"`
 	OwnerID     *string    `json:"owner_id"`
 	IsPinned    *bool      `json:"is_pinned"`
+	// 创建人创建后编辑参与人员/抄送人员（增删改）：非 nil 时按全量列表 diff，
+	// nil 表示不调整该项
+	Assignees *[]AssigneeRequest `json:"assignees"`
+	CcUserIDs *[]string          `json:"cc_user_ids"`
 }
 
 type CompleteNoteRequest struct {
@@ -242,6 +246,18 @@ func (s *NoteService) Create(userID, role, deptID string, req CreateNoteRequest)
 
 	_ = s.recordLedger(note.ID.String(), userID, "create", "任务创建", "", "")
 
+	// 积分：创建任务（交办给他人时额外得交办分，受指派人≠创建人防自刷）
+	AwardPoints(userID, "task_create", "note", note.ID.String(), "创建任务《"+truncateNote(note.Title)+"》")
+	if sourceType == "assigned" {
+		for _, a := range req.Assignees {
+			if a.UserID != userID {
+				AwardPoints(userID, "task_create_assigned", "note", note.ID.String(),
+					"创建交办任务《"+truncateNote(note.Title)+"》")
+				break
+			}
+		}
+	}
+
 	// 通知被指派者：任务已指派给你
 	if s.notifSvc != nil {
 		title := "您有新任务"
@@ -365,9 +381,316 @@ func (s *NoteService) Update(id, userID string, req UpdateNoteRequest) (*models.
 		return nil, err
 	}
 
+	// 创建人编辑参与人员/抄送人员（增删改）
+	if req.Assignees != nil || req.CcUserIDs != nil {
+		if err := s.updateParticipants(note, userID, req); err != nil {
+			return nil, err
+		}
+	}
+
 	_ = s.recordLedger(id, userID, "update", "任务更新", "", "")
 
 	return s.noteRepo.FindByID(id)
+}
+
+// updateParticipants 创建人编辑任务参与人员（被指派人）与抄送人员的增删改：
+// 仅创建人可操作；按全量列表与现有数据 diff，未变动人员保留签收/反馈/完成进度；
+// 被移除者的工作台不再展示该任务（列表查询以 note_assignees / note_ccs 行为准），
+// 并实时推送 removed 事件使对方前端立即移除任务卡片。
+func (s *NoteService) updateParticipants(note *models.Note, userID string, req UpdateNoteRequest) error {
+	if note.CreatorID.String() != userID {
+		return apperrors.ErrPermissionDenied
+	}
+	if note.IsArchived {
+		return apperrors.ErrNoteArchived
+	}
+
+	creatorID := note.CreatorID
+
+	var addAssignees []models.NoteAssignee
+	var removeAssigneeIDs []uuid.UUID
+	var newAssigneeIDs []uuid.UUID
+
+	// ---- 被指派人 diff（发起人角色始终保留，不参与增删） ----
+	if req.Assignees != nil {
+		seen := map[uuid.UUID]bool{creatorID: true}
+		for _, a := range *req.Assignees {
+			uid, err := uuid.Parse(a.UserID)
+			if err != nil || seen[uid] {
+				continue
+			}
+			seen[uid] = true
+			newAssigneeIDs = append(newAssigneeIDs, uid)
+		}
+
+		currentAssignees := make(map[uuid.UUID]models.NoteAssignee)
+		for _, a := range note.Assignees {
+			if a.RoleInNote == "initiator" {
+				continue
+			}
+			currentAssignees[a.UserID] = a
+		}
+		for _, uid := range newAssigneeIDs {
+			if _, ok := currentAssignees[uid]; !ok {
+				addAssignees = append(addAssignees, models.NoteAssignee{UserID: uid, RoleInNote: "member"})
+			}
+		}
+		for uid := range currentAssignees {
+			if !seen[uid] {
+				removeAssigneeIDs = append(removeAssigneeIDs, uid)
+			}
+		}
+	}
+
+	// ---- 抄送人 diff（创建人不可抄送给自己） ----
+	var addCcs []models.NoteCc
+	var removeCcIDs []uuid.UUID
+	if req.CcUserIDs != nil {
+		ccSeen := map[uuid.UUID]bool{creatorID: true}
+		for _, cid := range *req.CcUserIDs {
+			uid, err := uuid.Parse(cid)
+			if err != nil || ccSeen[uid] {
+				continue
+			}
+			ccSeen[uid] = true
+			if !currentCcSet(note, uid) {
+				addCcs = append(addCcs, models.NoteCc{UserID: uid, CreatedAt: time.Now()})
+			}
+		}
+		for _, c := range note.Ccs {
+			if !ccSeen[c.UserID] {
+				removeCcIDs = append(removeCcIDs, c.UserID)
+			}
+		}
+	}
+
+	// 原负责人被移出指派时同步转移负责人：优先指派列表首位，否则回退创建人
+	var newOwnerID *uuid.UUID
+	for _, uid := range removeAssigneeIDs {
+		if uid == note.OwnerID {
+			owner := creatorID
+			if len(newAssigneeIDs) > 0 {
+				owner = newAssigneeIDs[0]
+			}
+			newOwnerID = &owner
+			break
+		}
+	}
+
+	if err := s.noteRepo.UpdateParticipants(note.ID.String(), addAssignees, removeAssigneeIDs, addCcs, removeCcIDs, newOwnerID); err != nil {
+		return err
+	}
+
+	_ = s.recordLedger(note.ID.String(), userID, "update",
+		fmt.Sprintf("编辑参与人员（+%d -%d）/ 抄送人员（+%d -%d）",
+			len(addAssignees), len(removeAssigneeIDs), len(addCcs), len(removeCcIDs)), "", "")
+
+	// 通知与实时推送：新增者收到指派/抄送通知（任务出现在其工作台），
+	// 被移除者收到移出通知（任务立即从其工作台消失）
+	if s.notifSvc != nil {
+		actorID := userID
+		title := note.Title
+		for _, a := range addAssignees {
+			_ = s.notifSvc.Notify(a.UserID.String(), actorID, &note.ID, "task_assigned",
+				"您有新任务", "「"+title+"」已指派给您，请及时处理")
+			s.notifSvc.PushNoteUpdate(a.UserID.String(), &note.ID, "created")
+		}
+		for _, uid := range removeAssigneeIDs {
+			_ = s.notifSvc.Notify(uid.String(), actorID, &note.ID, "task_removed",
+				"您已被移出任务", "「"+title+"」已将您移出被指派人员，该任务不再对您可见")
+			s.notifSvc.PushNoteUpdate(uid.String(), &note.ID, "removed")
+		}
+		for _, c := range addCcs {
+			_ = s.notifSvc.Notify(c.UserID.String(), actorID, &note.ID, "task_cc",
+				"您收到任务抄送", "「"+title+"」已抄送给您，请查阅")
+			s.notifSvc.PushNoteUpdate(c.UserID.String(), &note.ID, "created")
+		}
+		for _, uid := range removeCcIDs {
+			_ = s.notifSvc.Notify(uid.String(), actorID, &note.ID, "task_removed",
+				"您已被移出任务抄送", "「"+title+"」已将您移出抄送人员")
+			s.notifSvc.PushNoteUpdate(uid.String(), &note.ID, "removed")
+		}
+	}
+
+	return nil
+}
+
+// currentCcSet 判断用户是否已在任务抄送人中
+func currentCcSet(note *models.Note, userID uuid.UUID) bool {
+	for _, c := range note.Ccs {
+		if c.UserID == userID {
+			return true
+		}
+	}
+	return false
+}
+
+// FeedbackRoleInNote 用户在任务中的角色标识（时间轴徽章用）
+// creator 创建人 / assigner 交办人 / assignee 被指派人 / cc 抄送人 / unknown
+func FeedbackRoleInNote(note *models.Note, userID string) string {
+	switch {
+	case note.CreatorID.String() == userID:
+		return "creator"
+	case note.AssignerID != nil && note.AssignerID.String() == userID:
+		return "assigner"
+	}
+	for i := range note.Assignees {
+		if note.Assignees[i].UserID.String() == userID {
+			return "assignee"
+		}
+	}
+	for i := range note.Ccs {
+		if note.Ccs[i].UserID.String() == userID {
+			return "cc"
+		}
+	}
+	return "unknown"
+}
+
+// feedbackDigest 阶段性反馈通知摘要（压平换行并截断 50 字）
+func feedbackDigest(s string) string {
+	r := []rune(strings.TrimSpace(strings.ReplaceAll(s, "\n", " ")))
+	if len(r) > 50 {
+		return string(r[:50]) + "…"
+	}
+	return string(r)
+}
+
+// FeedbackTimelineResp 阶段性反馈时间轴响应：正序反馈流 + 参与人统计
+type FeedbackTimelineResp struct {
+	Feedbacks    []models.NoteFeedback               `json:"feedbacks"`
+	Participants []repository.FeedbackParticipantStat `json:"participants"`
+}
+
+// ListStageFeedbacks 任务阶段性反馈时间轴（论坛式，时间正序 + 参与人统计）
+func (s *NoteService) ListStageFeedbacks(id string) (*FeedbackTimelineResp, error) {
+	note, err := s.noteRepo.FindByID(id)
+	if err != nil || note == nil {
+		return nil, apperrors.ErrNoteNotFound
+	}
+	feedbacks, err := s.noteRepo.ListFeedbacks(note.ID.String())
+	if err != nil {
+		return nil, err
+	}
+	participants, err := s.noteRepo.ListFeedbackParticipants(note.ID.String())
+	if err != nil {
+		return nil, err
+	}
+	return &FeedbackTimelineResp{Feedbacks: feedbacks, Participants: participants}, nil
+}
+
+// AddStageFeedback 追加一条阶段性反馈：权限校验 → 落库 → 同步最新反馈快照 →
+// 积分（复用 feedback_submit 规则）→ 通知交办人及其他被指派人 → 台账
+func (s *NoteService) AddStageFeedback(id, userID, content string) (*models.NoteFeedback, error) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return nil, apperrors.ErrInvalidChatContent
+	}
+	if len([]rune(content)) > 2000 {
+		return nil, apperrors.ErrInvalidOperation
+	}
+
+	note, err := s.noteRepo.FindByID(id)
+	if err != nil || note == nil {
+		return nil, apperrors.ErrNoteNotFound
+	}
+	if note.IsArchived {
+		return nil, apperrors.ErrNoteArchived
+	}
+
+	// 仅创建人 / 交办人 / 被指派人可提交；抄送人与无关人员 403
+	role := FeedbackRoleInNote(note, userID)
+	if role != "creator" && role != "assigner" && role != "assignee" {
+		return nil, apperrors.ErrPermissionDenied
+	}
+
+	uid, _ := uuid.Parse(userID)
+	fb := &models.NoteFeedback{
+		NoteID:  note.ID,
+		UserID:  uid,
+		Content: content,
+	}
+	// 冗余姓名：优先取关联关系中的 User.Name，时间轴渲染不依赖二次查询
+	switch role {
+	case "creator":
+		if note.Creator != nil {
+			fb.UserName = note.Creator.Name
+		}
+	case "assigner":
+		if note.Assigner != nil {
+			fb.UserName = note.Assigner.Name
+		}
+	default:
+		for i := range note.Assignees {
+			if note.Assignees[i].UserID.String() == userID && note.Assignees[i].User != nil {
+				fb.UserName = note.Assignees[i].User.Name
+				break
+			}
+		}
+	}
+	if err := s.noteRepo.CreateFeedback(fb); err != nil {
+		return nil, err
+	}
+
+	// 受指派人提交：同步最新反馈快照（报表/积分"最新反馈"口径不变）
+	if role == "assignee" {
+		_ = s.noteRepo.UpdateAssigneeFeedback(note.ID.String(), userID, content)
+	}
+
+	_ = s.recordLedger(note.ID.String(), userID, "feedback", "阶段性反馈", "", "")
+
+	// 积分：有效反馈（≥10 字），防刷由积分侧每日上限兜底
+	if len([]rune(content)) >= 10 {
+		AwardPoints(userID, "feedback_submit", "note", note.ID.String(), "阶段性反馈《"+truncateNote(note.Title)+"》")
+	}
+
+	// 通知交办人与其他被指派人（排除本人、去重；抄送人不打扰）
+	if s.notifSvc != nil {
+		recipients := map[string]bool{}
+		recipients[note.CreatorID.String()] = true
+		if note.AssignerID != nil {
+			recipients[note.AssignerID.String()] = true
+		}
+		for i := range note.Assignees {
+			recipients[note.Assignees[i].UserID.String()] = true
+		}
+		delete(recipients, userID)
+		for recID := range recipients {
+			_ = s.notifSvc.Notify(recID, userID, &note.ID, "task_feedback", "阶段性反馈", feedbackDigest(content))
+		}
+	}
+
+	return fb, nil
+}
+
+// syncFeedbackToTimeline 把「提交完成 / 反馈填报」的内容同步写入阶段性反馈时间轴（note_feedbacks），
+// 保证工作台详情的时间轴与 note_assignees 快照口径一致；冗余姓名从已 Preload 的关联用户尽力填充。
+func (s *NoteService) syncFeedbackToTimeline(note *models.Note, userID, content string) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return
+	}
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return
+	}
+	fb := &models.NoteFeedback{
+		NoteID:  note.ID,
+		UserID:  uid,
+		Content: content,
+	}
+	if note.Creator != nil && note.CreatorID.String() == userID {
+		fb.UserName = note.Creator.Name
+	}
+	if fb.UserName == "" {
+		for i := range note.Assignees {
+			if note.Assignees[i].UserID.String() == userID && note.Assignees[i].User != nil {
+				fb.UserName = note.Assignees[i].User.Name
+				break
+			}
+		}
+	}
+	_ = s.noteRepo.CreateFeedback(fb)
 }
 
 // NotePositionInput 单个任务的画布位置
@@ -489,6 +812,8 @@ func (s *NoteService) Complete(id, userID, role string, req CompleteNoteRequest)
 			if err := s.noteRepo.UpdateAssigneeComplete(note.ID.String(), userID, req.FeedbackContent); err != nil {
 				return nil, err
 			}
+			// 反馈内容同步进时间轴，工作台详情可实时查看
+			s.syncFeedbackToTimeline(note, userID, req.FeedbackContent)
 			_ = s.recordLedger(id, userID, "complete", "本人任务完成", req.FeedbackContent, "")
 			// 通知任务发起人
 			if s.notifSvc != nil {
@@ -513,6 +838,8 @@ func (s *NoteService) Complete(id, userID, role string, req CompleteNoteRequest)
 			if err := s.noteRepo.Update(note); err != nil {
 				return nil, err
 			}
+			// 积分：发起者归档办结（完成/按时/提前/交办闭环给交办人）
+			s.awardCompletionPoints(note, userID)
 			_ = s.recordLedger(id, userID, "complete", "任务办结归档", "", "")
 			return s.noteRepo.FindByID(id)
 		}
@@ -533,7 +860,12 @@ func (s *NoteService) Complete(id, userID, role string, req CompleteNoteRequest)
 	// 回写被指派人的反馈内容到 note_assignees
 	if req.FeedbackContent != "" {
 		_ = s.noteRepo.UpdateAssigneeFeedback(note.ID.String(), userID, req.FeedbackContent)
+		// 反馈内容同步进时间轴
+		s.syncFeedbackToTimeline(note, userID, req.FeedbackContent)
 	}
+
+	// 积分：任务办结归档（完成/按时/提前/交办闭环给交办人）
+	s.awardCompletionPoints(note, userID)
 
 	_ = s.recordLedger(id, userID, "complete", "任务办结归档", req.FeedbackContent, "")
 
@@ -549,6 +881,23 @@ func (s *NoteService) Complete(id, userID, role string, req CompleteNoteRequest)
 	}
 
 	return s.noteRepo.FindByID(id)
+}
+
+// awardCompletionPoints 归档办结后的积分发放：完成 +3、按时 +2（≤due_time）、
+// 提前 24h +1（≤due_time-24h）、交办闭环 +2（交办任务且交办人≠完成人）。
+func (s *NoteService) awardCompletionPoints(note *models.Note, completerID string) {
+	noteID := note.ID.String()
+	title := truncateNote(note.Title)
+	AwardPoints(completerID, "task_complete", "note", noteID, "完成任务《"+title+"》")
+	if note.DueTime != nil && note.CompletedAt != nil && !note.CompletedAt.After(*note.DueTime) {
+		AwardPoints(completerID, "task_complete_ontime", "note", noteID, "按时完成任务《"+title+"》")
+		if !note.CompletedAt.After(note.DueTime.Add(-24 * time.Hour)) {
+			AwardPoints(completerID, "task_complete_early", "note", noteID, "提前24小时完成任务《"+title+"》")
+		}
+	}
+	if note.SourceType == "assigned" && note.CreatorID.String() != completerID {
+		AwardPoints(note.CreatorID.String(), "task_assigner_closed", "note", noteID, "交办任务《"+title+"》已办结")
+	}
 }
 
 // Feedback 被指派人对已完成的任务补充反馈填报，并通知任务发起人
@@ -576,7 +925,15 @@ func (s *NoteService) Feedback(id, userID, content string) (*models.Note, error)
 		_ = s.noteRepo.UpdateAssigneeComplete(note.ID.String(), userID, content)
 	}
 
+	// 反馈内容同步进时间轴
+	s.syncFeedbackToTimeline(note, userID, content)
+
 	_ = s.recordLedger(id, userID, "feedback", "任务反馈填报", content, "")
+
+	// 积分：有效反馈（≥10 字）
+	if len([]rune(content)) >= 10 {
+		AwardPoints(userID, "feedback_submit", "note", note.ID.String(), "反馈《"+truncateNote(note.Title)+"》")
+	}
 
 	if s.notifSvc != nil && note.CreatorID.String() != userID {
 		_ = s.notifSvc.Notify(note.CreatorID.String(), userID, &note.ID, "task_feedback", "任务反馈", content)
@@ -615,6 +972,9 @@ func (s *NoteService) Sign(id, userID string) (*models.Note, error) {
 		return nil, err
 	}
 	_ = s.recordLedger(id, userID, "update", "任务签收", "", "")
+
+	// 积分：签收交办任务
+	AwardPoints(userID, "sign_reply", "note", note.ID.String(), "签收任务《"+truncateNote(note.Title)+"》")
 
 	// 通知任务发起人：被指派人已签收
 	if s.notifSvc != nil && note.CreatorID.String() != userID {

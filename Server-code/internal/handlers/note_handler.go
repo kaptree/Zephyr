@@ -177,11 +177,16 @@ func (h *NoteHandler) UpdateNote(c *gin.Context) {
 
 	note, err := h.noteService.Update(id, userID, req)
 	if err != nil {
-		if err == apperrors.ErrNoteNotFound {
+		switch err {
+		case apperrors.ErrNoteNotFound:
 			utils.NotFound(c, "任务不存在")
-			return
+		case apperrors.ErrPermissionDenied:
+			utils.Forbidden(c, "仅任务创建人可编辑参与人员与抄送人员")
+		case apperrors.ErrNoteArchived:
+			utils.BadRequest(c, "任务已归档，不能再调整参与人员与抄送人员")
+		default:
+			utils.InternalError(c, "更新任务失败")
 		}
-		utils.InternalError(c, "更新任务失败")
 		return
 	}
 
@@ -268,6 +273,67 @@ func (h *NoteHandler) Feedback(c *gin.Context) {
 	}
 
 	utils.Success(c, note)
+}
+
+// ListStageFeedbacks 任务阶段性反馈时间轴（GET /api/v1/notes/:id/feedbacks）
+// 论坛式：正序反馈流 + 参与人统计，访问权限与任务详情一致
+func (h *NoteHandler) ListStageFeedbacks(c *gin.Context) {
+	id := c.Param("id")
+	if !h.requireNoteAccess(c, id) {
+		return
+	}
+
+	resp, err := h.noteService.ListStageFeedbacks(id)
+	if err != nil {
+		if err == apperrors.ErrNoteNotFound {
+			utils.NotFound(c, "任务不存在")
+			return
+		}
+		utils.InternalError(c, "查询阶段性反馈失败")
+		return
+	}
+
+	utils.Success(c, resp)
+}
+
+// AddStageFeedback 追加一条阶段性反馈（POST /api/v1/notes/:id/feedbacks）
+// 仅创建人 / 交办人 / 被指派人可提交；抄送人只读；归档任务禁写
+func (h *NoteHandler) AddStageFeedback(c *gin.Context) {
+	id := c.Param("id")
+	userID := middleware.GetUserID(c)
+
+	var req struct {
+		Content string `json:"content"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Content) == "" {
+		utils.BadRequest(c, "反馈内容不能为空")
+		return
+	}
+	if len([]rune(strings.TrimSpace(req.Content))) > 2000 {
+		utils.BadRequest(c, "反馈内容不能超过 2000 字")
+		return
+	}
+
+	fb, err := h.noteService.AddStageFeedback(id, userID, req.Content)
+	if err != nil {
+		switch err {
+		case apperrors.ErrNoteNotFound:
+			utils.NotFound(c, "任务不存在")
+		case apperrors.ErrNoteArchived:
+			utils.BadRequest(c, "任务已归档，不能再提交阶段性反馈")
+		case apperrors.ErrPermissionDenied:
+			utils.Forbidden(c, "仅交办人与被指派人可提交阶段性反馈")
+		case apperrors.ErrInvalidChatContent:
+			utils.BadRequest(c, "反馈内容不能为空")
+		case apperrors.ErrInvalidOperation:
+			utils.BadRequest(c, "反馈内容不能超过 2000 字")
+		default:
+			utils.InternalError(c, "提交阶段性反馈失败")
+		}
+		return
+	}
+
+	utils.Success(c, fb)
 }
 
 func (h *NoteHandler) RemindNote(c *gin.Context) {

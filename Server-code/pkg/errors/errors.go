@@ -23,6 +23,7 @@ var (
 	ErrLoginLocked         = errors.New("account locked due to too many login attempts")
 	ErrInvalidChatContent  = errors.New("chat content cannot be empty")
 	ErrAssigneesIncomplete = errors.New("some assignees have not completed the task")
+	ErrNoteArchived        = errors.New("note is archived")
 )
 
 type AppError struct {

@@ -26,6 +26,12 @@ type Config struct {
 	Security  SecurityConfig  `json:"security"`
 	Scheduler SchedulerConfig `json:"scheduler"`
 	Features  FeaturesConfig  `json:"features"`
+	Vault     VaultConfig     `json:"vault"`
+}
+
+// VaultConfig 密码本工具（AES-GCM 加密密钥种子）
+type VaultConfig struct {
+	EncryptSecret string `json:"encrypt_secret"`
 }
 
 type ServerConfig struct {
@@ -237,6 +243,9 @@ func (c *Config) setDefaults() {
 	}
 	if c.JWT.RefreshTokenExpireSeconds == 0 {
 		c.JWT.RefreshTokenExpireSeconds = 604800
+	}
+	if c.Vault.EncryptSecret == "" {
+		c.Vault.EncryptSecret = "labelpro-vault-default-secret"
 	}
 }
 

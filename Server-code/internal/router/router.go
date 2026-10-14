@@ -86,6 +86,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 	notificationHandler := handlers.NewNotificationHandler(notifSvc)
 	groupChatHandler := handlers.NewGroupChatHandler(groupChatSvc)
 	emoticonHandler := handlers.NewEmoticonHandler(emoticonRepo)
+	achievementHandler := handlers.NewAchievementHandler()
 
 	if cfg.WebSocket.Enabled && hub != nil {
 		r.GET("/ws/:note_id", ws.HandleWebSocket(hub))
@@ -152,6 +153,8 @@ func Setup(cfg *config.Config) *gin.Engine {
 			notes.PUT("/:id", noteHandler.UpdateNote)
 			notes.POST("/:id/complete", noteHandler.CompleteNote)
 			notes.POST("/:id/feedback", noteHandler.Feedback)
+			notes.GET("/:id/feedbacks", noteHandler.ListStageFeedbacks)
+			notes.POST("/:id/feedbacks", noteHandler.AddStageFeedback)
 			notes.POST("/:id/remind", noteHandler.RemindNote)
 			notes.POST("/:id/sign", noteHandler.SignNote)
 			notes.DELETE("/:id", noteHandler.DeleteNote)
@@ -236,6 +239,7 @@ func Setup(cfg *config.Config) *gin.Engine {
 		{
 			chat.GET("/conversations", notificationHandler.Conversations)
 			chat.GET("/online", notificationHandler.ChatOnline)
+			chat.GET("/file-policy", uploadHandler.GetChatTransferPolicy)
 			chat.POST("/attachments", uploadHandler.UploadChatFile)
 			chat.GET("/:userId/messages", notificationHandler.ListMessages)
 			chat.POST("/:userId/messages", notificationHandler.SendMessage)
@@ -293,6 +297,55 @@ func Setup(cfg *config.Config) *gin.Engine {
 			issues.DELETE("/:id/subscribe", issueHandler.Unsubscribe)
 		}
 
+		// 成就系统
+		achievementsGroup := api.Group("/achievements")
+		{
+			achievementsGroup.GET("", achievementHandler.List)
+			achievementsGroup.POST("/check", achievementHandler.Check)
+		}
+
+		// 积分系统（排行榜 / 个人积分 / 规则）
+		pointsHandler := handlers.NewPointsHandler()
+		pointsGroup := api.Group("/points")
+		{
+			pointsGroup.GET("/leaderboard", pointsHandler.Leaderboard)
+			pointsGroup.GET("/me", pointsHandler.Me)
+			pointsGroup.GET("/rules", pointsHandler.Rules)
+		}
+
+		// 小工具（工具超市：列表/搜索/上传/运行/使用统计/审核）
+		// 运行页单独公开注册：沙箱 iframe 无法携带 Authorization 头，
+		// 已上架工具本身不含敏感数据，由清洗 + 沙箱 CSP 兜底。
+		toolHandler := handlers.NewToolHandler()
+		toolsAuth := api.Group("/tools")
+		{
+			toolsAuth.GET("", toolHandler.List)
+			toolsAuth.GET("/categories", toolHandler.Categories)
+			toolsAuth.GET("/mine", toolHandler.Mine)
+			toolsAuth.GET("/pending", middleware.RequireRoles("super_admin"), toolHandler.PendingList)
+			toolsAuth.POST("", toolHandler.Upload)
+			toolsAuth.GET("/:slug", toolHandler.Detail)
+			toolsAuth.POST("/:slug/launch", toolHandler.Launch)
+			toolsAuth.POST("/:slug/exit", toolHandler.Exit)
+			toolsAuth.PUT("/:slug/status", middleware.RequireRoles("super_admin"), toolHandler.UpdateStatus)
+			toolsAuth.DELETE("/:slug", toolHandler.Delete)
+		}
+		toolsPub := r.Group("/api/v1/tools")
+		toolsPub.GET("/:slug/run", toolHandler.Run)
+
+		// 密码本工具（本人数据 + 密码广场）
+		vaultHandler := handlers.NewVaultHandler()
+		vaultGroup := api.Group("/vault")
+		{
+			vaultGroup.GET("/entries", vaultHandler.List)
+			vaultGroup.POST("/entries", vaultHandler.Create)
+			vaultGroup.PUT("/entries/:id", vaultHandler.Update)
+			vaultGroup.DELETE("/entries/:id", vaultHandler.Delete)
+			vaultGroup.PUT("/entries/:id/share", vaultHandler.Share)
+			vaultGroup.GET("/plaza", vaultHandler.Plaza)
+			vaultGroup.GET("/plaza/:id/reveal", vaultHandler.Reveal)
+		}
+
 		analytics := api.Group("/analytics")
 		{
 			analytics.GET("/personal-stats", analyticsHandler.PersonalStats)
@@ -301,11 +354,14 @@ func Setup(cfg *config.Config) *gin.Engine {
 			analytics.GET("/ai-configs", analyticsHandler.ListAIConfigsForReport)
 			analytics.POST("/ai-report", analyticsHandler.GenerateAIReport)
 			analytics.GET("/reports", analyticsHandler.ListReports)
+			analytics.GET("/reports/pending", analyticsHandler.ListPendingReports)
 			analytics.GET("/reports/:id", analyticsHandler.GetReport)
 			analytics.GET("/reports/:id/detail", analyticsHandler.GetReportDetail)
 			analytics.DELETE("/reports/:id", analyticsHandler.DeleteReport)
 			analytics.GET("/report-template", analyticsHandler.GetReportTemplate)
 			analytics.PUT("/report-template", analyticsHandler.SaveReportTemplate)
+			analytics.GET("/ai-prompt", analyticsHandler.GetReportAIPrompt)
+			analytics.PUT("/ai-prompt", analyticsHandler.SaveReportAIPrompt)
 			analytics.POST("/daily-report", analyticsHandler.GenerateDailyReport)
 			analytics.POST("/weekly-report", analyticsHandler.GenerateWeeklyReport)
 			analytics.POST("/monthly-report", analyticsHandler.GenerateMonthlyReport)

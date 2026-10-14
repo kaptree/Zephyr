@@ -254,6 +254,7 @@ func (r *NoteRepository) FindByID(id string) (*models.Note, error) {
 		Preload("Tags").
 		Preload("Creator").
 		Preload("Owner").
+		Preload("Assigner").
 		Preload("Department").
 		Preload("Assignees.User").
 		Preload("Ccs.User").
@@ -394,6 +395,41 @@ func (r *NoteRepository) GetAssigneeFeedback(noteID, userID string) (string, err
 	return a.FeedbackContent, nil
 }
 
+// CreateFeedback 追加一条阶段性反馈（论坛式时间轴，只增不删）
+func (r *NoteRepository) CreateFeedback(fb *models.NoteFeedback) error {
+	return r.db.Create(fb).Error
+}
+
+// ListFeedbacks 按时间倒序返回任务的全部阶段性反馈（最新发布在前）
+func (r *NoteRepository) ListFeedbacks(noteID string) ([]models.NoteFeedback, error) {
+	var list []models.NoteFeedback
+	err := r.db.
+		Preload("User").
+		Where("note_id = ?", noteID).
+		Order("created_at DESC").
+		Find(&list).Error
+	return list, err
+}
+
+// FeedbackParticipantStat 阶段性反馈参与人统计（论坛侧栏/人员筛选用）
+type FeedbackParticipantStat struct {
+	UserID         string     `json:"user_id"`
+	FeedbackCount  int64      `json:"feedback_count"`
+	LastFeedbackAt *time.Time `json:"last_feedback_at"`
+}
+
+// ListFeedbackParticipants 统计阶段性反馈参与人（条数 + 最近反馈时间）
+func (r *NoteRepository) ListFeedbackParticipants(noteID string) ([]FeedbackParticipantStat, error) {
+	var stats []FeedbackParticipantStat
+	err := r.db.Model(&models.NoteFeedback{}).
+		Select("user_id, COUNT(*) as feedback_count, MAX(created_at) as last_feedback_at").
+		Where("note_id = ?", noteID).
+		Group("user_id").
+		Order("feedback_count DESC").
+		Scan(&stats).Error
+	return stats, err
+}
+
 // UpdateAssigneeComplete 标记被指派人本人完成（并回写反馈内容）
 func (r *NoteRepository) UpdateAssigneeComplete(noteID, userID, feedback string) error {
 	now := time.Now()
@@ -426,6 +462,56 @@ func (r *NoteRepository) GetNoteCreatorID(noteID string) (string, error) {
 		return "", err
 	}
 	return n.CreatorID.String(), nil
+}
+
+// UpdateParticipants 创建人编辑任务参与人员/抄送人员（增删改，单事务）：
+//   - 新增被指派人 / 抄送人整批插入
+//   - 移除被指派人 / 抄送人整批删除（被移除者的工作台不再展示该任务，
+//     列表查询均以 note_assignees / note_ccs 行存在为准）
+//   - 未变动人员保留原有签收/反馈/完成进度
+//   - newOwnerID 非 nil 时同步转移负责人（原负责人被移出场景）
+func (r *NoteRepository) UpdateParticipants(
+	noteID string,
+	addAssignees []models.NoteAssignee,
+	removeAssigneeIDs []uuid.UUID,
+	addCcs []models.NoteCc,
+	removeCcIDs []uuid.UUID,
+	newOwnerID *uuid.UUID,
+) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if len(removeAssigneeIDs) > 0 {
+			if err := tx.Where("note_id = ? AND user_id IN ?", noteID, removeAssigneeIDs).
+				Delete(&models.NoteAssignee{}).Error; err != nil {
+				return err
+			}
+		}
+		for i := range addAssignees {
+			addAssignees[i].NoteID = uuid.MustParse(noteID)
+		}
+		if len(addAssignees) > 0 {
+			if err := tx.Create(&addAssignees).Error; err != nil {
+				return err
+			}
+		}
+		if len(removeCcIDs) > 0 {
+			if err := tx.Where("note_id = ? AND user_id IN ?", noteID, removeCcIDs).
+				Delete(&models.NoteCc{}).Error; err != nil {
+				return err
+			}
+		}
+		if len(addCcs) > 0 {
+			if err := tx.Create(&addCcs).Error; err != nil {
+				return err
+			}
+		}
+		if newOwnerID != nil {
+			if err := tx.Model(&models.Note{}).Where("id = ?", noteID).
+				Update("owner_id", *newOwnerID).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // CheckUserAccess 判断用户是否有权查看任务（含抄送人）：

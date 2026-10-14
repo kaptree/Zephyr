@@ -35,12 +35,13 @@ async function handleDelete(reportId: string) {
   loadReports()
 }
 
-function handleExport(reportId: string, format: string) {
+function handleExport(reportId: string, format: string, title: string) {
   exportGroupReport(groupId, reportId, format).then(blob => {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `report.${format === 'docx' ? 'docx' : format === 'pdf' ? 'pdf' : 'html'}`
+    const ext = format === 'docx' ? 'docx' : format === 'pdf' ? 'pdf' : 'html'
+    a.download = `${(title || 'report').replace(/[\\/:*?"<>|]/g, '-')}.${ext}`
     a.click()
     URL.revokeObjectURL(url)
   })
@@ -50,9 +51,20 @@ onMounted(loadReports)
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
+  <div class="page-shell p-6">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
     <div class="max-w-4xl mx-auto">
-      <div class="flex items-center gap-4 mb-6">
+      <div class="rise flex items-center gap-4 mb-6">
         <button
           class="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-smooth text-sm flex items-center gap-1"
           @click="router.push(`/workbench/groups/${groupId}`)"
@@ -60,7 +72,7 @@ onMounted(loadReports)
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
           返回工作组
         </button>
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">工作报告</h1>
+        <h1 class="text-2xl font-bold page-title">工作报告</h1>
       </div>
 
       <div v-if="loading" class="text-center py-12">
@@ -68,7 +80,8 @@ onMounted(loadReports)
         <p class="text-slate-500 text-sm">加载报告列表...</p>
       </div>
 
-      <div v-else-if="reports.length === 0" class="text-center py-12 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+      <div v-else-if="reports.length === 0" class="glass-card text-center py-12">
+        <div class="card-top-line" aria-hidden="true" />
         <svg class="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
         <p class="text-slate-500 text-sm">暂未生成报告</p>
         <p class="text-slate-400 text-xs mt-1">返回工作组页面，点击「生成报告」开始</p>
@@ -91,8 +104,8 @@ onMounted(loadReports)
               </div>
             </div>
             <div class="flex items-center gap-2 shrink-0">
-              <button class="px-3 py-1.5 text-[10px] font-medium rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-smooth" @click="handleExport(r.id, 'html')">HTML</button>
-              <button class="px-3 py-1.5 text-[10px] font-medium rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-smooth" @click="handleExport(r.id, 'docx')">Word</button>
+              <button class="px-3 py-1.5 text-[10px] font-medium rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-smooth" @click="handleExport(r.id, 'html', r.title)">HTML</button>
+              <button class="px-3 py-1.5 text-[10px] font-medium rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-smooth" @click="handleExport(r.id, 'docx', r.title)">Word</button>
               <button class="px-3 py-1.5 text-[10px] font-medium rounded-lg bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-smooth" @click="handleDelete(r.id)">删除</button>
             </div>
           </div>

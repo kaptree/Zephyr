@@ -16,6 +16,7 @@ import { generateGroupReport, type WorkGroupReport } from '@/services/workgroup'
 import RichTextEditor from '@/components/common/RichTextEditor.vue';
 import { useNoteStore } from '@/stores/notes';
 import { useAuthStore } from '@/stores/auth';
+import { useAchievementStore } from '@/stores/achievements';
 import StickyNoteCard from '@/components/note/StickyNoteCard.vue';
 import TagSelector from '@/components/common/TagSelector.vue';
 import UserPicker from '@/components/common/UserPicker.vue';
@@ -70,6 +71,8 @@ async function handleGenerateReport() {
   try {
     const res = await generateGroupReport(groupId);
     const data = res.data as unknown as { report_id: string; report: string; report_type: string };
+    // 成就检查：群报告生成里程碑
+    useAchievementStore().checkAndNotify();
     router.push(`/workbench/groups/${groupId}/reports/${data.report_id}`);
   } catch {
     alert('生成报告失败，请确认已配置AI大模型');
@@ -337,7 +340,14 @@ async function saveEditMember(m: WorkGroupMemberData) {
   }
 }
 async function handleRemoveMember(m: WorkGroupMemberData) {
-  if (!(await appConfirm({ message: `确定将 ${m.user?.name || m.user_id} 移出工作组？`, danger: true, confirmText: '移出' }))) return;
+  if (
+    !(await appConfirm({
+      message: `确定将 ${m.user?.name || m.user_id} 移出工作组？`,
+      danger: true,
+      confirmText: '移出',
+    }))
+  )
+    return;
   try {
     await removeWorkGroupMember(groupId, m.user_id);
     await reloadGroup();
@@ -348,8 +358,19 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
 </script>
 
 <template>
-  <div class="h-full flex flex-col bg-white dark:bg-slate-900">
-    <div class="shrink-0 px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+  <div class="page-shell h-full flex flex-col">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
+    <div class="rise shrink-0 px-6 py-4 border-b border-slate-200 dark:border-slate-700">
       <div class="flex items-center gap-3">
         <button
           class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-smooth flex items-center gap-1 text-sm"
@@ -366,7 +387,7 @@ async function handleRemoveMember(m: WorkGroupMemberData) {
           工作台
         </button>
         <span class="text-slate-300 dark:text-slate-600">/</span>
-        <h1 class="text-lg font-semibold text-slate-900 dark:text-slate-100 truncate">
+        <h1 class="text-lg font-semibold page-title truncate">
           {{ group?.name || '加载中...' }}
         </h1>
       </div>

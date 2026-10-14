@@ -270,21 +270,19 @@ func (h *GroupChatHandler) UploadGroupFile(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	groupID := c.Param("id")
 
-	if c.Request.ContentLength > maxFileSize {
-		utils.BadRequest(c, fmt.Sprintf("文件大小超过限制，最大允许 %dMB", maxFileSize/(1024*1024)))
-		return
-	}
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
 		utils.BadRequest(c, "请选择要上传的文件")
 		return
 	}
 	defer file.Close()
-	if header.Size > maxFileSize {
-		utils.BadRequest(c, fmt.Sprintf("文件大小超过限制，最大允许 %dMB", maxFileSize/(1024*1024)))
+
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	limit, kindLabel := chatUploadLimit(ext)
+	if c.Request.ContentLength > limit || header.Size > limit {
+		utils.BadRequest(c, fmt.Sprintf("%s大小超过限制（最大允许 %dMB），请联系管理员修改聊天文件大小限制", kindLabel, limit/(1<<20)))
 		return
 	}
-	ext := strings.ToLower(filepath.Ext(header.Filename))
 	if policy := services.GetFilePolicyService(); policy != nil && !policy.IsAllowed(ext) {
 		utils.BadRequest(c, fmt.Sprintf("该文件格式（%s）不在允许范围内，已由管理员禁用", ext))
 		return

@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useNotificationStore } from '@/stores/notification';
 import { useAuthStore } from '@/stores/auth';
 import { getVisibleUsers } from '@/services/admin';
-import { uploadChatFile } from '@/services/notification';
+import { uploadChatFile, getChatTransferPolicy } from '@/services/notification';
 import * as groupChatService from '@/services/groupChat';
 import EmojiPicker from '@/components/chat/EmojiPicker.vue';
 import MentionPicker from '@/components/chat/MentionPicker.vue';
@@ -22,6 +22,7 @@ import {
   renderMessageContent,
 } from '@/utils/mention';
 import { useToast } from '@/composables/useToast';
+import { useChatDropUpload } from '@/composables/useChatDropUpload';
 
 const store = useNotificationStore();
 const auth = useAuthStore();
@@ -494,15 +495,53 @@ async function sendEmoticon(path: string) {
   scrollToBottom();
 }
 
-async function onFileSelected(e: Event) {
-  const inputEl = e.target as HTMLInputElement;
-  const file = inputEl.files?.[0];
-  inputEl.value = '';
-  if (!file) return;
-  if (!activeIsGroup.value && !currentPeer.value) return;
+// 聊天文件传输策略（图片/文件分别限流，MB），挂载时从后端拉取
+const IMAGE_EXTENSIONS = ['.bmp', '.png', '.jpg', '.jpeg', '.gif', '.webp'];
+const chatPolicy = ref({ maxImageMB: 20, maxFileMB: 50 });
 
-  if (file.size > 10 * 1024 * 1024) {
-    toast.warning('文件大小超过限制，最大允许 10MB');
+async function loadChatTransferPolicy() {
+  try {
+    const res = await getChatTransferPolicy();
+    const data = res.data as unknown as { max_image_size_mb?: number; max_file_size_mb?: number };
+    chatPolicy.value = {
+      maxImageMB: data.max_image_size_mb || 20,
+      maxFileMB: data.max_file_size_mb || 50,
+    };
+  } catch {
+    // 拉取失败时使用默认限制（20MB 图片 / 50MB 文件）
+  }
+}
+
+function isImageUploadFile(file: File): boolean {
+  if (file.type && file.type.startsWith('image/')) return true;
+  const name = file.name.toLowerCase();
+  return IMAGE_EXTENSIONS.some((ext) => name.endsWith(ext));
+}
+
+// 按类型校验大小，超限返回提示文案
+function checkChatFileSize(file: File): string | null {
+  const isImage = isImageUploadFile(file);
+  const limitMB = isImage ? chatPolicy.value.maxImageMB : chatPolicy.value.maxFileMB;
+  if (file.size > limitMB * 1024 * 1024) {
+    const kind = isImage ? '图片' : '文件';
+    return `${kind}大小超过限制（最大允许 ${limitMB}MB），请联系管理员修改聊天文件大小限制`;
+  }
+  return null;
+}
+
+// 发送聊天文件：上传后作为图片 / 文件消息发出（文件选择按钮与拖拽上传共用）
+async function sendChatFile(file: File) {
+  if (!activeIsGroup.value && !currentPeer.value) {
+    toast.warning('请先选择一个会话');
+    return;
+  }
+  if (uploading.value) {
+    toast.warning('有文件正在上传中，请稍候');
+    return;
+  }
+  const sizeError = checkChatFileSize(file);
+  if (sizeError) {
+    toast.warning(sizeError);
     return;
   }
   uploading.value = true;
@@ -524,12 +563,33 @@ async function onFileSelected(e: Event) {
     }
     scrollToBottom();
   } catch (err) {
-    const e2 = err as { response?: { data?: { message?: string } } };
-    toast.error(e2?.response?.data?.message || '文件上传失败');
+    const e2 = err as { response?: { data?: { message?: string } }; friendlyMessage?: string };
+    toast.error(e2?.response?.data?.message || e2?.friendlyMessage || '文件上传失败');
   } finally {
     uploading.value = false;
   }
 }
+
+async function onFileSelected(e: Event) {
+  const inputEl = e.target as HTMLInputElement;
+  const file = inputEl.files?.[0];
+  inputEl.value = '';
+  if (file) await sendChatFile(file);
+}
+
+// ---------------- 聊天窗口拖拽上传 ----------------
+
+// 拖入文件按顺序逐个发送
+async function sendChatFiles(files: File[]) {
+  for (const f of files) await sendChatFile(f);
+}
+
+const {
+  dragOver: chatDragOver,
+  onDragEnter: onChatDragEnter,
+  onDragLeave: onChatDragLeave,
+  onDrop: onChatDrop,
+} = useChatDropUpload(sendChatFiles);
 
 // ---------------- 创建群聊 ----------------
 
@@ -727,8 +787,9 @@ function openFilesPanel() {
 // 上传群文件（按钮选择 + 拖拽共用）
 async function uploadToGroupFiles(file: File) {
   if (!currentGroup.value || filePanelUploading.value) return;
-  if (file.size > 10 * 1024 * 1024) {
-    toast.warning('文件大小超过限制，最大允许 10MB');
+  const sizeError = checkChatFileSize(file);
+  if (sizeError) {
+    toast.warning(sizeError);
     return;
   }
   filePanelUploading.value = true;
@@ -738,8 +799,8 @@ async function uploadToGroupFiles(file: File) {
     // 后端不推送给上传者本人，手动刷新列表
     await store.loadGroupFiles(currentGroup.value);
   } catch (err) {
-    const e2 = err as { response?: { data?: { message?: string } } };
-    toast.error(e2?.response?.data?.message || '文件上传失败');
+    const e2 = err as { response?: { data?: { message?: string } }; friendlyMessage?: string };
+    toast.error(e2?.response?.data?.message || e2?.friendlyMessage || '文件上传失败');
   } finally {
     filePanelUploading.value = false;
   }
@@ -923,7 +984,18 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="h-full flex rounded-card overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+  <div class="page-shell h-full flex rise">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
     <!-- ============ 左侧栏 ============ -->
     <aside class="w-[300px] shrink-0 flex flex-col border-r border-slate-100 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/40">
       <!-- 头部 -->
@@ -1082,8 +1154,14 @@ onUnmounted(() => {
       </div>
     </aside>
 
-    <!-- ============ 主区 ============ -->
-    <main class="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-900/50">
+    <!-- ============ 主区（整栏接受文件拖拽上传） ============ -->
+    <main
+      class="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-900/50"
+      @dragover.prevent
+      @dragenter.prevent="onChatDragEnter"
+      @dragleave="onChatDragLeave"
+      @drop.prevent="onChatDrop"
+    >
       <!-- 空态 -->
       <div v-if="!currentPeer && !currentGroup" class="flex-1 flex flex-col items-center justify-center">
         <div class="w-16 h-16 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-3xl mb-3">💬</div>
@@ -1159,6 +1237,15 @@ onUnmounted(() => {
 
         <!-- 消息区 -->
         <div class="relative flex-1 flex flex-col min-h-0">
+          <!-- 拖拽上传遮罩（纯提示层，不拦截 drop 事件） -->
+          <div
+            v-if="chatDragOver"
+            class="absolute inset-0 z-20 rounded-2xl border-2 border-dashed border-blue-400 bg-blue-50/85 dark:bg-blue-900/50 flex flex-col items-center justify-center pointer-events-none"
+          >
+            <span class="text-4xl mb-2">📨</span>
+            <p class="text-sm text-blue-500 dark:text-blue-300 font-medium">松手发送文件</p>
+            <p class="text-[10px] text-blue-400 dark:text-blue-400/70 mt-1">图片将直接以图片消息发送，其他文件作为附件传输</p>
+          </div>
           <div
             ref="messagesEl"
             class="flex-1 overflow-y-auto scrollbar-thin px-6 py-4 space-y-3"
@@ -1207,7 +1294,7 @@ onUnmounted(() => {
               <div v-else-if="m.type === 'file'" class="min-w-[200px]">
                 <a
                   :href="m.filePath"
-                  download
+                  :download="m.fileName"
                   target="_blank"
                   rel="noopener"
                   class="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:shadow-md transition-smooth"

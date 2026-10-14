@@ -64,9 +64,21 @@ function getStatusClass(status: string) {
 </script>
 
 <template>
-  <div :class="['flex flex-col h-full', isProjection && 'fixed inset-0 bg-[#0F172A] z-[100]']">
+  <div :class="['page-shell flex flex-col', isProjection && 'fixed inset-0 bg-[#0F172A] z-[100]']">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
     <!-- 顶部栏（非投屏模式显示） -->
-    <div v-if="!isProjection" class="flex items-center justify-between mb-4 bg-white rounded-card p-4 border border-slate-100">
+    <div v-if="!isProjection" class="glass-card rise p-4 flex items-center justify-between mb-4">
+      <div class="card-top-line" aria-hidden="true" />
       <div class="flex items-center gap-4">
         <router-link to="/workbench" class="text-sm text-slate-400 hover:text-slate-600 transition-smooth flex items-center gap-1">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -74,7 +86,7 @@ function getStatusClass(status: string) {
           </svg>
           返回
         </router-link>
-        <h2 class="text-lg font-semibold text-slate-900">协同编辑室</h2>
+        <h2 class="text-lg font-semibold page-title">协同编辑室</h2>
         <span :class="['status-dot', getStatusClass(collabStore.syncStatus)]" />
         <span class="text-xs text-slate-400">{{ collabStore.syncStatus === 'connected' ? '已连接' : '已断开' }}</span>
       </div>
@@ -146,8 +158,9 @@ function getStatusClass(status: string) {
     <!-- 指令记录（需求29：实时动态刷新） -->
     <div
       v-if="!isProjection"
-      class="mt-3 bg-white rounded-card border border-slate-100 flex flex-col max-h-56 overflow-hidden"
+      class="mt-3 glass-card flex flex-col max-h-56 overflow-hidden"
     >
+      <div class="card-top-line" aria-hidden="true" />
       <div class="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-100">
         <span class="text-xs font-medium text-slate-600">📋 指令记录</span>
         <span class="text-[10px] text-slate-400">{{ collabStore.commands.length }} 条</span>
@@ -174,9 +187,10 @@ function getStatusClass(status: string) {
     <div
       v-if="!isProjection"
       :class="[
-        'mt-3 bg-white rounded-card p-3 border border-slate-100 flex items-center justify-between',
+        'mt-3 glass-card p-3 flex items-center justify-between',
       ]"
     >
+      <div class="card-top-line" aria-hidden="true" />
       <span class="text-xs text-slate-400">{{ collabStore.typingStatusText || '—' }}</span>
       <div class="flex items-center gap-3">
         <input

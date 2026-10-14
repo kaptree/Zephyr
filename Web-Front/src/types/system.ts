@@ -1,4 +1,4 @@
-export type AIProviderType = 'openai' | 'deepseek' | 'qwen' | 'zhipu' | 'dify' | 'custom'
+export type AIProviderType = 'openai' | 'deepseek' | 'qwen' | 'zhipu' | 'dify' | 'ollama' | 'custom'
 
 export interface AIConfigItem {
   id: string
@@ -87,5 +87,7 @@ export interface OperationLogItem {
 export interface ChatFilePolicy {
   allow_extensions: string
   blocked_extensions: string
+  max_image_size_mb: number
+  max_file_size_mb: number
   updated_at: string
 }

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>JSON 格式化</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #f6f7fb; color: #1f2937; padding: 16px; }
+  .bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  button { padding: 8px 18px; border: 0; border-radius: 8px; background: #4f6ef2; color: #fff; font-size: 14px; cursor: pointer; }
+  button.ghost { background: #e5e7eb; color: #374151; }
+  button:hover { opacity: .9; }
+  textarea { width: 100%; height: 300px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 10px; font: 13px/1.6 ui-monospace, Menlo, monospace; resize: vertical; background: #fff; }
+  #msg { margin-top: 10px; font-size: 13px; min-height: 20px; }
+  .ok { color: #16a34a; } .err { color: #dc2626; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <button onclick="fmt(2)">格式化（2 空格）</button>
+    <button onclick="fmt(4)">格式化（4 空格）</button>
+    <button class="ghost" onclick="compact()">压缩</button>
+    <button class="ghost" onclick="check()">校验</button>
+    <button class="ghost" onclick="clearAll()">清空</button>
+  </div>
+  <textarea id="input" placeholder="在此粘贴 JSON 字符串…"></textarea>
+  <div id="msg"></div>
+<script>
+  var input = document.getElementById('input'), msg = document.getElementById('msg');
+  function fmt(space) {
+    try {
+      input.value = JSON.stringify(JSON.parse(input.value), null, space);
+      msg.textContent = '✔ 格式化成功'; msg.className = 'ok';
+    } catch (e) { fail(e); }
+  }
+  function compact() {
+    try {
+      input.value = JSON.stringify(JSON.parse(input.value));
+      msg.textContent = '✔ 压缩成功'; msg.className = 'ok';
+    } catch (e) { fail(e); }
+  }
+  function check() {
+    try { JSON.parse(input.value); msg.textContent = '✔ JSON 格式合法'; msg.className = 'ok'; }
+    catch (e) { fail(e); }
+  }
+  function fail(e) { msg.textContent = '✘ ' + e.message; msg.className = 'err'; }
+  function clearAll() { input.value = ''; msg.textContent = ''; }
+</script>
+</body>
+</html>

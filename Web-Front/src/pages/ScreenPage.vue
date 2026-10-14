@@ -169,7 +169,18 @@ function timeAgo(ts: string): string {
 </script>
 
 <template>
-  <div class="fixed inset-0 flex flex-col overflow-hidden bg-white">
+  <div class="page-shell page-shell--screen !fixed inset-0 flex flex-col overflow-hidden">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空，置于页面自有网格纹理之前） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
     <!-- 背景网格纹理 -->
     <div
       class="absolute inset-0 pointer-events-none opacity-[0.04]"
@@ -181,7 +192,7 @@ function timeAgo(ts: string): string {
 
     <!-- 顶部信息条 -->
     <div
-      class="h-16 border-b border-slate-100 flex items-center justify-between px-8 shrink-0 bg-white/80 backdrop-blur-sm"
+      class="rise h-16 border-b border-slate-100 flex items-center justify-between px-8 shrink-0 bg-white/80 backdrop-blur-sm"
     >
       <div class="flex items-center gap-6">
         <div
@@ -193,7 +204,7 @@ function timeAgo(ts: string): string {
         <span class="text-slate-500 text-sm">{{ formatDate(currentTime) }}</span>
       </div>
       <div class="flex items-center gap-4">
-        <h1 class="text-slate-900 font-semibold text-lg tracking-wide">轻燕工作台 · 数据大屏</h1>
+        <h1 class="font-semibold text-lg tracking-wide page-title">轻燕工作台 · 数据大屏</h1>
         <button
           class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-800/40 border border-blue-200 dark:border-blue-800 rounded-lg transition-smooth"
           @click="router.push('/workbench')"

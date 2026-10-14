@@ -16,22 +16,26 @@ export interface AIReportData {
   period: string;
   period_label: string;
   report_type: string;
+  /** 后台生成状态：generating 生成中 / completed 已完成 / failed 失败 */
+  status?: string;
   stats: PersonalStatsData;
   report: string;
   generated_at: string;
 }
 
 export interface WorkReportItem {
-  id: string
-  user_id: string
-  user_name: string
-  period: string
-  period_label: string
-  report_type: string
-  category?: string
-  title: string
-  content: string
-  created_at: string
+  id: string;
+  user_id: string;
+  user_name: string;
+  period: string;
+  period_label: string;
+  report_type: string;
+  category?: string;
+  /** 后台生成状态：generating 生成中 / completed 已完成 / failed 失败（旧数据默认 completed） */
+  status?: string;
+  title: string;
+  content: string;
+  created_at: string;
 }
 
 export interface ReportListQuery {
@@ -50,9 +54,21 @@ export function fetchPersonalStats(
 }
 
 export function generateAIReport(
-  period: 'week' | 'month' | 'year'
+  period: 'week' | 'month' | 'year',
+  aiConfigId?: string
 ): Promise<ApiResponse<AIReportData>> {
-  return post('/api/v1/analytics/ai-report', { period });
+  // aiConfigId：空 = 智能生成（AI 优先，失败回退模板）；"template" = 模板生成；其他 = 指定 AI 配置 ID
+  // AI 模式后端已改为后台异步生成，接口立即返回 generating 状态，无需长超时
+  return post(
+    '/api/v1/analytics/ai-report',
+    { period, ai_config_id: aiConfigId || '' },
+    { timeout: 60000 }
+  );
+}
+
+/** 查询当前用户仍在后台生成中的报告（切回页面时恢复轮询用） */
+export function fetchPendingReports(): Promise<ApiResponse<WorkReportItem[]>> {
+  return get('/api/v1/analytics/reports/pending');
 }
 
 export function listReports(
@@ -150,6 +166,8 @@ export interface TeamReportData {
   period: string;
   period_label: string;
   report_type: string;
+  /** 后台生成状态：generating 生成中 / completed 已完成 / failed 失败 */
+  status?: string;
   stats: TeamStatsData;
   report: string;
   generated_at: string;
@@ -162,7 +180,8 @@ export function generateTeamReport(data: {
   ai_config_id?: string;
   user_ids?: string[];
 }): Promise<ApiResponse<TeamReportData>> {
-  return post('/api/v1/analytics/team-report', data);
+  // AI 模式后端已改为后台异步生成，接口立即返回 generating 状态，无需长超时
+  return post('/api/v1/analytics/team-report', data, { timeout: 60000 });
 }
 
 export interface AIConfigBrief {
@@ -174,4 +193,20 @@ export interface AIConfigBrief {
 
 export function listReportAIConfigs(): Promise<ApiResponse<AIConfigBrief[]>> {
   return get('/api/v1/analytics/ai-configs');
+}
+
+// ==================== AI 报告提示词（★ 新增） ====================
+
+export interface AIPromptData {
+  content: string;
+  is_customized: boolean;
+  default: string;
+}
+
+export function fetchAIPrompt(): Promise<ApiResponse<AIPromptData>> {
+  return get('/api/v1/analytics/ai-prompt');
+}
+
+export function saveAIPrompt(content: string): Promise<ApiResponse<AIPromptData>> {
+  return put('/api/v1/analytics/ai-prompt', { content });
 }

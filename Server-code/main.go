@@ -67,6 +67,7 @@ func main() {
 		&models.NoteAssignee{},
 		&models.NoteCc{},
 		&models.NoteAttachment{},
+		&models.NoteFeedback{},
 		&models.WorkGroup{},
 		&models.WorkGroupMember{},
 		&models.PresetGroup{},
@@ -93,6 +94,15 @@ func main() {
 		&models.ChatGroupMember{},
 		&models.GroupMessage{},
 		&models.GroupFile{},
+		&models.AchievementUnlock{},
+		&models.PointRule{},
+		&models.PointEvent{},
+		&models.UserPoint{},
+		&models.PointDailyStat{},
+		&models.Tool{},
+		&models.ToolUsageEvent{},
+		&models.ToolUsageDaily{},
+		&models.PasswordEntry{},
 	); err != nil {
 		logger.Fatal("Failed to auto migrate database", zap.Error(err))
 	}
@@ -103,6 +113,13 @@ func main() {
 
 	// 初始化聊天文件传输策略（白名单/黑名单，默认黑名单拦截危险文件）
 	services.InitFilePolicyService(database.DB)
+
+	// 初始化积分系统（种子积分规则，幂等）
+	services.InitPointsService(database.DB)
+
+	// 小工具板块：幂等导入内置工具 + 启动每日使用统计校准
+	services.EnsureBuiltinTools(database.DB)
+	services.StartToolStatsCalibration()
 
 	// 一次性数据修正：回填历史团队报告的 category 字段（幂等，仅修正存量数据）
 	if err := database.DB.Exec(`UPDATE work_reports SET category = 'team'

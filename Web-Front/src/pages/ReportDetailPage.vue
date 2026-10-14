@@ -211,10 +211,21 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="max-w-4xl mx-auto">
+  <div class="page-shell max-w-4xl mx-auto p-5">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
     <!-- 头部 -->
     <div
-      class="sticky top-0 z-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur rounded-card border border-slate-100 dark:border-slate-700 p-4 mb-4 flex items-center justify-between gap-3 transition-colors duration-300"
+      class="rise sticky top-0 z-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur rounded-card border border-slate-100 dark:border-slate-700 p-4 mb-4 flex items-center justify-between gap-3 transition-colors duration-300"
     >
       <div class="flex items-center gap-3 min-w-0">
         <button
@@ -264,10 +275,9 @@ onMounted(load);
 
     <template v-else-if="report">
       <!-- 报告正文（文章形式） -->
-      <article
-        class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-8 shadow-sm transition-colors duration-300"
-      >
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">{{ report.title }}</h1>
+      <article class="glass-card p-8 transition-colors duration-300">
+        <div class="card-top-line" aria-hidden="true" />
+        <h1 class="page-title text-2xl font-bold mb-2">{{ report.title }}</h1>
         <div class="flex flex-wrap items-center gap-2 text-xs text-slate-400 dark:text-slate-500 mb-1">
           <span class="px-2 py-0.5 rounded-tag" :class="categoryColor">{{ categoryLabel }}</span>
           <span
@@ -289,8 +299,9 @@ onMounted(load);
       <!-- 成员任务与反馈明细 -->
       <section
         v-if="detail.members.length"
-        class="mt-5 bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300"
+        class="glass-card mt-5 p-6 transition-colors duration-300"
       >
+        <div class="card-top-line" aria-hidden="true" />
         <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100 mb-1">
           📋 成员任务明细
           <span class="text-xs font-normal text-slate-400 dark:text-slate-500">（共 {{ totalTasks }} 项，按时间顺序）</span>
@@ -357,8 +368,9 @@ onMounted(load);
 
       <section
         v-else
-        class="mt-5 bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 text-center text-xs text-slate-400 transition-colors duration-300"
+        class="glass-card mt-5 p-6 text-center text-xs text-slate-400 transition-colors duration-300"
       >
+        <div class="card-top-line" aria-hidden="true" />
         该报告暂无成员任务明细（新生成的报告将自动附带各成员任务与反馈）
       </section>
     </template>

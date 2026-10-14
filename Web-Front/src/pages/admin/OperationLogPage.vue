@@ -184,9 +184,20 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col bg-white dark:bg-slate-900 transition-colors duration-300">
-    <div class="shrink-0 px-6 py-4 border-b border-slate-200 dark:border-slate-700">
-      <h1 class="text-xl font-semibold text-slate-900 dark:text-slate-100">操作日志</h1>
+  <div class="page-shell h-full flex flex-col transition-colors duration-300">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
+    <div class="rise shrink-0 px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+      <h1 class="page-title text-xl font-semibold">操作日志</h1>
       <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
         查看所有用户的操作记录，支持多维度筛选
       </p>
@@ -206,9 +217,8 @@ onMounted(() => {
         <span>{{ toast.message }}</span>
       </div>
 
-      <div
-        class="mb-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40"
-      >
+      <div class="glass-card mb-4 p-4">
+        <div class="card-top-line" aria-hidden="true" />
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <div>
             <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1"

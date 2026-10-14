@@ -8,7 +8,7 @@ import (
 
 type AIConfig struct {
 	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	ProviderType string    `gorm:"type:varchar(30);default:'openai'" json:"provider_type"` // openai/deepseek/qwen/zhipu/dify/custom
+	ProviderType string    `gorm:"type:varchar(30);default:'openai'" json:"provider_type"` // openai/deepseek/qwen/zhipu/dify/ollama/custom
 	ProviderName string    `gorm:"type:varchar(100);not null" json:"provider_name"`
 	APIEndpoint  string    `gorm:"type:varchar(500);not null" json:"api_endpoint"`
 	APIKey       string    `gorm:"type:varchar(500);not null" json:"-"`
@@ -86,6 +86,9 @@ type WorkReport struct {
 	PeriodLabel  string     `gorm:"type:varchar(20)" json:"period_label"`
 	ReportType   string     `gorm:"type:varchar(20);default:'ai'" json:"report_type"`
 	Category     string     `gorm:"type:varchar(20);default:'personal'" json:"category"` // personal 个人 / team 团队 / group 工作组
+	// Status 后台生成状态：generating 生成中（AI 后台任务）/ completed 已完成 / failed 生成失败。
+	// 模板等同步路径直接 completed；旧数据经 AutoMigrate 默认回填 completed
+	Status       string     `gorm:"type:varchar(20);default:'completed';index" json:"status"`
 	Title        string     `gorm:"type:varchar(300)" json:"title"`
 	Content      string     `gorm:"type:text" json:"content"`
 	StatsSummary string     `gorm:"type:text" json:"stats_summary"`

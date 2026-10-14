@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import type { Note } from '@/types';
 import { renderNoteContent } from '@/utils/richText';
 import { htmlToMarkdown } from '@/utils/markdown';
 import { useAuthStore } from '@/stores/auth';
+import { useImageUpload } from '@/composables/useImageUpload';
+import { useSharedNow } from '@/composables/useSharedNow';
 import { AppIcon } from '@/components/icons';
 
 const auth = useAuthStore();
@@ -15,7 +17,7 @@ const props = withDefaults(
     archived?: boolean;
     editingBy?: string | null;
     extraActions?: boolean;
-    /** 工作台画布模式：卡片占满格子（grid 拉伸），内容全部展开显示 */
+    /** 工作台画布模式：卡片占满格子（grid 拉伸），内容与其它模式一致限高展示 */
     board?: boolean;
     /** 行内编辑态：标题/内容变为输入框，由父组件控制进入与保存 */
     editing?: boolean;
@@ -49,6 +51,97 @@ const emit = defineEmits<{
 
 const expanded = ref(false);
 
+// ===== 内容长度限制：便签内容与任务反馈统一限高，超出部分隐藏，点开后才能看到 =====
+const CONTENT_LIMIT_PX = 72; // 与模板中 max-h-[72px] 保持一致
+const FEEDBACK_LIMIT_PX = 72; // 任务反馈列表高度上限
+
+/**
+ * 全页共享的 ResizeObserver：整页仅一个实例、统一分发回调。
+ * 每张卡片本需 2 个 observer（内容 + 反馈），工作台 20 卡即 40 个实例；
+ * 共享后降为 1 个，显著减少浏览器的观察者簿记开销。
+ */
+const roCallbacks = new WeakMap<Element, () => void>();
+let sharedRO: ResizeObserver | null = null;
+function getSharedResizeObserver(): ResizeObserver | null {
+  if (typeof ResizeObserver === 'undefined') return null;
+  if (!sharedRO) {
+    sharedRO = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        roCallbacks.get(entry.target)?.();
+      }
+    });
+  }
+  return sharedRO;
+}
+
+/**
+ * 溢出检测：观察元素实际渲染高度是否超过 limitPx。
+ * 通过（共享）ResizeObserver 跟随尺寸变化（窗口缩放、格子宽度变化、富文本图片加载等）自动重测。
+ */
+function useOverflowGuard(limitPx: number) {
+  const el = ref<HTMLElement | null>(null);
+  const overflowing = ref(false);
+  let rafId = 0;
+  const check = () => {
+    // 元素本身不限高（仅视觉上被父容器裁剪），其实际高度超过上限即视为超限
+    overflowing.value = !!el.value && el.value.offsetHeight > limitPx + 2;
+  };
+  // ResizeObserver 可能在同帧多次触发（含挂载/布局抖动），合并到下一帧只测一次，
+  // 避免多个卡片回调叠加造成强制重排（layout thrash）
+  const scheduleCheck = () => {
+    if (rafId) return;
+    rafId = requestAnimationFrame(() => {
+      rafId = 0;
+      check();
+    });
+  };
+  const ro = getSharedResizeObserver();
+  watch(el, (node, prev) => {
+    if (prev) roCallbacks.delete(prev);
+    if (node && ro) {
+      roCallbacks.set(node, scheduleCheck);
+      ro.observe(node);
+    }
+    check();
+  });
+  onUnmounted(() => {
+    if (el.value && ro) {
+      ro.unobserve(el.value);
+      roCallbacks.delete(el.value);
+    }
+    if (rafId) cancelAnimationFrame(rafId);
+  });
+  return { el, overflowing, check };
+}
+
+const {
+  el: contentEl,
+  overflowing: contentOverflowing,
+  check: checkContentOverflow,
+} = useOverflowGuard(CONTENT_LIMIT_PX);
+const {
+  el: feedbackListEl,
+  overflowing: feedbackOverflowing,
+  check: checkFeedbackOverflow,
+} = useOverflowGuard(FEEDBACK_LIMIT_PX);
+
+// 内容/被指派人反馈更新（编辑保存、协作同步）后重新测量
+watch(
+  () => props.note.content,
+  async () => {
+    await nextTick();
+    checkContentOverflow();
+  }
+);
+watch(
+  () => props.note.assignees,
+  async () => {
+    await nextTick();
+    checkFeedbackOverflow();
+  },
+  { deep: true }
+);
+
 // ===== 行内编辑：进入编辑态时把 HTML 内容转回 Markdown 供直接修改 =====
 const editTitle = ref('');
 const editContent = ref('');
@@ -67,6 +160,25 @@ function saveEdit() {
 }
 function cancelEdit() {
   emit('cancel-edit');
+}
+
+// 图片上传：卡片行内编辑（Markdown 源码）光标处插入图片语法
+const { uploading: imageUploading, pickImage } = useImageUpload();
+const cardTextareaEl = ref<HTMLTextAreaElement | null>(null);
+function insertCardImage() {
+  pickImage((url) => {
+    const md = `![图片](${url})`;
+    const el = cardTextareaEl.value;
+    const s = el?.selectionStart ?? editContent.value.length;
+    const e = el?.selectionEnd ?? s;
+    editContent.value = editContent.value.slice(0, s) + md + editContent.value.slice(e);
+    nextTick(() => {
+      if (el) {
+        el.setSelectionRange(s + md.length, s + md.length);
+        el.focus();
+      }
+    });
+  });
 }
 
 const isRed = computed(() => props.note.color_status === 'red');
@@ -201,7 +313,8 @@ function handleContextMenu(e: MouseEvent) {
   emit('context-menu', e, props.note);
 }
 
-function toggleExpand() {
+// 合并展开/收起：便签内容与任务反馈联动
+function toggleAllExpand() {
   expanded.value = !expanded.value;
 }
 
@@ -211,16 +324,8 @@ function handleDelete() {
 }
 
 // ===== 左上角倒计时：任务下发（设定了工作时间/截止时间）后实时倒计时 =====
-const now = ref(Date.now());
-let timer: ReturnType<typeof setInterval> | null = null;
-onMounted(() => {
-  timer = setInterval(() => {
-    now.value = Date.now();
-  }, 30000);
-});
-onUnmounted(() => {
-  if (timer) clearInterval(timer);
-});
+// 共享 ticker：多张卡片共用一个 30s interval，避免每卡各建定时器
+const now = useSharedNow();
 
 const dueTs = computed(() => {
   if (!props.note.due_time || props.note.completed_at || props.note.is_archived) return 0;
@@ -261,7 +366,9 @@ const isDueUrgent = computed(() => {
     :data-note-id="note.id"
     :class="[
       props.board ? 'flex h-full flex-col' : '',
-      props.editing ? 'cursor-default ring-2 ring-blue-400 shadow-lg' : 'cursor-pointer select-none',
+      props.editing
+        ? 'cursor-default ring-2 ring-blue-400 shadow-lg'
+        : 'cursor-pointer select-none',
       {
         'opacity-80': isArchived,
         'ring-2 ring-purple-400 ring-offset-2 ring-offset-white dark:ring-offset-slate-950 shadow-lg shadow-purple-200/50':
@@ -278,7 +385,6 @@ const isDueUrgent = computed(() => {
           !showPurpleView && !showRedView && !showBlueView && !isGreen,
       },
     ]"
-    :style="{ animation: showRedView ? 'pulse-alert 2s ease-in-out infinite' : '' }"
     @click="handleClick"
     @contextmenu="handleContextMenu"
     draggable="true"
@@ -383,18 +489,16 @@ const isDueUrgent = computed(() => {
       @click.stop
       @keydown.stop
     />
-    <h3
-      v-else
-      class="text-base font-semibold text-slate-900 dark:text-slate-100 mb-2 line-clamp-1"
-    >
+    <h3 v-else class="text-base font-semibold text-slate-900 dark:text-slate-100 mb-2 line-clamp-1">
       {{ note.title || '无标题' }}
     </h3>
 
-    <!-- 画布模式：内容全部展开显示（格子拉高卡片，无滚动无截断）；其它模式 contents 不影响原布局 -->
+    <!-- 画布模式：卡片随格子拉伸，内容与其它模式一致限高，超出部分隐藏、点开后可见 -->
     <div :class="props.board ? 'flex min-h-0 flex-1 flex-col' : 'contents'">
       <!-- 行内编辑态：Markdown 文本域 -->
       <textarea
         v-if="props.board && props.editing"
+        ref="cardTextareaEl"
         v-model="editContent"
         class="w-full flex-1 min-h-[120px] resize-y rounded-lg border border-blue-300 bg-white/90 p-2.5 text-sm leading-relaxed text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:bg-slate-900/70 dark:text-slate-200"
         placeholder="输入便签内容（支持 Markdown）"
@@ -404,24 +508,21 @@ const isDueUrgent = computed(() => {
       <template v-else>
         <div
           :class="[
-            'text-sm text-slate-500 dark:text-slate-300 transition-all duration-300 rich-content-display',
-            props.board ? '' : expanded ? 'note-content-expanded overflow-hidden' : 'note-content-mask max-h-[72px] overflow-hidden',
+            'text-sm text-slate-500 dark:text-slate-300 transition-all duration-300 rich-content-display overflow-hidden',
+            expanded ? 'note-content-expanded' : 'note-content-mask max-h-[72px]',
           ]"
         >
           <span v-if="!note.content" class="text-slate-300 dark:text-slate-500">暂无内容</span>
-          <span v-else v-html="renderNoteContent(note.content)"></span>
+          <span
+            v-else
+            ref="contentEl"
+            class="block"
+            v-html="renderNoteContent(note.content)"
+          ></span>
         </div>
-
-        <button
-          v-if="!props.board && (note.content?.length || 0) > 100"
-          class="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 mt-1 transition-smooth"
-          @click.stop="toggleExpand"
-        >
-          {{ expanded ? '收起' : '展开全文' }}
-        </button>
       </template>
 
-      <!-- 任务反馈区（指派便签同步显示） -->
+      <!-- 任务反馈区（指派便签同步显示）：反馈列表同样限高，超出部分点开后可见 -->
       <div
         v-if="feedbackList.length"
         class="mt-3 rounded-lg bg-white/70 dark:bg-slate-900/40 p-2.5 border border-green-300/50 dark:border-green-800/60"
@@ -440,14 +541,34 @@ const isDueUrgent = computed(() => {
           任务反馈
         </p>
         <div
-          v-for="f in feedbackList"
-          :key="f.user_id"
-          class="text-xs text-slate-600 dark:text-slate-300 rich-content-display mb-1 last:mb-0"
+          :class="[
+            'overflow-hidden transition-all duration-300',
+            expanded ? '' : 'note-content-mask max-h-[72px]',
+          ]"
         >
-          <span class="font-medium text-slate-700 dark:text-slate-200">{{ f.user_name }}：</span>
-          <span v-html="renderNoteContent(f.content)" />
+          <div ref="feedbackListEl">
+            <div
+              v-for="f in feedbackList"
+              :key="f.user_id"
+              class="text-xs text-slate-600 dark:text-slate-300 rich-content-display mb-1 last:mb-0"
+            >
+              <span class="font-medium text-slate-700 dark:text-slate-200"
+                >{{ f.user_name }}：</span
+              >
+              <span v-html="renderNoteContent(f.content)" />
+            </div>
+          </div>
         </div>
       </div>
+
+      <!-- 合并展开/收起：便签内容与任务反馈任一超限时显示，点击联动展开或收起 -->
+      <button
+        v-if="contentOverflowing || feedbackOverflowing"
+        class="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 mt-2 transition-smooth"
+        @click.stop="toggleAllExpand"
+      >
+        {{ expanded ? '收起' : '展开全部' }}
+      </button>
 
       <!-- 标签区 -->
       <div v-if="(note.tags || []).length" class="flex items-center gap-1.5 mt-3 flex-wrap">
@@ -519,6 +640,13 @@ const isDueUrgent = computed(() => {
         @click.stop="saveEdit"
       >
         保存
+      </button>
+      <button
+        class="text-xs px-3 py-1 rounded-btn bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 transition-smooth disabled:opacity-50"
+        :disabled="imageUploading"
+        @click.stop="insertCardImage"
+      >
+        {{ imageUploading ? '上传中...' : '🖼️ 图片' }}
       </button>
       <button
         class="text-xs px-3 py-1 rounded-btn bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 transition-smooth"

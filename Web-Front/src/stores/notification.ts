@@ -12,6 +12,7 @@ import type {
 } from '@/types';
 import { playNotificationSound, playChatSound } from '@/utils/sound';
 import { useAuthStore } from './auth';
+import { useAchievementStore } from './achievements';
 
 /** 需求24：右上角消息弹窗条目 */
 export interface PopupItem {
@@ -508,6 +509,8 @@ export const useNotificationStore = defineStore('notification', () => {
     }
     groupMessages.value[groupId] = list;
     await refreshGroups();
+    // 成就检查：聊天消息发送里程碑
+    useAchievementStore().checkAndNotify();
     return msg.data as GroupMessageItem;
   }
 
@@ -749,6 +752,8 @@ export const useNotificationStore = defineStore('notification', () => {
     }
     messages.value[peerId] = list;
     await refreshConversations();
+    // 成就检查：聊天消息发送里程碑
+    useAchievementStore().checkAndNotify();
     return msg.data as ChatMessageItem;
   }
 

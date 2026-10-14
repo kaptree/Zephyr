@@ -91,6 +91,8 @@ export function getChatFilePolicy(): Promise<ApiResponse<ChatFilePolicy>> {
 export function updateChatFilePolicy(data: {
   allow_extensions: string
   blocked_extensions: string
+  max_image_size_mb: number
+  max_file_size_mb: number
 }): Promise<ApiResponse<{ success: boolean }>> {
   return put('/api/v1/system/chat-file-policy', data)
 }

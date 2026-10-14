@@ -143,15 +143,27 @@ function getDeptLevelLabel(level?: number): string {
 </script>
 
 <template>
-  <div>
-    <div class="flex items-center justify-between mb-6">
-      <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">部门库管理</h2>
+  <div class="page-shell p-5">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
+    <div class="rise flex items-center justify-between mb-6">
+      <h2 class="page-title text-lg font-semibold">部门库管理</h2>
       <button class="btn-primary text-sm" @click="openNewModal()">新建部门</button>
     </div>
 
     <div class="grid grid-cols-2 gap-6">
       <!-- 左侧：部门树 -->
-      <div class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-4 transition-colors duration-300">
+      <div class="glass-card p-4 transition-colors duration-300">
+        <div class="card-top-line" aria-hidden="true" />
         <h4 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">组织架构</h4>
         <div v-if="loading" class="skeleton h-40 rounded-lg" />
         <div v-else-if="loadError" class="text-sm text-red-400 dark:text-red-400 py-8 text-center">
@@ -202,7 +214,8 @@ function getDeptLevelLabel(level?: number): string {
       </div>
 
       <!-- 右侧：部门详情 / 编辑 -->
-      <div class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-4 transition-colors duration-300">
+      <div class="glass-card p-4 transition-colors duration-300">
+        <div class="card-top-line" aria-hidden="true" />
         <h4 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">部门详情</h4>
         <div v-if="!selectedDept" class="text-sm text-slate-400 dark:text-slate-500 py-8 text-center">
           请在左侧选择一个部门

@@ -125,6 +125,57 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   {
+    path: '/achievements',
+    component: () => import('@/layouts/AdminLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        name: 'Achievements',
+        component: () => import('@/pages/AchievementsPage.vue'),
+        meta: { title: '成就殿堂' },
+      },
+    ],
+  },
+  {
+    path: '/points',
+    component: () => import('@/layouts/AdminLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        name: 'Points',
+        component: () => import('@/pages/PointsPage.vue'),
+        meta: { title: '积分排行榜' },
+      },
+    ],
+  },
+  {
+    path: '/tools',
+    component: () => import('@/layouts/AdminLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        name: 'Tools',
+        component: () => import('@/pages/ToolsPage.vue'),
+        meta: { title: '小工具' },
+      },
+      {
+        path: 'upload',
+        name: 'ToolUpload',
+        component: () => import('@/pages/ToolUploadPage.vue'),
+        meta: { title: '上传工具' },
+      },
+      {
+        path: ':slug',
+        name: 'ToolRun',
+        component: () => import('@/pages/ToolRunPage.vue'),
+        meta: { title: '工具运行' },
+      },
+    ],
+  },
+  {
     path: '/chat',
     component: () => import('@/layouts/AdminLayout.vue'),
     meta: { requiresAuth: true },
@@ -277,6 +328,11 @@ const ROUTE_DEPTH: Record<string, number> = {
   Analytics: 0,
   ReportDetail: 1,
   Notifications: 0,
+  Achievements: 0,
+  Points: 0,
+  Tools: 0,
+  ToolUpload: 1,
+  ToolRun: 1,
   Issues: 0,
   IssueDetail: 1,
   Chat: 0,

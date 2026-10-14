@@ -14,7 +14,12 @@ import {
   fetchTeamStats,
   generateTeamReport,
   listReportAIConfigs,
+  fetchAIPrompt,
+  saveAIPrompt,
+  getReport,
+  fetchPendingReports,
 } from '@/services/analytics';
+import { useAchievementStore } from '@/stores/achievements';
 import type {
   PersonalStatsData,
   WorkReportItem,
@@ -22,6 +27,7 @@ import type {
   TeamStatsData,
   TeamMemberStat,
   AIConfigBrief,
+  AIPromptData,
 } from '@/services/analytics';
 
 type Period = 'week' | 'month' | 'year';
@@ -37,6 +43,10 @@ const reportContent = ref('');
 const reportError = ref('');
 const reportGenerated = ref(false);
 const reportType = ref('');
+// 后台生成中标志：AI 异步生成时置 true，轮询完成后关闭（期间用户可离开页面）
+const reportGenerating = ref(false);
+// 个人报告生成方式：'' 智能生成（AI优先，无配置回退模板）/ 'template' 模板生成 / 其他 = 指定 AI 配置 ID
+const personalModelId = ref('');
 
 const viewTab = ref<'stats' | 'history' | 'team'>('stats');
 
@@ -86,6 +96,8 @@ const teamReportContent = ref('');
 const teamReportType = ref('');
 const teamReportGenerated = ref(false);
 const teamReportError = ref('');
+// 团队报告后台生成中标志：AI 异步生成时置 true，轮询完成后关闭
+const teamReportGenerating = ref(false);
 
 function teamRangeForPeriod(p: TeamPeriod): { from: string; to: string } {
   const now = new Date();
@@ -215,11 +227,24 @@ async function handleGenerateTeamReport() {
       report: string;
       report_type: string;
       report_id: string;
+      status?: string;
     };
+    // AI 模式走后台异步生成：接口立即返回 generating，用户可离开页面
+    if (data.status === 'generating' && data.report_id) {
+      teamReportGenerating.value = true;
+      teamReportGenerated.value = false;
+      startReportPolling(data.report_id, 'team');
+      showToast('success', '团队报告已转入后台生成，可切换页面稍后回来查看');
+      loadReports();
+      return;
+    }
+    // 模板模式同步返回
     teamReportContent.value = data.report || '';
     teamReportType.value = data.report_type || '';
     teamReportGenerated.value = true;
     showToast('success', '团队报告生成成功，已保存到历史记录');
+    // 成就检查：团队报告生成里程碑
+    useAchievementStore().checkAndNotify();
     loadReports();
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : '团队报告生成失败';
@@ -304,9 +329,80 @@ const periodLabels: Record<string, string> = {
   year: '本年度',
 };
 
-const maxTrendCount = computed(() => {
-  if (!stats.value?.daily_trend?.length) return 1;
-  return Math.max(...stats.value.daily_trend.map((d) => d.count), 1);
+// ===== 每日任务趋势曲线图 =====
+const TREND_W = 600;
+const TREND_H = 180;
+const TREND_PAD = { top: 16, right: 12, bottom: 14, left: 12 };
+const hoverTrendIndex = ref<number | null>(null);
+
+const trendData = computed(() => stats.value?.daily_trend ?? []);
+
+// 归一化坐标：count 钳制在 [0, yMax]，y 钳制在绘图区内，杜绝越界与 NaN
+const trendPoints = computed(() => {
+  const list = trendData.value;
+  const n = list.length;
+  if (!n) return [];
+  const rawMax = Math.max(...list.map((d) => Number(d.count) || 0));
+  const yMax = Math.max(rawMax, 1) * 1.15; // 顶部留 15% 余量，峰值不顶边
+  const xStep = n > 1 ? (TREND_W - TREND_PAD.left - TREND_PAD.right) / (n - 1) : 0;
+  return list.map((d, i) => {
+    const count = Math.min(Math.max(Number(d.count) || 0, 0), yMax);
+    const x = n > 1 ? TREND_PAD.left + i * xStep : TREND_W / 2;
+    const ratio = Math.min(Math.max(count / yMax, 0), 1);
+    const y = TREND_H - TREND_PAD.bottom - ratio * (TREND_H - TREND_PAD.top - TREND_PAD.bottom);
+    return { x, y, count: Number(d.count) || 0, date: d.date };
+  });
+});
+
+// 平滑贝塞尔曲线：控制点取相邻点的垂直中线，曲线 y 始终介于两端点之间，不会越出数据包络
+const trendLinePath = computed(() => {
+  const pts = trendPoints.value;
+  if (!pts.length) return '';
+  let d = `M ${pts[0].x},${pts[0].y}`;
+  for (let i = 1; i < pts.length; i++) {
+    const xc = (pts[i - 1].x + pts[i].x) / 2;
+    d += ` C ${xc},${pts[i - 1].y} ${xc},${pts[i].y} ${pts[i].x},${pts[i].y}`;
+  }
+  return d;
+});
+
+const trendAreaPath = computed(() => {
+  const pts = trendPoints.value;
+  if (!pts.length) return '';
+  const base = TREND_H - TREND_PAD.bottom;
+  return `${trendLinePath.value} L ${pts[pts.length - 1].x},${base} L ${pts[0].x},${base} Z`;
+});
+
+// 单点/短周期显示数据圆点，年度大量点时仅悬停显示
+const showTrendDots = computed(() => trendPoints.value.length <= 31);
+
+// X 轴刻度：点过多时隔行抽样，避免文字重叠；首尾锚点特殊处理防止出界
+const trendTicks = computed(() => {
+  const pts = trendPoints.value;
+  if (!pts.length) return [];
+  const every = Math.max(1, Math.ceil(pts.length / 8));
+  const ticks: { x: number; label: string; anchor: 'start' | 'middle' | 'end' }[] = [];
+  pts.forEach((p, i) => {
+    const isLast = i === pts.length - 1;
+    if (i % every !== 0 && !isLast) return;
+    if (ticks.length && ticks[ticks.length - 1].x === p.x) return;
+    ticks.push({
+      x: p.x,
+      label: p.date.slice(5),
+      anchor: pts.length === 1 ? 'middle' : i === 0 ? 'start' : isLast ? 'end' : 'middle',
+    });
+  });
+  return ticks;
+});
+
+// 悬停提示：位置按百分比定位并钳制在图表内，避免提示框越界
+const trendTooltipStyle = computed(() => {
+  const idx = hoverTrendIndex.value;
+  const p = idx !== null ? trendPoints.value[idx] : undefined;
+  if (!p) return {};
+  const left = Math.min(Math.max((p.x / TREND_W) * 100, 8), 92);
+  const top = Math.max(((p.y - 8) / TREND_H) * 100, 18);
+  return { left: `${left}%`, top: `${top}%` };
 });
 
 async function loadStats() {
@@ -335,12 +431,29 @@ async function handleGenerateReport() {
   reportError.value = '';
   reportContent.value = '';
   try {
-    const res = await generateAIReport(activePeriod.value);
-    const data = res.data as { report: string; report_type: string };
+    const res = await generateAIReport(activePeriod.value, personalModelId.value);
+    const data = res.data as {
+      report: string;
+      report_type: string;
+      status?: string;
+      report_id?: string;
+    };
+    // AI 模式走后台异步生成：接口立即返回 generating，用户可离开页面
+    if (data.status === 'generating' && data.report_id) {
+      reportGenerating.value = true;
+      reportGenerated.value = false;
+      startReportPolling(data.report_id, 'personal');
+      showToast('success', '报告已转入后台生成，可切换页面稍后回来查看');
+      loadReports();
+      return;
+    }
+    // 模板模式同步返回
     reportContent.value = data.report || '';
     reportType.value = data.report_type || '';
     reportGenerated.value = true;
     showToast('success', '报告生成成功，已保存到历史记录');
+    // 成就检查：AI 报告生成里程碑
+    useAchievementStore().checkAndNotify();
     loadReports();
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'AI报告生成失败';
@@ -348,6 +461,105 @@ async function handleGenerateReport() {
     showToast('error', msg);
   } finally {
     reportLoading.value = false;
+  }
+}
+
+// ===== 后台生成轮询（★ AI 报告后台运行核心） =====
+// 生成由服务端 goroutine 完成，前端仅轮询报告状态；
+// 用户切换页面/关闭标签页均不影响生成，回到本页时自动恢复轮询
+const POLL_INTERVAL_MS = 4000;
+const POLL_MAX_TIMES = 160; // 约 10.7 分钟兜底上限（后端 AI 客户端超时 600s）
+const pendingPolling = ref<{ id: string; kind: 'personal' | 'team' }[]>([]);
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let pollCount = 0;
+
+function startReportPolling(id: string, kind: 'personal' | 'team') {
+  if (pendingPolling.value.some((t) => t.id === id)) return;
+  pendingPolling.value.push({ id, kind });
+  pollCount = 0;
+  if (!pollTimer) {
+    pollTimer = setInterval(pollPendingReports, POLL_INTERVAL_MS);
+  }
+}
+
+function stopPollingIfIdle() {
+  if (pendingPolling.value.length === 0 && pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+async function pollPendingReports() {
+  const tasks = [...pendingPolling.value];
+  if (tasks.length === 0) {
+    stopPollingIfIdle();
+    return;
+  }
+  pollCount += 1;
+  for (const t of tasks) {
+    try {
+      const res = await getReport(t.id);
+      const r = res.data as WorkReportItem;
+      if ((r.status || 'completed') !== 'generating') {
+        finishPolling(t, r, r.status || 'completed');
+      }
+    } catch {
+      // 单次查询失败忽略，下一轮重试
+    }
+  }
+  if (pollCount >= POLL_MAX_TIMES) {
+    // 超时兜底：避免定时器无限轮转
+    for (const t of [...pendingPolling.value]) {
+      finishPolling(t, null, 'failed');
+    }
+  }
+  stopPollingIfIdle();
+}
+
+function finishPolling(
+  t: { id: string; kind: 'personal' | 'team' },
+  r: WorkReportItem | null,
+  status: string
+) {
+  pendingPolling.value = pendingPolling.value.filter((x) => x.id !== t.id);
+  const failed = status === 'failed' || !r;
+  if (t.kind === 'personal') {
+    reportGenerating.value = false;
+    reportGenerated.value = true;
+    reportType.value = r?.report_type || 'ai';
+    reportContent.value = failed ? r?.content || '> 生成失败，请重新生成。' : r?.content || '';
+    if (failed) {
+      reportError.value = '后台报告生成失败，可重新生成';
+      showToast('error', '后台报告生成失败');
+    } else {
+      reportError.value = '';
+      showToast('success', '报告已生成完成，已保存到历史记录');
+      useAchievementStore().checkAndNotify();
+    }
+  } else {
+    teamReportGenerating.value = false;
+    teamReportGenerated.value = true;
+    teamReportType.value = r?.report_type || 'ai';
+    teamReportContent.value = failed ? r?.content || '> 生成失败，请重新生成。' : r?.content || '';
+    if (failed) showToast('error', '后台团队报告生成失败');
+    else showToast('success', '团队报告已生成完成，已保存到历史记录');
+  }
+  loadReports();
+}
+
+/** 切回本页时恢复轮询：查询仍在后台生成中的报告并继续跟踪 */
+async function restorePendingPolling() {
+  try {
+    const res = await fetchPendingReports();
+    const list = (res.data as unknown as WorkReportItem[]) || [];
+    for (const r of list) {
+      const kind: 'personal' | 'team' = r.category === 'team' ? 'team' : 'personal';
+      startReportPolling(r.id, kind);
+      if (kind === 'personal') reportGenerating.value = true;
+      else teamReportGenerating.value = true;
+    }
+  } catch {
+    // 忽略恢复失败，不影响页面加载
   }
 }
 
@@ -418,6 +630,54 @@ async function handleSaveTemplate() {
   }
 }
 
+// ===== AI 提示词编辑弹窗（★ 新增）：AI 生成报告时按此提示词总结工作 =====
+const showPromptModal = ref(false);
+const promptLoading = ref(false);
+const promptContent = ref('');
+const promptSaving = ref(false);
+const promptIsCustomized = ref(false);
+const promptDefault = ref('');
+
+async function openPromptEditor() {
+  showPromptModal.value = true;
+  promptLoading.value = true;
+  try {
+    const res = await fetchAIPrompt();
+    const d = res.data as AIPromptData;
+    promptContent.value = d.content || '';
+    promptIsCustomized.value = !!d.is_customized;
+    promptDefault.value = d.default || '';
+  } catch {
+    showToast('error', '加载AI提示词失败');
+  } finally {
+    promptLoading.value = false;
+  }
+}
+
+async function handleSavePrompt() {
+  if (!promptContent.value.trim()) {
+    showToast('error', '提示词内容不能为空');
+    return;
+  }
+  promptSaving.value = true;
+  try {
+    await saveAIPrompt(promptContent.value);
+    promptIsCustomized.value = true;
+    showToast('success', 'AI提示词已保存，生成报告时将使用该提示词');
+    showPromptModal.value = false;
+  } catch {
+    showToast('error', '保存AI提示词失败');
+  } finally {
+    promptSaving.value = false;
+  }
+}
+
+function handleResetPrompt() {
+  if (!promptDefault.value) return;
+  promptContent.value = promptDefault.value;
+  showToast('success', '已载入默认提示词，点击保存生效');
+}
+
 async function handleDeleteReport(id: string) {
   try {
     await deleteReport(id);
@@ -484,14 +744,35 @@ onMounted(() => {
   loadReports();
   loadTeamStats();
   loadAIModels();
+  // 恢复后台生成中任务的轮询（用户切出页面后返回时自动续接）
+  restorePendingPolling();
+});
+
+onUnmounted(() => {
+  // 仅清理本页 UI 定时器；服务端生成任务继续后台运行，返回本页时会自动恢复轮询
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
 });
 </script>
 
 <template>
-  <div class="h-full flex flex-col bg-white dark:bg-slate-900 transition-colors duration-300">
+  <div class="page-shell h-full flex flex-col transition-colors duration-300">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
     <!-- Header -->
-    <div class="shrink-0 px-6 py-4 border-b border-slate-200 dark:border-slate-700">
-      <h1 class="text-xl font-semibold text-slate-900 dark:text-slate-100">工作成效分析</h1>
+    <div class="rise shrink-0 px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+      <h1 class="page-title text-xl font-semibold">工作成效分析</h1>
       <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
         个人工作数据统计、趋势分析与AI智能报告
       </p>
@@ -529,6 +810,18 @@ onMounted(() => {
           @click="openTemplateEditor()"
         >
           📝 编辑模板
+        </button>
+        <button
+          class="px-3 py-2 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-smooth border border-dashed border-slate-300 dark:border-slate-600"
+          title="编辑AI提示词：AI 生成报告时按此提示词总结工作"
+          @click="openPromptEditor()"
+        >
+          ✨ 编辑AI提示词
+          <span
+            v-if="promptIsCustomized"
+            class="ml-1 text-[10px] px-1 py-0.5 rounded bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 font-medium align-middle"
+            >自定义</span
+          >
         </button>
       </div>
     </div>
@@ -651,9 +944,8 @@ onMounted(() => {
               </div>
 
               <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <div
-                  class="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40"
-                >
+                <div class="glass-card p-5">
+                  <div class="card-top-line" aria-hidden="true" />
                   <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4">
                     每日任务趋势
                   </h3>
@@ -663,32 +955,75 @@ onMounted(() => {
                   >
                     暂无数据
                   </div>
-                  <div v-else class="flex items-end gap-1 h-32">
-                    <div
-                      v-for="(d, i) in stats.daily_trend"
-                      :key="i"
-                      class="flex-1 flex flex-col items-center gap-1 group relative"
+                  <div v-else class="relative" @mouseleave="hoverTrendIndex = null">
+                    <svg
+                      :viewBox="`0 0 ${TREND_W} ${TREND_H}`"
+                      class="block w-full h-auto"
+                      role="img"
+                      aria-label="每日任务趋势曲线图"
                     >
-                      <div
-                        class="w-full bg-blue-400 dark:bg-blue-500 rounded-t-sm transition-all hover:bg-blue-500 dark:hover:bg-blue-400 min-h-[4px]"
-                        :style="{ height: Math.max((d.count / maxTrendCount) * 100, 4) + '%' }"
-                      ></div>
-                      <span
-                        class="text-[9px] text-slate-400 dark:text-slate-500 truncate w-full text-center"
-                        >{{ d.date.slice(5) }}</span
+                      <defs>
+                        <linearGradient id="trendAreaFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.28" />
+                          <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.02" />
+                        </linearGradient>
+                      </defs>
+                      <path :d="trendAreaPath" fill="url(#trendAreaFill)" />
+                      <path
+                        :d="trendLinePath"
+                        fill="none"
+                        stroke="currentColor"
+                        class="text-blue-500 dark:text-blue-400"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <g v-for="(p, i) in trendPoints" :key="i">
+                        <circle
+                          v-if="showTrendDots || i === hoverTrendIndex"
+                          :cx="p.x"
+                          :cy="p.y"
+                          r="3"
+                          fill="currentColor"
+                          class="text-blue-500 dark:text-blue-400"
+                        />
+                        <circle
+                          :cx="p.x"
+                          :cy="p.y"
+                          r="10"
+                          fill="transparent"
+                          class="cursor-pointer"
+                          @mouseenter="hoverTrendIndex = i"
+                        />
+                      </g>
+                      <text
+                        v-for="(t, i) in trendTicks"
+                        :key="`t${i}`"
+                        :x="t.x"
+                        :y="TREND_H - 2"
+                        :text-anchor="t.anchor"
+                        font-size="10"
+                        fill="currentColor"
+                        class="text-slate-400 dark:text-slate-500"
                       >
-                      <div
-                        class="absolute -top-6 opacity-0 group-hover:opacity-100 bg-slate-800 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap transition-opacity pointer-events-none"
-                      >
-                        {{ d.date }}：{{ d.count }} 条
-                      </div>
+                        {{ t.label }}
+                      </text>
+                    </svg>
+                    <div
+                      v-if="hoverTrendIndex !== null && trendPoints[hoverTrendIndex]"
+                      class="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-white dark:bg-slate-700"
+                      :style="trendTooltipStyle"
+                    >
+                      {{ trendPoints[hoverTrendIndex].date }}：{{
+                        trendPoints[hoverTrendIndex].count
+                      }}
+                      条
                     </div>
                   </div>
                 </div>
 
-                <div
-                  class="p-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40"
-                >
+                <div class="glass-card p-5">
+                  <div class="card-top-line" aria-hidden="true" />
                   <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4">
                     标签使用分布
                   </h3>
@@ -731,31 +1066,51 @@ onMounted(() => {
                 </div>
               </div>
 
-              <div
-                class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-5"
-              >
+              <div class="glass-card p-5">
+                <div class="card-top-line" aria-hidden="true" />
                 <div class="flex items-center justify-between mb-4">
                   <div>
                     <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300">
                       🤖 AI 智能报告
                     </h3>
                     <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                      基于当前统计数据自动生成结构化工作报告
-                      <span class="text-blue-500">（无AI配置时自动使用模板生成）</span>
+                      基于当前统计数据自动生成结构化工作报告，可选择 AI 模型或模板生成
+                      <span class="text-blue-500">（智能模式下无AI配置时自动回退模板）</span>
                     </p>
                   </div>
                   <div class="flex items-center gap-2">
+                    <!-- 生成方式下拉：智能生成 / 模板生成 / 指定模型 -->
+                    <select
+                      v-model="personalModelId"
+                      class="input-field !py-2 !text-xs !w-auto"
+                      :disabled="reportLoading || reportGenerating"
+                      title="选择报告生成方式"
+                    >
+                      <option value="">🤖 智能生成（AI 优先）</option>
+                      <option value="template">📄 模板生成（不使用AI）</option>
+                      <option v-for="m in aiModels" :key="m.id" :value="m.id">
+                        {{ m.provider_name }}{{ m.model_name ? ' · ' + m.model_name : '' }}
+                      </option>
+                    </select>
                     <button
                       v-if="!reportGenerated"
                       class="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 rounded-lg transition-smooth disabled:opacity-50 flex items-center gap-2"
-                      :disabled="reportLoading"
+                      :disabled="reportLoading || reportGenerating"
                       @click="handleGenerateReport()"
                     >
                       <span
-                        v-if="reportLoading"
+                        v-if="reportLoading || reportGenerating"
                         class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"
                       ></span>
-                      <span>{{ reportLoading ? '生成中...' : '生成报告' }}</span>
+                      <span>{{
+                        reportGenerating
+                          ? '后台生成中...'
+                          : reportLoading
+                            ? '生成中...'
+                            : personalModelId === 'template'
+                              ? '模板生成'
+                              : '生成报告'
+                      }}</span>
                     </button>
                     <template v-if="reportGenerated && reportContent">
                       <span
@@ -791,8 +1146,23 @@ onMounted(() => {
                   {{ reportError }}
                 </div>
 
+                <!-- 后台生成中提示：可离开本页，服务端持续生成 -->
                 <div
-                  v-if="!reportGenerated && !reportLoading"
+                  v-if="reportGenerating"
+                  class="px-4 py-3 rounded-lg text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 mb-3 flex items-center gap-2"
+                >
+                  <span
+                    class="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent shrink-0"
+                  ></span>
+                  <span>
+                    AI
+                    正在后台生成报告，您可以切换到其他页面甚至关闭浏览器窗口，生成完成后会自动保存到
+                    <b>报告历史</b>，回到本页将自动恢复进度显示。
+                  </span>
+                </div>
+
+                <div
+                  v-if="!reportGenerated && !reportLoading && !reportGenerating"
                   class="text-center py-8 text-slate-400 dark:text-slate-500"
                 >
                   <p class="text-2xl mb-2">🤖</p>
@@ -813,9 +1183,8 @@ onMounted(() => {
           <!-- ===================== 团队报告 Tab（★ 新增） ===================== -->
           <template v-if="viewTab === 'team'">
             <!-- 时间范围 + 生成控制 -->
-            <div
-              class="mb-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40"
-            >
+            <div class="glass-card mb-4 p-4">
+              <div class="card-top-line" aria-hidden="true" />
               <div class="flex flex-wrap items-center gap-3">
                 <div
                   class="flex items-center gap-1 bg-white dark:bg-slate-700 rounded-lg p-1 border border-slate-200 dark:border-slate-600"
@@ -871,23 +1240,36 @@ onMounted(() => {
                 </select>
                 <button
                   class="text-sm px-4 py-2 rounded-btn bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600 transition-smooth disabled:opacity-50 flex items-center gap-1.5"
-                  :disabled="teamReportLoading"
+                  :disabled="teamReportLoading || teamReportGenerating"
                   @click="handleGenerateTeamReport()"
                 >
                   <span
-                    v-if="teamReportLoading"
+                    v-if="teamReportLoading || teamReportGenerating"
                     class="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"
                   ></span>
                   {{
-                    teamReportLoading
-                      ? '生成中...'
-                      : '📄 生成' + (teamPeriod === 'month' ? '月报' : '周报')
+                    teamReportGenerating
+                      ? '后台生成中...'
+                      : teamReportLoading
+                        ? '生成中...'
+                        : '📄 生成' + (teamPeriod === 'month' ? '月报' : '周报')
                   }}
                 </button>
-                <span class="text-[11px] text-slate-400">
+                <span v-if="!teamReportGenerating" class="text-[11px] text-slate-400">
                   {{ selectedModelId ? '使用所选模型智能生成' : '未选择模型，将使用模板生成' }}
                 </span>
               </div>
+              <!-- 后台生成中提示：可离开本页，服务端持续生成 -->
+              <p
+                v-if="teamReportGenerating"
+                class="text-xs text-blue-600 dark:text-blue-400 mt-2 flex items-center gap-1.5"
+              >
+                <span
+                  class="inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0"
+                ></span>
+                AI
+                正在后台生成团队报告，您可以切换到其他页面，生成完成后自动保存到报告历史，回到本页自动恢复进度。
+              </p>
               <p v-if="teamReportError" class="text-xs text-red-500 mt-2">{{ teamReportError }}</p>
             </div>
 
@@ -949,9 +1331,8 @@ onMounted(() => {
                 </div>
               </div>
 
-              <div
-                class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 overflow-hidden"
-              >
+              <div class="glass-card">
+                <div class="card-top-line" aria-hidden="true" />
                 <div
                   class="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-smooth"
                   @click="teamMembersExpanded = !teamMembersExpanded"
@@ -1119,10 +1500,8 @@ onMounted(() => {
               </div>
 
               <!-- 团队报告展示 -->
-              <div
-                v-if="teamReportGenerated && teamReportContent"
-                class="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 overflow-hidden"
-              >
+              <div v-if="teamReportGenerated && teamReportContent" class="glass-card mt-4">
+                <div class="card-top-line" aria-hidden="true" />
                 <div
                   class="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between"
                 >
@@ -1167,9 +1546,8 @@ onMounted(() => {
           <!-- ===================== 报告历史 Tab ===================== -->
           <template v-if="viewTab === 'history'">
             <!-- Report filters -->
-            <div
-              class="mb-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40"
-            >
+            <div class="glass-card mb-4 p-4">
+              <div class="card-top-line" aria-hidden="true" />
               <div class="flex flex-wrap items-center gap-3">
                 <input
                   v-model="reportsFilter.keyword"
@@ -1243,6 +1621,16 @@ onMounted(() => {
                     </p>
                   </div>
                   <div class="flex items-center gap-1 shrink-0 ml-2">
+                    <span
+                      v-if="report.status === 'generating'"
+                      class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-sky-100 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400 animate-pulse"
+                      >生成中</span
+                    >
+                    <span
+                      v-else-if="report.status === 'failed'"
+                      class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400"
+                      >失败</span
+                    >
                     <span
                       :class="[
                         'text-[10px] px-1.5 py-0.5 rounded font-medium',
@@ -1421,6 +1809,95 @@ onMounted(() => {
                 >
                   <span
                     v-if="templateSaving"
+                    class="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent inline-block mr-1"
+                  ></span>
+                  保存
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
+
+    <!-- AI prompt editor modal（★ 新增） -->
+    <Teleport to="body">
+      <transition name="shrink-out">
+        <div
+          v-if="showPromptModal"
+          class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          @click.self="showPromptModal = false"
+        >
+          <div
+            class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col mx-4 overflow-hidden"
+          >
+            <div
+              class="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700"
+            >
+              <div>
+                <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">
+                  ✨ 编辑AI提示词
+                </h3>
+                <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                  AI 生成报告时将按照此提示词对工作进行总结，提示词会与真实统计数据一并发送给模型
+                </p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span
+                  class="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                  :class="
+                    promptIsCustomized
+                      ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                  "
+                  >{{ promptIsCustomized ? '自定义' : '默认提示词' }}</span
+                >
+                <button
+                  class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-xl leading-none"
+                  @click="showPromptModal = false"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div v-if="promptLoading" class="flex items-center justify-center py-16">
+              <div
+                class="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent"
+              ></div>
+            </div>
+            <div v-else class="flex-1 overflow-hidden p-4">
+              <textarea
+                v-model="promptContent"
+                class="w-full h-full min-h-[300px] p-4 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-slate-400"
+                placeholder="输入 AI 提示词，描述你希望 AI 如何总结工作、报告需包含哪些章节与要求..."
+              ></textarea>
+            </div>
+            <div
+              class="shrink-0 flex items-center justify-between px-6 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40"
+            >
+              <span class="text-[11px] text-slate-400 dark:text-slate-500"
+                >💡 个人报告与团队报告的 AI 生成均使用此提示词</span
+              >
+              <div class="flex items-center gap-2">
+                <button
+                  class="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-smooth"
+                  @click="handleResetPrompt()"
+                >
+                  恢复默认
+                </button>
+                <button
+                  class="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-smooth"
+                  @click="showPromptModal = false"
+                >
+                  取消
+                </button>
+                <button
+                  class="px-4 py-1.5 text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-smooth disabled:opacity-50"
+                  :disabled="promptSaving"
+                  @click="handleSavePrompt()"
+                >
+                  <span
+                    v-if="promptSaving"
                     class="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent inline-block mr-1"
                   ></span>
                   保存

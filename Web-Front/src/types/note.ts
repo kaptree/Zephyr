@@ -29,6 +29,31 @@ export interface NoteCc {
   created_at?: string
 }
 
+/** 阶段性反馈：指派任务推进过程中的追加式进展记录（论坛式时间轴） */
+export interface NoteFeedbackItem {
+  id: string
+  note_id: string
+  user_id: string
+  /** 冗余姓名：时间轴渲染不依赖二次查询 */
+  user_name: string
+  user?: UserBrief
+  content: string
+  created_at: string
+}
+
+/** 阶段性反馈参与人统计（论坛侧栏人员筛选用） */
+export interface FeedbackParticipantStat {
+  user_id: string
+  feedback_count: number
+  last_feedback_at?: string | null
+}
+
+/** 阶段性反馈时间轴响应：时间正序反馈流 + 参与人统计 */
+export interface NoteFeedbackTimelineResp {
+  feedbacks: NoteFeedbackItem[]
+  participants: FeedbackParticipantStat[]
+}
+
 export interface Note {
   id: string
   title: string
@@ -39,6 +64,9 @@ export interface Note {
   creator_id: string
   /** 创建人（后端 List/FindByID 已预加载，json: creator） */
   creator?: { id: string; name: string }
+  /** 交办人（上级指派任务的指派者，json: assigner_id / assigner） */
+  assigner_id?: string
+  assigner?: { id: string; name: string }
   /** 负责人（后端 List/FindByID 已预加载，json: owner） */
   owner?: { id: string; name: string }
   is_archived: boolean
@@ -106,6 +134,10 @@ export interface UpdateNotePayload {
   color_status?: string
   owner_id?: string
   is_pinned?: boolean
+  /** 创建人编辑参与人员（全量列表，后端 diff 增删改；nil/缺省表示不调整） */
+  assignees?: { user_id: string; role_in_note?: string }[]
+  /** 创建人编辑抄送人员（全量列表，后端 diff 增删改；nil/缺省表示不调整） */
+  cc_user_ids?: string[]
 }
 
 /** 单个任务的画布位置（批量位置保存用） */

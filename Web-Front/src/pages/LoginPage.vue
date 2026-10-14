@@ -39,7 +39,18 @@ async function handleLogin() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-white flex">
+  <div class="page-shell page-shell--screen min-h-screen flex">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
     <div class="hidden lg:flex lg:w-[480px] bg-slate-50 flex-col items-center justify-center p-12">
       <div
         class="w-20 h-20 bg-blue-500 rounded-2xl flex items-center justify-center mb-8 shadow-lg"
@@ -53,7 +64,7 @@ async function handleLogin() {
           />
         </svg>
       </div>
-      <h1 class="text-2xl font-semibold text-slate-900 mb-2" style="letter-spacing: -0.02em">
+      <h1 class="text-2xl font-semibold page-title mb-2" style="letter-spacing: -0.02em">
         轻燕工作台
       </h1>
       <p class="text-slate-500 text-sm">轻量化情指行一体化支撑解决方案</p>
@@ -73,7 +84,7 @@ async function handleLogin() {
     </div>
 
     <div class="flex-1 flex items-center justify-center p-8">
-      <div class="w-full max-w-[400px]">
+      <div class="rise w-full max-w-[400px]">
         <div class="lg:hidden mb-10 text-center">
           <div
             class="w-14 h-14 bg-blue-500 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg"

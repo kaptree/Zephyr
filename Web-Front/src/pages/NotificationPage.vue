@@ -38,6 +38,7 @@ const TYPE_LABEL: Record<string, string> = {
   task_remind: '催办提醒',
   task_cc: '任务抄送',
   task_signed: '任务签收',
+  task_removed: '任务移除',
   issue_comment: '问题评论',
   issue_new: '新建问题',
   system: '系统通知',
@@ -50,6 +51,7 @@ const TYPE_COLOR: Record<string, string> = {
   task_remind: 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300',
   task_cc: 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300',
   task_signed: 'bg-teal-100 text-teal-600 dark:bg-teal-900/40 dark:text-teal-300',
+  task_removed: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
   issue_comment: 'bg-pink-100 text-pink-600 dark:bg-pink-900/40 dark:text-pink-300',
   issue_new: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/40 dark:text-cyan-300',
   system: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
@@ -259,7 +261,18 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="max-w-4xl mx-auto">
+  <div class="page-shell max-w-4xl mx-auto">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
     <!-- 顶部滑入 Toast（全部已读终结反馈） -->
     <transition name="notif-toast">
       <div
@@ -274,10 +287,10 @@ onBeforeUnmount(() => {
       </div>
     </transition>
 
-    <div class="flex items-center justify-between mb-4">
+    <div class="rise flex items-center justify-between mb-4">
       <div>
         <div class="flex items-center gap-2">
-          <h1 class="text-xl font-semibold text-slate-900 dark:text-slate-100">通知中心</h1>
+          <h1 class="text-xl font-semibold page-title">通知中心</h1>
           <span
             v-if="displayUnread > 0"
             class="inline-flex items-center h-5 px-2 rounded-full bg-blue-500 text-white text-[11px] font-semibold tabular-nums"

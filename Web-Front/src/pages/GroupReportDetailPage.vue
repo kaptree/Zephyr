@@ -27,7 +27,8 @@ function handleExport(format: string) {
     const a = document.createElement('a')
     a.href = url
     const ext = format === 'docx' ? 'docx' : format === 'pdf' ? 'pdf' : 'html'
-    a.download = `report.${ext}`
+    const title = (report.value?.title || 'report').replace(/[\\/:*?"<>|]/g, '-')
+    a.download = `${title}.${ext}`
     a.click()
     URL.revokeObjectURL(url)
   })
@@ -66,15 +67,26 @@ onMounted(loadReport)
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 dark:bg-slate-950">
+  <div class="page-shell">
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="decor-layer" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <div class="sun-glow" />
+    </div>
+
     <!-- Top bar -->
-    <div class="sticky top-0 z-10 shrink-0 flex items-center justify-between px-6 py-3 border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 backdrop-blur">
+    <div class="rise sticky top-0 z-10 shrink-0 flex items-center justify-between px-6 py-3 border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/90 backdrop-blur">
       <div class="flex items-center gap-4">
         <button class="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-smooth text-sm flex items-center gap-1" @click="router.push(`/workbench/groups/${groupId}/reports`)">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
           返回报告列表
         </button>
-        <h1 class="text-lg font-bold text-slate-900 dark:text-slate-100 truncate max-w-md" v-if="report">{{ report.title }}</h1>
+        <h1 class="text-lg font-bold page-title truncate max-w-md" v-if="report">{{ report.title }}</h1>
       </div>
       <div class="flex items-center gap-2">
         <button class="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-smooth" @click="handleExport('html')">导出HTML</button>
@@ -93,7 +105,10 @@ onMounted(loadReport)
     <div v-else-if="report" class="max-w-4xl mx-auto px-6 py-8">
       <div v-if="report.report_type === 'ai'" class="inline-block px-2 py-1 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 text-[10px] font-medium mb-4">🤖 AI 生成</div>
       <div v-else class="inline-block px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 text-[10px] font-medium mb-4">📋 模板生成</div>
-      <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-8 shadow-sm" v-html="renderedContent"></div>
+      <div class="glass-card p-8">
+        <div class="card-top-line" aria-hidden="true" />
+        <div v-html="renderedContent"></div>
+      </div>
     </div>
   </div>
 </template>

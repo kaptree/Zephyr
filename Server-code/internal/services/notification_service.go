@@ -241,5 +241,10 @@ func (s *NotificationService) ListReminders(userID string) ([]models.Reminder, e
 }
 
 func (s *NotificationService) AcknowledgeReminder(userID, id string) error {
-	return s.noteRepo.AcknowledgeReminder(id, userID)
+	if err := s.noteRepo.AcknowledgeReminder(id, userID); err != nil {
+		return err
+	}
+	// 积分：响应盯办（确认催办，变被动为主动）
+	AwardPoints(userID, "remind_ack", "reminder", id, "确认盯办提醒")
+	return nil
 }

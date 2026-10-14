@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
+import { useAchievementStore } from '@/stores/achievements';
 import { useDarkMode } from '@/composables/useDarkMode';
 import { useToast } from '@/composables/useToast';
 import { fetchNoteStats, fetchHeatmap } from '@/services/notes';
@@ -12,6 +13,7 @@ import AnimatedNumber from '@/components/common/AnimatedNumber.vue';
 import FloatingField from '@/components/common/FloatingField.vue';
 import SubmitButton from '@/components/common/SubmitButton.vue';
 import FormToggle from '@/components/common/FormToggle.vue';
+import { AppIcon } from '@/components/icons';
 import { useGloryCelebration } from '@/composables/useGloryCelebration';
 
 const auth = useAuthStore();
@@ -80,6 +82,8 @@ async function doUploadAvatar(file: File) {
       persistUser();
     }
     toast.success('头像已更新');
+    // 成就检查：头像装扮里程碑
+    useAchievementStore().checkAndNotify();
   } catch (err) {
     const e = err as { friendlyMessage?: string };
     toast.error(e.friendlyMessage || '头像上传失败');
@@ -179,6 +183,8 @@ async function handleSaveBackground() {
     bgInitial.value = bgUrl.value;
     bgSaved.value = true;
     toast.success('背景设置已保存');
+    // 成就检查：背景装扮里程碑
+    useAchievementStore().checkAndNotify();
     setTimeout(() => {
       bgSaved.value = false;
     }, 2000);
@@ -379,357 +385,679 @@ async function handleSaveProfile() {
 </script>
 
 <template>
-  <div class="w-full">
-    <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-6">个人中心</h2>
-
-    <div v-if="loading" class="space-y-4">
-      <div class="skeleton h-24 rounded-card" />
-      <div class="skeleton h-16 rounded-card" />
-      <div class="skeleton h-64 rounded-card" />
+  <div
+    class="relative min-h-full rounded-3xl overflow-hidden bg-gradient-to-b from-[#e8f3fe] via-[#f2f8ff] to-[#eef3fc] text-slate-700 shadow-xl shadow-sky-900/5 ring-1 ring-sky-900/5 dark:from-[#070b18] dark:via-[#070b18] dark:to-[#0b1226] dark:text-slate-200 dark:shadow-2xl dark:ring-white/5"
+  >
+    <!-- ===== 背景装饰层（日间晨曦 / 夜间深空） ===== -->
+    <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+      <div class="aurora aurora-1" />
+      <div class="aurora aurora-2" />
+      <div class="aurora aurora-3" />
+      <div class="grid-overlay" />
+      <div class="stars" />
+      <div class="horizon-glow" />
+      <!-- 日间太阳光晕 -->
+      <div class="sun-glow" />
     </div>
 
-    <div v-else-if="loadError" class="text-center py-16 text-sm text-red-400">
-      {{ loadError }}
-      <button class="block mx-auto mt-2 text-blue-500 hover:underline" @click="loadData">
-        重试
-      </button>
-    </div>
-
-    <template v-else>
-      <!-- 用户信息 + 统计卡片合并行 -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
-        <!-- 用户信息卡 -->
-        <div
-          class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300 flex items-center gap-4"
-        >
-          <!-- 头像：点击更换，悬停显示遮罩提示 -->
-          <button
-            type="button"
-            class="relative group w-14 h-14 rounded-full shrink-0 overflow-hidden focus:outline-none"
-            title="点击更换头像"
-            :disabled="uploadingAvatar"
-            @click="pickAvatar"
-          >
-            <img
-              v-if="auth.user?.avatar"
-              :src="auth.user.avatar"
-              alt="头像"
-              class="w-full h-full object-cover"
-            />
-            <div
-              v-else
-              class="w-full h-full bg-blue-500 flex items-center justify-center text-lg font-semibold text-white"
-            >
-              {{ auth.user?.name?.charAt(0) || '用' }}
-            </div>
-            <div
-              class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center justify-center text-white text-[10px] font-medium"
-            >
-              {{ uploadingAvatar ? '上传中…' : '更换头像' }}
-            </div>
-          </button>
-          <input
-            ref="avatarInput"
-            type="file"
-            accept="image/png,image/jpeg,image/gif,image/webp"
-            class="hidden"
-            @change="handleAvatarChange"
+    <div class="relative max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      <!-- ===== 顶部标题行 ===== -->
+      <header class="rise flex items-center gap-4">
+        <div class="relative shrink-0">
+          <div
+            class="absolute -inset-1.5 rounded-2xl bg-sky-400/30 blur-lg dark:bg-cyan-400/25"
+            aria-hidden="true"
           />
-          <div class="min-w-0">
-            <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100 truncate">
-              {{ auth.user?.name || '未登录' }}
-            </h3>
-            <p class="text-xs text-slate-500 dark:text-slate-400">
-              {{ auth.user?.dept_name || '' }}
-            </p>
-            <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{{ roleLabel }}</p>
+          <div
+            class="relative flex w-12 h-12 sm:w-14 sm:h-14 rounded-2xl items-center justify-center bg-gradient-to-br from-sky-400 to-indigo-500 shadow-lg shadow-sky-500/30"
+          >
+            <AppIcon name="user" :size="26" class="text-white" />
           </div>
         </div>
+        <div class="min-w-0">
+          <h1
+            class="text-2xl sm:text-3xl font-black tracking-tight bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 bg-clip-text text-transparent dark:from-amber-200 dark:via-yellow-300 dark:to-orange-400"
+          >
+            个人中心
+          </h1>
+          <p
+            class="mt-1 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 flex-wrap"
+          >
+            <span class="live-dot" aria-hidden="true" />
+            数据实时同步
+            <span class="text-slate-300 dark:text-slate-600">·</span>
+            {{ auth.user?.name || '未登录' }}
+            <span class="text-slate-300 dark:text-slate-600">·</span>
+            {{ auth.user?.dept_name || '—' }}
+          </p>
+        </div>
+      </header>
 
-        <!-- 统计卡片 -->
-        <div class="col-span-2 grid grid-cols-4 gap-3">
-          <div
-            class="rounded-card p-4 text-center bg-amber-50 dark:bg-amber-900/20 transition-colors duration-300"
-          >
-            <div class="text-2xl font-bold text-amber-700 dark:text-amber-400 tabular-nums">
-              <AnimatedNumber :value="activeNotes" :format="fmtNum" />
-            </div>
-            <div class="text-xs text-amber-600 dark:text-amber-500 mt-1">活跃任务</div>
-          </div>
-          <div
-            class="rounded-card p-4 text-center bg-green-50 dark:bg-green-900/20 transition-colors duration-300"
-          >
-            <div class="text-2xl font-bold text-green-700 dark:text-green-400 tabular-nums">
-              <AnimatedNumber :value="completedNotes" :format="fmtNum" />
-            </div>
-            <div class="text-xs text-green-600 dark:text-green-500 mt-1">已完成</div>
-          </div>
-          <div
-            class="rounded-card p-4 text-center bg-red-50 dark:bg-red-900/20 transition-colors duration-300"
-          >
-            <div class="text-2xl font-bold text-red-700 dark:text-red-400 tabular-nums">
-              <AnimatedNumber :value="archivedNotes" :format="fmtNum" />
-            </div>
-            <div class="text-xs text-red-600 dark:text-red-500 mt-1">已归档</div>
-          </div>
-          <div
-            class="rounded-card p-4 text-center bg-slate-50 dark:bg-slate-800 transition-colors duration-300"
-          >
-            <div class="text-2xl font-bold text-slate-700 dark:text-slate-300 tabular-nums">
-              <AnimatedNumber :value="totalNotes" :format="fmtNum" />
-            </div>
-            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">任务总数</div>
-          </div>
-        </div>
+      <div v-if="loading" class="space-y-4">
+        <div class="skeleton h-40 rounded-card" />
+        <div class="skeleton h-64 rounded-card" />
+        <div class="skeleton h-64 rounded-card" />
       </div>
 
-      <!-- 活动热力图 (全宽) -->
-      <div class="mb-5">
-        <div
-          class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300"
-        >
-          <div class="flex items-center justify-between mb-4">
-            <div>
-              <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                归档活动热力图
-              </h4>
-              <span v-if="hoveredCell" class="text-xs text-slate-500 dark:text-slate-400 ml-2">
-                {{ hoveredCell.date }} · {{ hoveredCell.count }}条归档
-              </span>
-            </div>
-            <div class="flex items-center gap-3">
-              <select
-                v-model="selectedYear"
-                class="input-field !w-auto !py-1 !text-xs"
-                @change="loadData"
-              >
-                <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}年</option>
-              </select>
-              <div class="hidden sm:flex items-center gap-1">
-                <span class="text-[9px] text-slate-400 dark:text-slate-500 mr-1">少</span>
-                <div
-                  v-for="lv in 5"
-                  :key="lv"
-                  class="w-3 h-3 rounded-[2px]"
-                  :style="{ backgroundColor: getCellColor(lv - 1) }"
-                />
-                <span class="text-[9px] text-slate-400 dark:text-slate-500 ml-1">多</span>
-              </div>
-            </div>
-          </div>
+      <div
+        v-else-if="loadError"
+        class="py-16 text-center rounded-3xl glass-card text-sm text-rose-500 dark:text-rose-300"
+      >
+        {{ loadError }}
+        <button class="block mx-auto mt-2 text-sky-600 dark:text-cyan-300 hover:underline" @click="loadData">
+          重试
+        </button>
+      </div>
 
-          <div class="flex gap-1">
-            <!-- 星期标签（固定 7 行：周一 → 周日） -->
-            <div class="flex flex-col gap-[2px] pt-3 mr-1">
-              <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">一</span>
-              <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3" />
-              <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">三</span>
-              <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3" />
-              <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">五</span>
-              <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3" />
-              <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">日</span>
-            </div>
+      <template v-else>
+        <!-- ===== 个人名片 + 数据总览 ===== -->
+        <section class="glass-card rise" style="animation-delay: 60ms">
+          <div class="card-top-line" />
+          <div
+            class="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-sky-300/25 blur-3xl dark:bg-indigo-500/20"
+            aria-hidden="true"
+          />
 
-            <div class="flex-1 overflow-x-auto scrollbar-thin">
-              <!-- 月份标签 -->
-              <div class="flex gap-[2px] mb-1 h-3">
-                <template v-for="(ml, idx) in monthLabels" :key="idx">
-                  <div
-                    class="shrink-0"
-                    :style="{
-                      width: `${(idx === 0 ? ml.col : ml.col - monthLabels[idx - 1].col) * 14}px`,
-                    }"
-                  />
-                  <span
-                    class="text-[9px] text-slate-400 dark:text-slate-600 whitespace-nowrap shrink-0"
-                    >{{ ml.label }}</span
+          <div class="relative p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center gap-6">
+            <!-- 名片区：光环头像 + 姓名/部门/角色 -->
+            <div class="flex items-center gap-4 shrink-0">
+              <div class="halo">
+                <div class="avatar-inner">
+                  <button
+                    type="button"
+                    class="relative group block w-20 h-20 rounded-full overflow-hidden focus:outline-none"
+                    title="点击更换头像"
+                    :disabled="uploadingAvatar"
+                    @click="pickAvatar"
                   >
-                </template>
+                    <img
+                      v-if="auth.user?.avatar"
+                      :src="auth.user.avatar"
+                      alt="头像"
+                      class="w-full h-full object-cover"
+                    />
+                    <div
+                      v-else
+                      class="w-full h-full bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center text-2xl font-black text-white"
+                    >
+                      {{ auth.user?.name?.charAt(0) || '用' }}
+                    </div>
+                    <div
+                      class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center justify-center text-white text-[10px] font-medium"
+                    >
+                      {{ uploadingAvatar ? '上传中…' : '更换头像' }}
+                    </div>
+                  </button>
+                </div>
               </div>
+              <input
+                ref="avatarInput"
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                class="hidden"
+                @change="handleAvatarChange"
+              />
+              <div class="min-w-0">
+                <h3 class="text-xl font-black text-slate-800 dark:text-white truncate">
+                  {{ auth.user?.name || '未登录' }}
+                </h3>
+                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <AppIcon name="users" :size="13" class="text-sky-500 dark:text-cyan-300 shrink-0" />
+                  {{ auth.user?.dept_name || '—' }}
+                </p>
+                <span
+                  class="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gradient-to-r from-sky-500/15 to-indigo-500/15 text-sky-600 ring-1 ring-sky-500/25 dark:from-cyan-400/10 dark:to-indigo-400/10 dark:text-cyan-300 dark:ring-cyan-400/25"
+                >
+                  {{ roleLabel }}
+                </span>
+              </div>
+            </div>
 
-              <!-- 色块网格：固定每列 7 格，跨年占位透明 -->
-              <div class="flex gap-[2px]">
-                <div v-for="(col, ci) in heatMap" :key="ci" class="flex flex-col gap-[2px]">
-                  <div
-                    v-for="(cell, ri) in col"
-                    :key="ri"
-                    class="w-3 h-3 rounded-[2px] transition-colors duration-150"
-                    :class="cell.inYear ? 'cursor-pointer hover:ring-1 hover:ring-slate-400 dark:hover:ring-slate-500' : 'cursor-default'"
-                    :style="{ backgroundColor: getCellColor(cell.level, cell.inYear) }"
-                    :title="getCellTitle(cell)"
-                    @mouseenter="hoveredCell = cell"
-                    @mouseleave="hoveredCell = null"
-                  />
+            <!-- 统计区：4 个玻璃数据块 -->
+            <div class="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div class="glass-cell stat-cell">
+                <div class="text-[11px] text-slate-500 dark:text-slate-400">活跃任务</div>
+                <div class="text-2xl font-extrabold text-sky-600 dark:text-cyan-300 tabular-nums">
+                  <AnimatedNumber :value="activeNotes" :format="fmtNum" />
+                </div>
+              </div>
+              <div class="glass-cell stat-cell">
+                <div class="text-[11px] text-slate-500 dark:text-slate-400">已完成</div>
+                <div class="text-2xl font-extrabold text-emerald-600 dark:text-emerald-300 tabular-nums">
+                  <AnimatedNumber :value="completedNotes" :format="fmtNum" />
+                </div>
+              </div>
+              <div class="glass-cell stat-cell">
+                <div class="text-[11px] text-slate-500 dark:text-slate-400">已归档</div>
+                <div class="text-2xl font-extrabold text-rose-500 dark:text-rose-300 tabular-nums">
+                  <AnimatedNumber :value="archivedNotes" :format="fmtNum" />
+                </div>
+              </div>
+              <div class="glass-cell stat-cell">
+                <div class="text-[11px] text-slate-500 dark:text-slate-400">任务总数</div>
+                <div class="text-2xl font-extrabold text-slate-700 dark:text-slate-100 tabular-nums">
+                  <AnimatedNumber :value="totalNotes" :format="fmtNum" />
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <!-- 个人信息编辑表单 -->
-      <div class="mb-6">
-        <div
-          class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300 max-w-lg"
-        >
-          <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4">个人信息</h4>
-
-          <form @submit.prevent="handleSaveProfile" class="space-y-3">
-            <FloatingField v-model="editName" label="姓名" />
-            <div>
-              <span class="text-xs text-slate-400 dark:text-slate-500 mb-1 block">部门</span>
-              <input
-                :value="auth.user?.dept_name || ''"
-                class="input-field !py-1.5 !text-sm bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500"
-                disabled
-              />
+        <!-- 活动热力图 (全宽) -->
+        <section class="glass-card rise" style="animation-delay: 120ms">
+          <div class="card-top-line line-cyan" />
+          <div class="relative p-5 sm:p-6">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h4 class="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <AppIcon name="chart" :size="16" class="text-sky-500 dark:text-cyan-300" />
+                  归档活动热力图
+                </h4>
+                <span v-if="hoveredCell" class="text-xs text-slate-500 dark:text-slate-400 ml-6">
+                  {{ hoveredCell.date }} · {{ hoveredCell.count }}条归档
+                </span>
+              </div>
+              <div class="flex items-center gap-3">
+                <select
+                  v-model="selectedYear"
+                  class="input-field !w-auto !py-1 !text-xs"
+                  @change="loadData"
+                >
+                  <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}年</option>
+                </select>
+                <div class="hidden sm:flex items-center gap-1">
+                  <span class="text-[9px] text-slate-400 dark:text-slate-500 mr-1">少</span>
+                  <div
+                    v-for="lv in 5"
+                    :key="lv"
+                    class="w-3 h-3 rounded-[2px]"
+                    :style="{ backgroundColor: getCellColor(lv - 1) }"
+                  />
+                  <span class="text-[9px] text-slate-400 dark:text-slate-500 ml-1">多</span>
+                </div>
+              </div>
             </div>
-            <FloatingField v-model="editRank" label="警衔/职级" placeholder="如：二级警督" />
-            <FloatingField v-model="editPhone" label="手机号" type="tel" inputmode="tel" />
-            <FloatingField v-model="editEmail" label="邮箱" type="email" inputmode="email" />
-            <div>
-              <span class="text-xs text-slate-400 dark:text-slate-500 mb-1 block">角色</span>
-              <input
-                :value="roleLabel"
-                class="input-field !py-1.5 !text-sm bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500"
-                disabled
-              />
-            </div>
 
-            <transition name="error-slide">
-              <p v-if="profileError" class="text-xs text-red-500">{{ profileError }}</p>
-            </transition>
+            <div class="flex gap-1">
+              <!-- 星期标签（固定 7 行：周一 → 周日） -->
+              <div class="flex flex-col gap-[2px] pt-3 mr-1">
+                <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">一</span>
+                <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3" />
+                <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">三</span>
+                <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3" />
+                <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">五</span>
+                <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3" />
+                <span class="text-[9px] text-slate-400 dark:text-slate-600 h-3 leading-3">日</span>
+              </div>
 
-            <SubmitButton
-              type="submit"
-              class="w-full"
-              :state="profileSubmitState"
-              label="保存修改"
-              loading-label="保存中..."
-              success-label="✓ 已保存"
-              fail-label="✗ 保存失败"
-            />
-          </form>
-        </div>
-      </div>
+              <div class="flex-1 overflow-x-auto scrollbar-thin">
+                <!-- 月份标签 -->
+                <div class="flex gap-[2px] mb-1 h-3">
+                  <template v-for="(ml, idx) in monthLabels" :key="idx">
+                    <div
+                      class="shrink-0"
+                      :style="{
+                        width: `${(idx === 0 ? ml.col : ml.col - monthLabels[idx - 1].col) * 14}px`,
+                      }"
+                    />
+                    <span
+                      class="text-[9px] text-slate-400 dark:text-slate-600 whitespace-nowrap shrink-0"
+                      >{{ ml.label }}</span
+                    >
+                  </template>
+                </div>
 
-      <!-- 平台背景设置：上传背景图 + 透明度 + 填充方式，保存后全局生效 -->
-      <div class="mb-6">
-        <div
-          class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300 max-w-lg"
-        >
-          <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4">平台背景</h4>
-
-          <!-- 预览区：实时反映透明度 / 填充方式调整 -->
-          <div
-            class="relative h-36 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 mb-4"
-          >
-            <div v-if="bgPreviewStyle" class="absolute inset-0" :style="bgPreviewStyle" />
-            <div
-              v-else
-              class="absolute inset-0 flex items-center justify-center text-xs text-slate-400 dark:text-slate-500"
-            >
-              暂未设置背景图
+                <!-- 色块网格：固定每列 7 格，跨年占位透明 -->
+                <div class="flex gap-[2px]">
+                  <div v-for="(col, ci) in heatMap" :key="ci" class="flex flex-col gap-[2px]">
+                    <div
+                      v-for="(cell, ri) in col"
+                      :key="ri"
+                      class="w-3 h-3 rounded-[2px] transition-colors duration-150"
+                      :class="cell.inYear ? 'cursor-pointer hover:ring-1 hover:ring-slate-400 dark:hover:ring-slate-500' : 'cursor-default'"
+                      :style="{ backgroundColor: getCellColor(cell.level, cell.inYear) }"
+                      :title="getCellTitle(cell)"
+                      @mouseenter="hoveredCell = cell"
+                      @mouseleave="hoveredCell = null"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+        </section>
 
-          <input
-            ref="bgInput"
-            type="file"
-            accept="image/png,image/jpeg,image/gif,image/webp"
-            class="hidden"
-            @change="handleBgChange"
-          />
-          <div class="flex items-center gap-2 mb-4">
-            <button
-              type="button"
-              class="btn-primary text-xs !py-1.5 disabled:opacity-50"
-              :disabled="uploadingBg"
-              @click="bgInput?.click()"
-            >
-              {{ uploadingBg ? '上传中…' : bgUrl ? '更换背景图' : '上传背景图' }}
-            </button>
-            <button
-              v-if="bgUrl"
-              type="button"
-              class="btn-secondary text-xs !py-1.5"
-              @click="removeBackground"
-            >
-              移除
-            </button>
-          </div>
+        <!-- 个人信息编辑 + 平台背景设置（并排） -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          <!-- 个人信息编辑表单 -->
+          <section class="glass-card rise" style="animation-delay: 180ms">
+            <div class="card-top-line" />
+            <div class="relative p-5 sm:p-6">
+              <h4 class="text-sm font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                <AppIcon name="pencil" :size="16" class="text-sky-500 dark:text-cyan-300" />
+                个人信息
+              </h4>
 
-          <!-- 透明度滑块 -->
-          <div class="mb-4" :class="!bgUrl && 'opacity-40 pointer-events-none'">
-            <div class="flex justify-between text-xs text-slate-400 dark:text-slate-500 mb-1">
-              <span>透明度</span>
-              <span class="tabular-nums">{{ bgOpacity }}%</span>
+              <form @submit.prevent="handleSaveProfile" class="space-y-3">
+                <FloatingField v-model="editName" label="姓名" />
+                <div>
+                  <span class="text-xs text-slate-400 dark:text-slate-500 mb-1 block">部门</span>
+                  <input
+                    :value="auth.user?.dept_name || ''"
+                    class="input-field !py-1.5 !text-sm bg-white/60 dark:bg-white/5 text-slate-400 dark:text-slate-500"
+                    disabled
+                  />
+                </div>
+                <FloatingField v-model="editRank" label="警衔/职级" placeholder="如：二级警督" />
+                <FloatingField v-model="editPhone" label="手机号" type="tel" inputmode="tel" />
+                <FloatingField v-model="editEmail" label="邮箱" type="email" inputmode="email" />
+                <div>
+                  <span class="text-xs text-slate-400 dark:text-slate-500 mb-1 block">角色</span>
+                  <input
+                    :value="roleLabel"
+                    class="input-field !py-1.5 !text-sm bg-white/60 dark:bg-white/5 text-slate-400 dark:text-slate-500"
+                    disabled
+                  />
+                </div>
+
+                <transition name="error-slide">
+                  <p v-if="profileError" class="text-xs text-red-500">{{ profileError }}</p>
+                </transition>
+
+                <SubmitButton
+                  type="submit"
+                  class="w-full"
+                  :state="profileSubmitState"
+                  label="保存修改"
+                  loading-label="保存中..."
+                  success-label="✓ 已保存"
+                  fail-label="✗ 保存失败"
+                />
+              </form>
             </div>
-            <input
-              v-model.number="bgOpacity"
-              type="range"
-              min="0"
-              max="100"
-              step="5"
-              class="w-full accent-blue-500 cursor-pointer"
-            />
-          </div>
+          </section>
 
-          <!-- 填充方式 -->
-          <div class="mb-4" :class="!bgUrl && 'opacity-40 pointer-events-none'">
-            <span class="text-xs text-slate-400 dark:text-slate-500 mb-1.5 block">填充方式</span>
-            <div class="grid grid-cols-4 gap-2">
-              <button
-                v-for="opt in FILL_OPTIONS"
-                :key="opt.value"
-                type="button"
-                class="px-2 py-1.5 text-xs rounded-lg border transition-colors duration-150"
-                :class="
-                  bgFill === opt.value
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
-                    : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'
-                "
-                @click="bgFill = opt.value"
+          <!-- 平台背景设置：上传背景图 + 透明度 + 填充方式，保存后全局生效 -->
+          <section class="glass-card rise" style="animation-delay: 240ms">
+            <div class="card-top-line" />
+            <div class="relative p-5 sm:p-6">
+              <h4 class="text-sm font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                <AppIcon name="view" :size="16" class="text-sky-500 dark:text-cyan-300" />
+                平台背景
+              </h4>
+
+              <!-- 预览区：实时反映透明度 / 填充方式调整 -->
+              <div
+                class="relative h-36 rounded-xl overflow-hidden border border-sky-900/10 dark:border-white/10 bg-white/50 dark:bg-white/5 mb-4"
               >
-                {{ opt.label }}
+                <div v-if="bgPreviewStyle" class="absolute inset-0" :style="bgPreviewStyle" />
+                <div
+                  v-else
+                  class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-xs text-slate-400 dark:text-slate-500"
+                >
+                  <AppIcon name="monitor" :size="28" class="text-slate-300 dark:text-slate-600" />
+                  暂未设置背景图
+                </div>
+              </div>
+
+              <input
+                ref="bgInput"
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                class="hidden"
+                @change="handleBgChange"
+              />
+              <div class="flex items-center gap-2 mb-4">
+                <button
+                  type="button"
+                  class="btn-primary text-xs !py-1.5 disabled:opacity-50"
+                  :disabled="uploadingBg"
+                  @click="bgInput?.click()"
+                >
+                  {{ uploadingBg ? '上传中…' : bgUrl ? '更换背景图' : '上传背景图' }}
+                </button>
+                <button
+                  v-if="bgUrl"
+                  type="button"
+                  class="btn-secondary text-xs !py-1.5"
+                  @click="removeBackground"
+                >
+                  移除
+                </button>
+              </div>
+
+              <!-- 透明度滑块 -->
+              <div class="mb-4" :class="!bgUrl && 'opacity-40 pointer-events-none'">
+                <div class="flex justify-between text-xs text-slate-400 dark:text-slate-500 mb-1">
+                  <span>透明度</span>
+                  <span class="tabular-nums">{{ bgOpacity }}%</span>
+                </div>
+                <input
+                  v-model.number="bgOpacity"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  class="w-full accent-blue-500 cursor-pointer"
+                />
+              </div>
+
+              <!-- 填充方式 -->
+              <div class="mb-4" :class="!bgUrl && 'opacity-40 pointer-events-none'">
+                <span class="text-xs text-slate-400 dark:text-slate-500 mb-1.5 block">填充方式</span>
+                <div class="grid grid-cols-4 gap-2">
+                  <button
+                    v-for="opt in FILL_OPTIONS"
+                    :key="opt.value"
+                    type="button"
+                    class="px-2 py-1.5 text-xs rounded-lg border transition-colors duration-150"
+                    :class="
+                      bgFill === opt.value
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'
+                    "
+                    @click="bgFill = opt.value"
+                  >
+                    {{ opt.label }}
+                  </button>
+                </div>
+              </div>
+
+              <p v-if="bgError" class="text-xs text-red-500 mb-2">{{ bgError }}</p>
+              <p v-if="bgSaved" class="text-xs text-green-500 mb-2">✓ 已保存，背景全局生效</p>
+
+              <button
+                type="button"
+                class="w-full btn-primary text-sm !py-2 disabled:opacity-50"
+                :disabled="savingBg || (!bgUrl && !bgInitial)"
+                @click="handleSaveBackground"
+              >
+                {{ savingBg ? '保存中...' : '保存背景设置' }}
               </button>
             </div>
-          </div>
-
-          <p v-if="bgError" class="text-xs text-red-500 mb-2">{{ bgError }}</p>
-          <p v-if="bgSaved" class="text-xs text-green-500 mb-2">✓ 已保存，背景全局生效</p>
-
-          <button
-            type="button"
-            class="w-full btn-primary text-sm !py-2 disabled:opacity-50"
-            :disabled="savingBg || (!bgUrl && !bgInitial)"
-            @click="handleSaveBackground"
-          >
-            {{ savingBg ? '保存中...' : '保存背景设置' }}
-          </button>
+          </section>
         </div>
-      </div>
 
-      <!-- 庆祝动画偏好：任务归档「荣耀时刻」开关（localStorage 持久化） -->
-      <div class="mb-6">
-        <div
-          class="bg-white dark:bg-slate-800 rounded-card border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300 max-w-lg"
-        >
-          <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4">庆祝动画</h4>
-          <div class="flex items-center justify-between gap-4">
-            <div class="min-w-0">
-              <p class="text-sm text-slate-700 dark:text-slate-200">任务归档荣耀时刻</p>
-              <p class="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-                任务归档成功后播放五彩纸屑与勋章庆祝动画；关闭后以普通提示代替
-              </p>
+        <!-- 庆祝动画偏好：任务归档「荣耀时刻」开关（localStorage 持久化） -->
+        <section class="glass-card rise" style="animation-delay: 300ms">
+          <div class="card-top-line line-cyan" />
+          <div class="relative p-5 sm:p-6">
+            <h4 class="text-sm font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+              <AppIcon name="star" :size="16" class="text-amber-500 dark:text-amber-300" />
+              庆祝动画
+            </h4>
+            <div class="flex items-center justify-between gap-4">
+              <div class="min-w-0">
+                <p class="text-sm text-slate-700 dark:text-slate-200">任务归档荣耀时刻</p>
+                <p class="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                  任务归档成功后播放五彩纸屑与勋章庆祝动画；关闭后以普通提示代替
+                </p>
+              </div>
+              <FormToggle
+                :model-value="celebrationEnabled"
+                @update:model-value="setCelebrationEnabled"
+              />
             </div>
-            <FormToggle
-              :model-value="celebrationEnabled"
-              @update:model-value="setCelebrationEnabled"
-            />
           </div>
-        </div>
-      </div>
-    </template>
+        </section>
+      </template>
+    </div>
   </div>
 </template>
+
+<style scoped>
+/* ===== 玻璃卡（日间白色玻璃 / 夜间深色玻璃） ===== */
+.glass-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.66);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(125, 165, 220, 0.25);
+  box-shadow:
+    0 8px 30px rgba(56, 108, 180, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+:global(.dark) .glass-card,
+.dark .glass-card {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+/* 卡片顶部高光线 */
+.card-top-line {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(14, 165, 233, 0.55), transparent);
+}
+.card-top-line.line-cyan {
+  background: linear-gradient(to right, transparent, rgba(251, 191, 36, 0.6), transparent);
+}
+
+/* ===== 玻璃数据块 ===== */
+.glass-cell {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(125, 165, 220, 0.22);
+  background: rgba(255, 255, 255, 0.55);
+  padding: 0.625rem 0.75rem;
+}
+:global(.dark) .glass-cell,
+.dark .glass-cell {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* 统计块悬浮微动效 */
+.stat-cell {
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+.stat-cell:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(56, 108, 180, 0.12);
+}
+.dark .stat-cell:hover {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+/* ===== 极光光晕（日间晨曦云霞 / 夜间深空极光） ===== */
+/* 渐变本身已渐隐至透明，无需 blur 滤镜；漂移动画已取消，装饰为静态图层，降低合成开销 */
+.aurora {
+  position: absolute;
+  border-radius: 9999px;
+}
+.aurora-1 {
+  width: 520px;
+  height: 520px;
+  top: -160px;
+  left: -120px;
+  background: radial-gradient(circle, rgba(125, 211, 252, 0.55), transparent 65%);
+}
+.aurora-2 {
+  width: 460px;
+  height: 460px;
+  top: 8%;
+  right: -140px;
+  background: radial-gradient(circle, rgba(253, 186, 116, 0.4), transparent 65%);
+}
+.aurora-3 {
+  width: 420px;
+  height: 420px;
+  bottom: -140px;
+  left: 30%;
+  background: radial-gradient(circle, rgba(249, 168, 212, 0.4), transparent 65%);
+}
+.dark .aurora-1 {
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.5), transparent 65%);
+}
+.dark .aurora-2 {
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.35), transparent 65%);
+}
+.dark .aurora-3 {
+  background: radial-gradient(circle, rgba(244, 63, 94, 0.22), transparent 65%);
+}
+
+/* ===== 科技网格（顶部渐隐） ===== */
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(59, 130, 246, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59, 130, 246, 0.09) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 25%, transparent 75%);
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 25%, transparent 75%);
+}
+.dark .grid-overlay {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.07) 1px, transparent 1px);
+}
+
+/* ===== 日间：太阳光晕 ===== */
+.sun-glow {
+  position: absolute;
+  top: -140px;
+  right: 6%;
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(254, 240, 138, 0.75), rgba(253, 186, 116, 0.2) 45%, transparent 70%);
+}
+.dark .sun-glow {
+  display: none;
+}
+
+/* ===== 星点（日间金色光尘 / 夜间银白星点） ===== */
+.stars {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 20% 30%, rgba(253, 224, 71, 0.75), transparent 55%),
+    radial-gradient(1px 1px at 70% 15%, rgba(251, 191, 36, 0.5), transparent 55%),
+    radial-gradient(1.5px 1.5px at 85% 45%, rgba(56, 189, 248, 0.5), transparent 55%),
+    radial-gradient(1px 1px at 40% 70%, rgba(249, 168, 212, 0.5), transparent 55%),
+    radial-gradient(1px 1px at 10% 80%, rgba(253, 224, 71, 0.45), transparent 55%),
+    radial-gradient(1.2px 1.2px at 60% 85%, rgba(56, 189, 248, 0.45), transparent 55%),
+    radial-gradient(1px 1px at 33% 12%, rgba(251, 146, 60, 0.5), transparent 55%),
+    radial-gradient(1px 1px at 92% 68%, rgba(249, 168, 212, 0.45), transparent 55%);
+}
+.dark .stars {
+  background-image:
+    radial-gradient(1.5px 1.5px at 20% 30%, rgba(255, 255, 255, 0.8), transparent 55%),
+    radial-gradient(1px 1px at 70% 15%, rgba(255, 255, 255, 0.55), transparent 55%),
+    radial-gradient(1.5px 1.5px at 85% 45%, rgba(255, 255, 255, 0.5), transparent 55%),
+    radial-gradient(1px 1px at 40% 70%, rgba(255, 255, 255, 0.45), transparent 55%),
+    radial-gradient(1px 1px at 10% 80%, rgba(255, 255, 255, 0.4), transparent 55%),
+    radial-gradient(1.2px 1.2px at 60% 85%, rgba(255, 255, 255, 0.5), transparent 55%),
+    radial-gradient(1px 1px at 33% 12%, rgba(255, 255, 255, 0.6), transparent 55%),
+    radial-gradient(1px 1px at 92% 68%, rgba(255, 255, 255, 0.45), transparent 55%);
+}
+
+/* ===== 底部地平线光（日间暖阳 / 夜间蓝紫） ===== */
+.horizon-glow {
+  position: absolute;
+  bottom: -120px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70%;
+  height: 240px;
+  background: radial-gradient(ellipse, rgba(253, 186, 116, 0.3), rgba(125, 211, 252, 0.18) 45%, transparent 70%);
+}
+.dark .horizon-glow {
+  background: radial-gradient(ellipse, rgba(56, 189, 248, 0.22), rgba(99, 102, 241, 0.12) 45%, transparent 70%);
+}
+
+/* ===== 头像旋转光环（个人名片） ===== */
+.halo {
+  position: relative;
+  border-radius: 9999px;
+  padding: 3px;
+  background: conic-gradient(from 0deg, #38bdf8, #818cf8, #e0f2fe, #ffffff, #a5b4fc, #38bdf8);
+  animation: halo-spin 8s linear infinite;
+  box-shadow:
+    0 0 20px rgba(56, 189, 248, 0.45),
+    0 0 48px rgba(99, 102, 241, 0.2);
+}
+.dark .halo {
+  background: conic-gradient(from 0deg, #fbbf24, #f59e0b, #fef3c7, #ffffff, #fde68a, #fbbf24);
+  box-shadow:
+    0 0 20px rgba(251, 191, 36, 0.5),
+    0 0 48px rgba(251, 146, 60, 0.2);
+}
+@keyframes halo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.avatar-inner {
+  border-radius: 9999px;
+  padding: 2px;
+  background: #ffffff;
+}
+.dark .avatar-inner {
+  background: #0a0f22;
+}
+
+/* ===== LIVE 呼吸点 ===== */
+/* box-shadow 动画逐帧重绘，改为伪元素 transform/opacity 动画（合成器处理，不触发重绘） */
+.live-dot {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: #10b981;
+}
+.live-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1.5px solid rgba(16, 185, 129, 0.6);
+  animation: live-ring 2s ease-out infinite;
+}
+@keyframes live-ring {
+  to {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot::after {
+    animation: none;
+  }
+}
+
+/* ===== 入场动画 ===== */
+.rise {
+  opacity: 0;
+  animation: rise-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ===== 降低动态效果偏好 ===== */
+@media (prefers-reduced-motion: reduce) {
+  .aurora,
+  .halo,
+  .live-dot {
+    animation: none !important;
+  }
+  .rise {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
+</style>
